@@ -68,4 +68,10 @@ contract GeniusActionsTest is Test {
         geniusActions.removeAction("action1");
     }
 
+    function test_deployer_cannot_be_owner() public {
+        vm.prank(address(this));
+        vm.expectRevert();
+        GeniusActions secondContract = new GeniusActions(address(this));
+    }
+
 }
