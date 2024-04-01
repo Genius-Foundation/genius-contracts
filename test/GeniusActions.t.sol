@@ -105,14 +105,25 @@ contract GeniusActionsTest is Test {
     }
 
     function test_inactive_action() public {
+        // Add the action
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
         assertEq(geniusActions.getActiveActionName(0), "action1");
         assertEq(geniusActions.getAction("action1"), "ipfsHash1");
 
+        // Remove the action
         vm.prank(owner);
         geniusActions.removeAction("action1");
         vm.expectRevert();
         geniusActions.getAction("action1");
+
+        vm.expectRevert();
+        geniusActions.getActiveActionName(0);
+
+        // Check if the action is inactive
+        vm.expectRevert();
+        geniusActions.activeActionNames();
+        string[] memory inactiveActions = geniusActions.inactiveActionNames();
+        assertEq(inactiveActions.length, 1);
     }
 }

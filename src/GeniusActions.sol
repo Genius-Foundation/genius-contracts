@@ -97,6 +97,7 @@ contract GeniusActions is Ownable {
      * @return string[] An array of all the active action names.
      */
     function activeActionNames() public view returns (string[] memory) {
+        require(activeActions.length > 0, "No active actions");
         return activeActions;
     }
 
@@ -105,6 +106,7 @@ contract GeniusActions is Ownable {
      * @return string[] An array of all the historical action names.
      */
     function inactiveActionNames() public view returns (string[] memory) {
+        require(inactiveActions.length > 0, "No historical actions");
         return inactiveActions;
     }
 
