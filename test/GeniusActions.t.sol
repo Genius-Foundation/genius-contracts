@@ -21,24 +21,24 @@ contract GeniusActionsTest is Test {
     function test_action_addition_with_owner() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
-        assertEq(geniusActions.actionTypeToIpfsHash("action1"), "ipfsHash1");
+        assertEq(geniusActions.getAction("action1"), "ipfsHash1");
     }
 
     function test_returns_mapped_value() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
-        assertEq(geniusActions.actionTypeToIpfsHash("action1"), "ipfsHash1");
+        assertEq(geniusActions.getAction("action1"), "ipfsHash1");
     }
 
     function test_no_value_for_nonexistant_action() public {
-        vm.prank(owner);
-        assertEq(geniusActions.actionTypeToIpfsHash("action1"), "");
+        vm.expectRevert();
+        geniusActions.getAction("action1");
     }
 
     function test_duplicate_action() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
-        assertEq(geniusActions.actionTypeToIpfsHash("action1"), "ipfsHash1");
+        assertEq(geniusActions.getAction("action1"), "ipfsHash1");
 
         vm.expectRevert();
         geniusActions.addAction("action1", "ipfsHash1");
@@ -55,11 +55,14 @@ contract GeniusActionsTest is Test {
     function test_action_removal_with_owner() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
-        assertEq(geniusActions.actionTypeToIpfsHash("action1"), "ipfsHash1");
+        assertEq(geniusActions.getAction("action1"), "ipfsHash1");
 
         vm.prank(owner);
+        console.log("Action added");
         geniusActions.removeAction("action1");
-        assertEq(geniusActions.actionTypeToIpfsHash("action1"), "");
+        console.log("Action removed");  
+        vm.expectRevert();
+        geniusActions.getAction("action1");
     }
 
     function test_nonexistant_action_removal() public {
@@ -74,4 +77,38 @@ contract GeniusActionsTest is Test {
         GeniusActions secondContract = new GeniusActions(address(this));
     }
 
+    function test_get_action_names() public {
+        vm.prank(owner);
+        geniusActions.addAction("action1", "ipfsHash1");
+        assertEq(geniusActions.getActiveActionName(0), "action1");
+        assertEq(geniusActions.getAction("action1"), "ipfsHash1");
+        vm.expectRevert();
+        geniusActions.getInactiveActionName(0);
+    }
+
+    function test_get_inactive_action_names() public {
+        vm.prank(owner);
+        geniusActions.addAction("action1", "ipfsHash1");
+        assertEq(geniusActions.getActiveActionName(0), "action1");
+        assertEq(geniusActions.getAction("action1"), "ipfsHash1");
+
+        vm.prank(owner);
+        geniusActions.removeAction("action1");
+        assertEq(geniusActions.getInactiveActionName(0), "action1");
+        assertEq(geniusActions.getInactiveAction("action1"), "ipfsHash1");
+        vm.expectRevert();
+        geniusActions.getActiveActionName(0);
+    }
+
+    function test_inactive_action() public {
+        vm.prank(owner);
+        geniusActions.addAction("action1", "ipfsHash1");
+        assertEq(geniusActions.getActiveActionName(0), "action1");
+        assertEq(geniusActions.getAction("action1"), "ipfsHash1");
+
+        vm.prank(owner);
+        geniusActions.removeAction("action1");
+        vm.expectRevert();
+        geniusActions.getAction("action1");
+    }
 }
