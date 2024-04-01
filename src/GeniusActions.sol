@@ -2,6 +2,11 @@
 
 pragma solidity ^0.8.13;
 
+/**
+ * @title GeniusActions
+ * @dev A contract for managing Genius Protocol actions and their associated IPFS hashes.
+ */
+
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract GeniusActions is Ownable {
