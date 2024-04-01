@@ -75,6 +75,10 @@ contract GeniusActionsTest is Test {
         vm.prank(address(this));
         vm.expectRevert();
         GeniusActions secondContract = new GeniusActions(address(this));
+
+        vm.expectRevert();
+        vm.prank(address(this));
+        secondContract.addAction("action1", "ipfsHash1");
     }
 
     function test_get_action_names() public {
