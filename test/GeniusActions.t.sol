@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
 import {GeniusActions} from "../src/GeniusActions.sol";
@@ -58,9 +58,7 @@ contract GeniusActionsTest is Test {
         assertEq(geniusActions.getAction("action1"), "ipfsHash1");
 
         vm.prank(owner);
-        console.log("Action added");
-        geniusActions.removeAction("action1");
-        console.log("Action removed");  
+        geniusActions.removeAction("action1"); 
         vm.expectRevert();
         geniusActions.getAction("action1");
     }
