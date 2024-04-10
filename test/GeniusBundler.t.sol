@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
 import {GeniusBundler} from "../src/GeniusBundler.sol";
+import {LBQuoter, LBRouter} from "joe-v2/LBQuoter.sol";
 import {TestERC20} from "../src/TestERC20.sol";
 
 contract GeniusBundlerTest is Test {
@@ -89,5 +90,21 @@ contract GeniusBundlerTest is Test {
 
         assertTrue(success, "Execute function did not return true as expected.");
         assertEq(testERC20.balanceOf(coinReceiver), 500, "The coin receiver balance should be 500 after the successful execution");
+    }
+
+    function test_should_get_quote() public {
+        LBQuoter lbQuoter = new LBQuoter();
+        LBRouter lbRouter = new LBRouter();
+
+        address wavax = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
+        address coq = 0x420FcA0121DC28039145009570975747295f2329;
+
+        address[] memory route = new address[](2);
+        route[0] = wavax;
+        route[1] = coq;
+
+        LBQuoter.Quote memory quote = quoter.findBestPathFromAmountIn(tokenPath, amountIn);
+
+        // Create call data for swapExactNATIVEForTokens
     }
 }

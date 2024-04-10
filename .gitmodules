@@ -5,5 +5,5 @@
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 [submodule "lib/joe-v2"]
-	path = lib/joe-v2
+	path = lib/joe-v2/src
 	url = https://github.com/traderjoe-xyz/joe-v2
