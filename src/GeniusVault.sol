@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
+
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -7,8 +8,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * @title GeniusVault
  * @author altloot
  * 
- * @notice Contract allows for genius orchestrators to credit and debit
- *         trader balances cross-chain
+ * @notice Contract allows for Genius Orchestrators to credit and debit
+ *         trader stablecoin balances for cross-chain swaps.
+ *         and other Genius related activities.
  */
 
 contract GeniusVault is Ownable {
@@ -36,10 +38,10 @@ contract GeniusVault is Ownable {
     error NotOrchestrator();
 
     /**
-        * @dev Mapping of orchestrator addresses to their status
-        *      0: Not an orchestrator
-        *      1: Is an orchestrator
-     */
+    * @dev Mapping of orchestrator addresses to their status
+    *      0: Not an orchestrator
+    *      1: Is an orchestrator
+    */
     mapping(address => uint256) public isOrchestrator;
     // =============================================================
     //                          EVENTS
