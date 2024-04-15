@@ -3,108 +3,119 @@ pragma solidity ^0.8.20;
 
 
 import {Test, console} from "forge-std/Test.sol";
-import {GeniusBundler} from "../src/GeniusBundler.sol";
-import {LBQuoter, LBRouter} from "joe-v2/LBQuoter.sol";
+import {Permit2Multicaller} from "../src/Permit2Multicaller.sol";
+import {LBQuoter} from "joe-v2/LBQuoter.sol";
+import {LBRouter} from "joe-v2/LBRouter.sol";
+import {ILBRouter} from "joe-v2/interfaces/ILBRouter.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TestERC20} from "../src/TestERC20.sol";
 
-contract GeniusBundlerTest is Test {
+contract MulticallerWithSenderTest is Test {
+    // All of the addresses used in the tests
     address public trader = makeAddr("trader");
     address public coinReceiver = makeAddr("coinReceiver");
+    address public quoterAddress = 0xd76019A16606FDa4651f636D9751f500Ed776250;
+    address payable routerAddress = payable(0xb4315e873dBcf96Ffd0acd8EA43f689D8c20fB30);
 
-    GeniusBundler public geniusBundler = new GeniusBundler();
+    // The instances of the contracts used in the tests
+    LBRouter public lbRouter = LBRouter(routerAddress);
+    LBQuoter lbQuoter = LBQuoter(quoterAddress);
+
+    Permit2Multicaller public multicallerWithSender = new Permit2Multicaller(0x000000000022D473030F116dDEE9F6B43aC78BA3);
     TestERC20 public testERC20 = new TestERC20();
-    address public testERC20Address = address(testERC20);
-
-    function test_bundler_with_no_payloads() public {
-        vm.expectRevert();
-        geniusBundler.execute(new GeniusBundler.Payload[](0), false, false);
-    }
-
-    function test_bundler_with_too_many_payloads() public {
-        vm.expectRevert();
-        geniusBundler.execute(new GeniusBundler.Payload[](17), false, false);
-    }
-
-    function test_expect_return_false_after_first_failure() public {
-        vm.prank(trader);
-        TestERC20 testContract = new TestERC20();
-        address testContractAddress = address(testContract);
-
-        // Assuming trader does not have enough balance for the first callData
-        bytes memory callDataOne = abi.encodeWithSignature("transfer(address,uint256)", coinReceiver, 2000000000000000000000000);
-        bytes memory callDataTwo = abi.encodeWithSignature("transfer(address,uint256)", coinReceiver, 1000000000000000000000000);
-
-        GeniusBundler.Payload[] memory payloads = new GeniusBundler.Payload[](2);
-        payloads[0] = GeniusBundler.Payload(testContractAddress, callDataOne, 0);
-        payloads[1] = GeniusBundler.Payload(testContractAddress, callDataTwo, 0);
-
-        bool success = geniusBundler.execute(payloads, true, false);
-        assertEq(success, false, "The execute function should return false after the first failed payload");
-
-        // Verifying that the receiver's balance hasnt changed
-        assertEq(testContract.balanceOf(coinReceiver), 0, "The coin receiver's balance should remain unchanged after the failed execution");
-    }
-
-    /**
-     * @dev This function is a test case for the successful execution of the `execute` function in the `geniusBundler` contract.
-     * It performs the following steps:
-     * 1. Transfers 500 tokens from `testERC20` contract to the `trader` address.
-     * 2. Asserts that the balance of the `trader` address is 500 tokens.
-     * 3. Calls the `deal` function in the `vm` contract, passing `trader` and 1 ether as arguments.
-     * 4. Encodes two `transfer` function calls with different `callData` values.
-     * 5. Creates an array of `GeniusBundler.Payload` structs with the encoded `callData` values.
-     * 6. Calls the `execute` function in the `geniusBundler` contract with the array of payloads, setting both `revertOnFail` and `useDelegateCall` to false.
-     * 7. Asserts that the `execute` function returns true, indicating success.
-     * 8. Asserts that the `coinReceiver` address received 400 tokens after the successful execution.
-     */
-    function test_expect_successful_execution () public {
-        testERC20.transfer(trader, 500);
-        assertEq(testERC20.balanceOf(trader), 500, "The trader balance should be 500 after the transfer");
-
-        vm.deal(trader, 1 ether);
-
-        // Direct approval from trader to GeniusBundler to allow token transfer
-        vm.prank(trader);
-        testERC20.approve(address(geniusBundler), 1000);
-
-        bytes memory callDataOne = abi.encodeWithSignature(
-            "transferFrom(address,address,uint256)", 
-            trader, 
-            address(coinReceiver), 
-            250
-        );
-
-        bytes memory callDataTwo = abi.encodeWithSignature(
-            "transferFrom(address,address,uint256)", 
-            trader, 
-            address(coinReceiver), 
-            250
-        );
-
-        GeniusBundler.Payload[] memory payloads = new GeniusBundler.Payload[](2);
-        payloads[0] = GeniusBundler.Payload(testERC20Address, callDataOne, 0);
-        payloads[1] = GeniusBundler.Payload(testERC20Address, callDataTwo, 0);
-        
-
-        bool success = geniusBundler.execute(payloads, true, true);
-
-        assertTrue(success, "Execute function did not return true as expected.");
-        assertEq(testERC20.balanceOf(coinReceiver), 500, "The coin receiver balance should be 500 after the successful execution");
-    }
 
     function test_should_get_quote() public {
-        LBQuoter lbQuoter = new LBQuoter();
-        LBRouter lbRouter = new LBRouter();
 
         address wavax = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
+        address meow = 0x8aD25B0083C9879942A64f00F20a70D3278f6187;
         address coq = 0x420FcA0121DC28039145009570975747295f2329;
 
-        address[] memory route = new address[](2);
-        route[0] = wavax;
-        route[1] = coq;
+        address[] memory route1 = new address[](2);
+        route1[0] = wavax;
+        route1[1] = coq;
 
-        LBQuoter.Quote memory quote = quoter.findBestPathFromAmountIn(tokenPath, amountIn);
+        address[] memory route2 = new address[](2);
+        route2[0] = wavax;
+        route2[1] = meow;
+
+        uint128 amountInOne = 1 ether;
+        uint128 amountInTwo = 2 ether;
+
+        vm.deal(trader, 10 ether);
+        assertEq(address(trader).balance, 10 ether, "The trader should have 10 AVAX after the deal");
+
+        LBQuoter.Quote memory quoteOne = lbQuoter.findBestPathFromAmountIn(route1, amountInOne);
+        LBQuoter.Quote memory quoteTwo = lbQuoter.findBestPathFromAmountIn(route2, amountInTwo);
+
+        address[] memory addressArrayOne = quoteOne.route;
+        address[] memory addressArrayTwo = quoteTwo.route;
+
+        IERC20[] memory ierc20ArrayOne = new IERC20[](addressArrayOne.length);
+        IERC20[] memory ierc20ArrayTwo = new IERC20[](addressArrayTwo.length);
+
+        for (uint i = 0; i < addressArrayOne.length; i++) {
+            ierc20ArrayOne[i] = IERC20(addressArrayOne[i]);
+        }
+
+        for (uint i = 0; i < addressArrayTwo.length; i++) {
+            ierc20ArrayTwo[i] = IERC20(addressArrayTwo[i]);
+        }
+
+
+        // Initialize the first Path instance
+        ILBRouter.Path memory pathOne = ILBRouter.Path({
+            pairBinSteps: quoteOne.binSteps,
+            versions: quoteOne.versions,
+            tokenPath: ierc20ArrayOne
+        });
+
+        // Initialize the second Path instance
+        ILBRouter.Path memory pathTwo = ILBRouter.Path({
+            pairBinSteps: quoteTwo.binSteps,
+            versions: quoteTwo.versions,
+            tokenPath: ierc20ArrayTwo
+        });
+
 
         // Create call data for swapExactNATIVEForTokens
+        bytes memory swapOneCallData = abi.encodeWithSignature(
+            "swapExactNATIVEForTokens(uint256 amountOutMin, Path memory path, address to, uint256 deadline)",
+            amountInOne / 2,
+            pathOne,
+            address(trader),
+            block.timestamp + 1000
+        );
+
+        // Create call data for swapExactNATIVEForTokens
+        bytes memory swapTwoCallData = abi.encodeWithSignature(
+            "swapExactNATIVEForTokens(uint256 amountOutMin, Path memory path, address to, uint256 deadline)",
+            amountInTwo / 2,
+            pathTwo,
+            address(trader),
+            block.timestamp + 1000
+        );
+
+        vm.prank(trader);
+
+        /**
+            address[] calldata targets,
+            bytes[] calldata data,
+            uint256[] calldata values
+         */
+
+        // Declare the arrays in memory instead of calldata
+        address[] memory targets = new address[](2);
+        targets[0] = address(lbRouter);
+        targets[1] = address(lbRouter);
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = swapOneCallData; // Assuming swapOneCallData is already defined elsewhere
+        data[1] = swapTwoCallData; // Assuming swapTwoCallData is already defined elsewhere
+
+        uint256[] memory values = new uint256[](2);
+        values[0] = amountInOne; // Assuming amountInOne is already defined elsewhere
+        values[1] = amountInTwo; // Assuming amountInTwo is already defined elsewhere
+
+
     }
 }

@@ -2,16 +2,23 @@
 pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "permit2/interfaces/IAllowanceTransfer.sol";
 
 /**
- * @title MulticallerWithSender
- * @author vectorized.eth
+ * @title Permit2Multicaller
+ * @author altloot
+ * 
  * @notice Contract that allows for efficient aggregation of multiple calls
- *         in a single transaction, while "forwarding" the `msg.sender`.
+ *         in a single transaction, while "forwarding" the `msg.sender`. Additionally,
+ *         this contract also allows for the aggregation of multiple token transfers
+ *         and permits utilizing the Permit2 contract.
+ * 
+ * @dev Originally authored by vectorized.eth, this contract was modified to support
+ *      Permit2 token transfers and permits for multiple tokens.
  */
-contract MulticallerWithSender {
+contract Permit2Multicaller {
 
-    IPermit2 public immutable PERMIT2;
+    IAllowanceTransfer public immutable PERMIT2;
 
     // =============================================================
     //                            ERRORS
@@ -27,11 +34,19 @@ contract MulticallerWithSender {
      */
     error Reentrancy();
 
+    /**
+     * @dev The spender is not the contract itself.
+     */
+    error InvalidSpender();
+
     // =============================================================
     //                          CONSTRUCTOR
     // =============================================================
 
-    constructor() payable {
+    constructor(address _permit2) payable {
+
+        PERMIT2 = IAllowanceTransfer(_permit2);
+
         assembly {
             // Throughout this code, we will abuse returndatasize
             // in place of zero anywhere before a call to save a bit of gas.
@@ -57,6 +72,42 @@ contract MulticallerWithSender {
         }
     }
 
+
+    /**
+     * @dev Internal function to permit and transfer tokens from the caller's address.
+     * @param permitBatch The permit information for batch transfer.
+     * @param signature The signature for the permit.
+     */
+    function _permitAndBatchTransfer(
+        address owner, // owner of the tokens
+        IAllowanceTransfer.PermitBatch calldata permitBatch, // permissions for the batch transfer
+        bytes calldata signature // signature for the permit from the owner
+    ) private {
+        if (permitBatch.spender != address(this)) {
+            revert InvalidSpender();
+        }
+        PERMIT2.permit(owner, permitBatch, signature);
+
+        IAllowanceTransfer.AllowanceTransferDetails[] memory transferDetails = new IAllowanceTransfer.AllowanceTransferDetails[](
+            permitBatch.details.length
+        );
+        for (uint i = 0; i < permitBatch.details.length; ) {
+            transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
+                from: msg.sender,
+                to: address(this),
+                amount: permitBatch.details[i].amount,
+                token: permitBatch.details[i].token
+            });
+
+            unchecked {
+                i++;
+            }
+        }
+
+        PERMIT2.transferFrom(transferDetails);
+    }
+
+
     /**
      * @dev Aggregates multiple calls in a single transaction.
      *      This method will set `sender` to the `msg.sender` temporarily
@@ -68,19 +119,15 @@ contract MulticallerWithSender {
      * @return An array of the returndata from each call.
      */
     function aggregateWithSender(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
-        IERC20[] calldata tokens,
-        uint256[] calldata amounts
+        address[] calldata targets, // routers
+        bytes[] calldata data, // calldata
+        uint256[] calldata values, // native 
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata signature,
+        address owner
     ) external payable returns (bytes[] memory) {
 
-        // Check that the tokens and amounts arrays are the same length.
-        require(tokens.length == amounts.length, "MulticallerWithSender: ArrayLengthsMismatch");
-
-        if (tokens.length > 0 && amounts.length > 0) {
-
-        }
+        _permitAndBatchTransfer(owner, permitBatch, signature);
 
         assembly {
             if iszero(and(eq(targets.length, data.length), eq(data.length, values.length))) {
