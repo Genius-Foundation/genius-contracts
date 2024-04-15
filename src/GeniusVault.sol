@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title GeniusVault
@@ -10,7 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *         trader balances cross-chain
  */
 
-contract GeniusVault {
+contract GeniusVault is Ownable {
 
     // =============================================================
     //                          VARIABLES
@@ -68,7 +69,14 @@ contract GeniusVault {
     //                          CONSTRUCTOR
     // =============================================================
 
-    constructor(address _stablecoin) {
+    /**
+     * @dev Constructor function for the GeniusVault contract.
+     * @param _stablecoin The address of the stablecoin contract.
+     *
+     * @dev The deployer of the vault is the initial owner of the contract
+            so that they can add orchestrators to the vault.
+     */
+    constructor(address _stablecoin) Ownable(msg.sender) {
         stablecoin = IERC20(_stablecoin);
     }
 
@@ -113,5 +121,21 @@ contract GeniusVault {
 
         IERC20(stablecoin).transfer(_trader, _amount);
         emit Withdrawal(_trader, _amount);
+    }
+
+    /**
+    * @notice Adds an orchestrator to the vault
+    * @param _orchestrator The address of the orchestrator to add
+     */
+    function addOrchestrator(address _orchestrator) external onlyOwner {
+        isOrchestrator[_orchestrator] = 1;
+    }
+
+    /**
+    * @notice Removes an orchestrator from the vault
+    * @param _orchestrator The address of the orchestrator to remove
+    */
+    function removeOrchestrator(address _orchestrator) external onlyOwner {
+        isOrchestrator[_orchestrator] = 0;
     }
 }
