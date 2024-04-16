@@ -27,6 +27,7 @@ contract GeniusVault is Ownable {
     //                          VARIABLES
     // =============================================================
 
+    uint256 public currentDeposits;
     mapping(address => uint256) public isOrchestrator;
     mapping(address => uint256) public traderDeposits;
 
@@ -138,6 +139,7 @@ contract GeniusVault is Ownable {
         uint256 oldDepositAmount = traderDeposits[_trader];
 
         _permitAndDeposit(_permitSingle, _signature, _trader);
+        currentDeposits = STABLECOIN.balanceOf(address(this));
 
         uint256 newDepositAmount = traderDeposits[_trader];
         bool isSenderOrchestrator = isOrchestrator[msg.sender] == 1 ? true : false;
@@ -163,6 +165,8 @@ contract GeniusVault is Ownable {
 
 
         IERC20(STABLECOIN).transfer(_trader, _amount);
+        currentDeposits -= STABLECOIN.balanceOf(address(this));
+        
         emit Withdrawal(_trader, _amount);
     }
 
