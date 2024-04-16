@@ -104,6 +104,12 @@ contract GeniusVault is Ownable {
     //                          FUNCTIONS
     // =============================================================
 
+    /**
+     * @dev Internal function to permit and deposit tokens into the GeniusVault contract.
+     * @param _permitSingle The permit data for the token transfer.
+     * @param _signature The signature for the permit data.
+     * @param _trader The address of the trader making the deposit.
+     */
     function _permitAndDeposit(
         IAllowanceTransfer.PermitSingle calldata _permitSingle,
         bytes calldata _signature,
