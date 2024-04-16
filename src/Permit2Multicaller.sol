@@ -118,7 +118,7 @@ contract Permit2Multicaller {
      * @param values  How much ETH to forward to each target.
      * @return An array of the returndata from each call.
      */
-    function aggregateWithSender(
+    function aggregatePermit2WithSender(
         address[] calldata targets, // routers
         bytes[] calldata data, // calldata
         uint256[] calldata values, // native 
@@ -128,6 +128,93 @@ contract Permit2Multicaller {
     ) external payable returns (bytes[] memory) {
 
         _permitAndBatchTransfer(owner, permitBatch, signature);
+
+        assembly {
+            if iszero(and(eq(targets.length, data.length), eq(data.length, values.length))) {
+                // Store the function selector of `ArrayLengthsMismatch()`.
+                mstore(returndatasize(), 0x3b800a46)
+                // Revert with (offset, size).
+                revert(0x1c, 0x04)
+            }
+
+            if iszero(and(sload(returndatasize()), shl(160, 1))) {
+                // Store the function selector of `Reentrancy()`.
+                mstore(returndatasize(), 0xab143c06)
+                // Revert with (offset, size).
+                revert(0x1c, 0x04)
+            }
+
+            mstore(returndatasize(), 0x20) // Store the memory offset of the `results`.
+            mstore(0x20, data.length) // Store `data.length` into `results`.
+            // Early return if no data.
+            if iszero(data.length) { return(returndatasize(), 0x40) }
+
+            // Set the sender slot temporarily for the span of this transaction.
+            sstore(returndatasize(), caller())
+
+            let results := 0x40
+            // Left shift by 5 is equivalent to multiplying by 0x20.
+            data.length := shl(5, data.length)
+            // Copy the offsets from calldata into memory.
+            calldatacopy(results, data.offset, data.length)
+            // Offset into `results`.
+            let resultsOffset := data.length
+            // Pointer to the end of `results`.
+            // Recycle `data.length` to avoid stack too deep.
+            data.length := add(results, data.length)
+
+            for {} 1 {} {
+                // The offset of the current bytes in the calldata.
+                let o := add(data.offset, mload(results))
+                let memPtr := add(resultsOffset, 0x40)
+                // Copy the current bytes from calldata to the memory.
+                calldatacopy(
+                    memPtr,
+                    add(o, 0x20), // The offset of the current bytes' bytes.
+                    calldataload(o) // The length of the current bytes.
+                )
+                if iszero(
+                    call(
+                        gas(), // Remaining gas.
+                        calldataload(targets.offset), // Address to call.
+                        calldataload(values.offset), // ETH to send.
+                        memPtr, // Start of input calldata in memory.
+                        calldataload(o), // Size of input calldata.
+                        0x00, // We will use returndatacopy instead.
+                        0x00 // We will use returndatacopy instead.
+                    )
+                ) {
+                    // Bubble up the revert if the call reverts.
+                    returndatacopy(0x00, 0x00, returndatasize())
+                    revert(0x00, returndatasize())
+                }
+                // Advance the `targets.offset`.
+                targets.offset := add(targets.offset, 0x20)
+                // Advance the `values.offset`.
+                values.offset := add(values.offset, 0x20)
+                // Append the current `resultsOffset` into `results`.
+                mstore(results, resultsOffset)
+                results := add(results, 0x20)
+                // Append the returndatasize, and the returndata.
+                mstore(memPtr, returndatasize())
+                returndatacopy(add(memPtr, 0x20), 0x00, returndatasize())
+                // Advance the `resultsOffset` by `returndatasize() + 0x20`,
+                // rounded up to the next multiple of 0x20.
+                resultsOffset := and(add(add(resultsOffset, returndatasize()), 0x3f), not(0x1f))
+                if iszero(lt(results, data.length)) { break }
+            }
+            // Restore the `sender` slot.
+            sstore(0, shl(160, 1))
+            // Direct return.
+            return(0x00, add(resultsOffset, 0x40))
+        }
+    }
+
+    function aggregateWithSender(
+        address[] calldata targets, // routers
+        bytes[] calldata data, // calldata
+        uint256[] calldata values // native 
+    ) external payable returns (bytes[] memory) {
 
         assembly {
             if iszero(and(eq(targets.length, data.length), eq(data.length, values.length))) {

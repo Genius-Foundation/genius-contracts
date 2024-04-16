@@ -3,30 +3,32 @@ pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "permit2/interfaces/IAllowanceTransfer.sol";
 
 /**
  * @title GeniusVault
  * @author altloot
  * 
  * @notice Contract allows for Genius Orchestrators to credit and debit
- *         trader stablecoin balances for cross-chain swaps.
+ *         trader STABLECOIN balances for cross-chain swaps.
  *         and other Genius related activities.
  */
 
 contract GeniusVault is Ownable {
 
     // =============================================================
+    //                          INTERFACES
+    // =============================================================
+
+    IAllowanceTransfer public immutable PERMIT2;
+    IERC20 public immutable STABLECOIN;
+
+    // =============================================================
     //                          VARIABLES
     // =============================================================
 
-    IERC20 public immutable stablecoin;
-
-    /**
-    * @brihu23: We could possible track the max amount of tokens that can be borrowed here
-    * uint256 public maxBorrowAmount;
-    * Could be X% of the total amount of tokens in the vault or a fixed amount
-    */ 
-
+    mapping(address => uint256) public isOrchestrator;
+    mapping(address => uint256) public traderDeposits;
 
     // =============================================================
     //                            ERRORS
@@ -38,17 +40,31 @@ contract GeniusVault is Ownable {
     error NotOrchestrator();
 
     /**
-    * @dev Mapping of orchestrator addresses to their status
-    *      0: Not an orchestrator
-    *      1: Is an orchestrator
-    */
-    mapping(address => uint256) public isOrchestrator;
+     * @dev Error thrown when an invalid spender is encountered.
+     */
+    error InvalidSpender();
+
+    /**
+     * @dev Error thrown when an invalid trader is encountered.
+     */
+    error InvalidTrader();
+
+    /**
+     * @dev Error thrown when an invalid amount is encountered.
+     */
+    error InvalidAmount();
+
+    /**
+     * @dev Error thrown when an invalid deposit token is encountered.
+     */
+     error InvalidDepositToken();
+
     // =============================================================
     //                          EVENTS
     // =============================================================
 
-    event Deposit(address indexed trader, uint256 amount, bool isOrchestrator);
-    event Withdrawal(address indexed trader, uint256 amount);
+    event Deposit(address indexed trader, uint256 amountDeposited, uint256 oldDepositAmount, uint256 newDepositAmount, bool isOrchestrator);
+    event Withdrawal(address indexed trader, uint256 amountWithdrawn);
 
     // =============================================================
     //                          MODIFIERS
@@ -73,41 +89,66 @@ contract GeniusVault is Ownable {
 
     /**
      * @dev Constructor function for the GeniusVault contract.
-     * @param _stablecoin The address of the stablecoin contract.
+     * @param _stablecoin The address of the STABLECOIN contract.
      *
      * @dev The deployer of the vault is the initial owner of the contract
             so that they can add orchestrators to the vault.
      */
-    constructor(address _stablecoin) Ownable(msg.sender) {
-        stablecoin = IERC20(_stablecoin);
+    constructor(address _stablecoin, address _permit2) Ownable(msg.sender) {
+        STABLECOIN = IERC20(_stablecoin);
+        PERMIT2 = IAllowanceTransfer(_permit2);
     }
 
     // =============================================================
     //                          FUNCTIONS
     // =============================================================
 
+    function _permitAndDeposit(
+        IAllowanceTransfer.PermitSingle calldata _permitSingle,
+        bytes calldata _signature,
+        address _trader
+    ) private {
+       if (_permitSingle.spender != address(this)) revert InvalidSpender();
+       if (_permitSingle.details.token != address(STABLECOIN)) revert InvalidDepositToken();
+
+       PERMIT2.permit(msg.sender, _permitSingle, _signature);
+       PERMIT2.transferFrom(msg.sender, address(this), _permitSingle.details.amount, _permitSingle.details.token);
+
+       traderDeposits[_trader] += _permitSingle.details.amount;
+   }
+
     /**
      * @notice Deposits tokens into the vault
-     * @param _trader The address of the trader that is dep
-     * @param _amount The amount of tokens to deposit
+     * @param _trader The address of the trader that tokens are being deposited for
+     * @param _permitSingle The permit details for the token
+     * @param _signature The signature for the permit
      */
-    function addLiquidity(address _trader, uint256 _amount) external {
-        require(_amount > 0, "GeniusVault: Amount must be greater than 0");
-        require(_trader != address(0), "GeniusVault: Invalid trader address");
-
-        /**
-            * @dev If the msg.sender is not the trader, then the msg.sender must be an orchestrator
-                   This is so that events can be used for backend processing
-         */
+    function addLiquidity(
+        address _trader,
+        IAllowanceTransfer.PermitSingle calldata _permitSingle,
+        bytes calldata _signature
+    ) external {
+        if (_permitSingle.spender != address(this)) revert InvalidSpender();
+        if (_permitSingle.details.token != address(STABLECOIN)) revert InvalidDepositToken();
+        if (_permitSingle.details.amount == 0) revert InvalidAmount();
         if (msg.sender != _trader && isOrchestrator[msg.sender] != 1) {
             revert NotOrchestrator();
         }
 
-        IERC20(stablecoin).transferFrom(msg.sender, address(this), _amount);
+        uint256 oldDepositAmount = traderDeposits[_trader];
 
+        _permitAndDeposit(_permitSingle, _signature, _trader);
+
+        uint256 newDepositAmount = traderDeposits[_trader];
         bool isSenderOrchestrator = isOrchestrator[msg.sender] == 1 ? true : false;
 
-        emit Deposit(_trader, _amount, isSenderOrchestrator);
+        emit Deposit(
+            _trader,
+            _permitSingle.details.amount,
+            oldDepositAmount,
+            newDepositAmount,
+            isSenderOrchestrator
+        );
     }
 
     /**
@@ -116,12 +157,12 @@ contract GeniusVault is Ownable {
      * @param _amount The amount of tokens to withdraw
      */
     function removeLiquidity(address _trader, uint256 _amount) external onlyOrchestrator {
-        require(_amount > 0, "GeniusVault: Amount must be greater than 0");
-        require(IERC20(stablecoin).balanceOf(address(this)) > _amount, "GeniusVault: Insufficient balance");
-        require(_trader != address(0), "GeniusVault: Invalid trader address");
+        if (_amount == 0) revert InvalidAmount();
+        if (_trader == address(0)) revert InvalidTrader();
+        if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
 
 
-        IERC20(stablecoin).transfer(_trader, _amount);
+        IERC20(STABLECOIN).transfer(_trader, _amount);
         emit Withdrawal(_trader, _amount);
     }
 
@@ -130,6 +171,9 @@ contract GeniusVault is Ownable {
     * @param _orchestrator The address of the orchestrator to add
      */
     function addOrchestrator(address _orchestrator) external onlyOwner {
+        require(_orchestrator != address(0), "GeniusVault: orchestrator is the zero address");
+        require(isOrchestrator[_orchestrator] == 0, "GeniusVault: orchestrator already exists");
+
         isOrchestrator[_orchestrator] = 1;
     }
 
@@ -138,6 +182,9 @@ contract GeniusVault is Ownable {
     * @param _orchestrator The address of the orchestrator to remove
     */
     function removeOrchestrator(address _orchestrator) external onlyOwner {
+        require(_orchestrator != address(0), "GeniusVault: orchestrator is the zero address");
+        require(isOrchestrator[_orchestrator] == 1, "GeniusVault: orchestrator does not exist");
+
         isOrchestrator[_orchestrator] = 0;
     }
 }
