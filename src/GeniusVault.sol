@@ -20,7 +20,6 @@ contract GeniusVault is Ownable {
     //                          INTERFACES
     // =============================================================
 
-    IAllowanceTransfer public immutable PERMIT2;
     IERC20 public immutable STABLECOIN;
 
     // =============================================================
@@ -78,7 +77,7 @@ contract GeniusVault is Ownable {
      * @notice If non orchestrators tries to call a function with this modifier, a revert with an error message is triggered.
      */
     modifier onlyOrchestrator() {
-            if (isOrchestrator[msg.sender] != 1) {
+            if (isOrchestrator[tx.origin] != 1) {
                 revert NotOrchestrator();
             }
         _;
@@ -95,9 +94,12 @@ contract GeniusVault is Ownable {
      * @dev The deployer of the vault is the initial owner of the contract
             so that they can add orchestrators to the vault.
      */
-    constructor(address _stablecoin, address _permit2) Ownable(msg.sender) {
+    constructor(address _stablecoin, address _owner) Ownable(_owner) {
+        require(_stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
+        require(_owner != address(0), "GeniusVault: Owner address is the zero address");
+        require(_owner == address(msg.sender), "GeniusVault: Owner address is not the deployer");
+
         STABLECOIN = IERC20(_stablecoin);
-        PERMIT2 = IAllowanceTransfer(_permit2);
     }
 
     // =============================================================
@@ -105,54 +107,33 @@ contract GeniusVault is Ownable {
     // =============================================================
 
     /**
-     * @dev Internal function to permit and deposit tokens into the GeniusVault contract.
-     * @param _permitSingle The permit data for the token transfer.
-     * @param _signature The signature for the permit data.
-     * @param _trader The address of the trader making the deposit.
-     */
-    function _permitAndDeposit(
-        IAllowanceTransfer.PermitSingle calldata _permitSingle,
-        bytes calldata _signature,
-        address _trader
-    ) private {
-       if (_permitSingle.spender != address(this)) revert InvalidSpender();
-       if (_permitSingle.details.token != address(STABLECOIN)) revert InvalidDepositToken();
-
-       PERMIT2.permit(msg.sender, _permitSingle, _signature);
-       PERMIT2.transferFrom(msg.sender, address(this), _permitSingle.details.amount, _permitSingle.details.token);
-
-       traderDeposits[_trader] += _permitSingle.details.amount;
-   }
-
-    /**
      * @notice Deposits tokens into the vault
      * @param _trader The address of the trader that tokens are being deposited for
-     * @param _permitSingle The permit details for the token
-     * @param _signature The signature for the permit
+     * @param _amount The amount of tokens to deposit
      */
     function addLiquidity(
         address _trader,
-        IAllowanceTransfer.PermitSingle calldata _permitSingle,
-        bytes calldata _signature
+        uint256 _amount
     ) external {
-        if (_permitSingle.spender != address(this)) revert InvalidSpender();
-        if (_permitSingle.details.token != address(STABLECOIN)) revert InvalidDepositToken();
-        if (_permitSingle.details.amount == 0) revert InvalidAmount();
-        if (msg.sender != _trader && isOrchestrator[msg.sender] != 1) {
-            revert NotOrchestrator();
-        }
+        if (_trader == address(0)) revert InvalidTrader();
+        if (_amount == 0) revert InvalidAmount();
 
         uint256 oldDepositAmount = traderDeposits[_trader];
 
-        _permitAndDeposit(_permitSingle, _signature, _trader);
+        // Transfer the amount from the trader to the vault
+        IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
+
         currentDeposits = STABLECOIN.balanceOf(address(this));
 
+        traderDeposits[_trader] += _amount;
+
         uint256 newDepositAmount = traderDeposits[_trader];
-        bool isSenderOrchestrator = isOrchestrator[msg.sender] == 1 ? true : false;
+
+        bool isSenderOrchestrator = isOrchestrator[tx.origin] == 1 ? true : false;
 
         emit Deposit(
             _trader,
-            _permitSingle.details.amount,
+            _amount,
             oldDepositAmount,
             newDepositAmount,
             isSenderOrchestrator
@@ -166,12 +147,13 @@ contract GeniusVault is Ownable {
      */
     function removeLiquidity(address _trader, uint256 _amount) external onlyOrchestrator {
         if (_amount == 0) revert InvalidAmount();
+        if (_amount > currentDeposits) revert InvalidAmount();
         if (_trader == address(0)) revert InvalidTrader();
         if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
 
 
-        IERC20(STABLECOIN).transfer(_trader, _amount);
-        currentDeposits -= STABLECOIN.balanceOf(address(this));
+        IERC20(STABLECOIN).transfer(msg.sender, _amount);
+        currentDeposits = STABLECOIN.balanceOf(address(this));
         
         emit Withdrawal(_trader, _amount);
     }

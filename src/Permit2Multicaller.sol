@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "permit2/interfaces/IAllowanceTransfer.sol";
+import "./GeniusVault.sol";
 
 /**
  * @title Permit2Multicaller
@@ -19,6 +20,8 @@ import "permit2/interfaces/IAllowanceTransfer.sol";
 contract Permit2Multicaller {
 
     IAllowanceTransfer public immutable PERMIT2;
+    GeniusVault public immutable VAULT;
+    IERC20 public immutable STABLECOIN;
 
     // =============================================================
     //                            ERRORS
@@ -43,9 +46,11 @@ contract Permit2Multicaller {
     //                          CONSTRUCTOR
     // =============================================================
 
-    constructor(address _permit2) payable {
+    constructor(address _permit2, address _vault) payable {
 
         PERMIT2 = IAllowanceTransfer(_permit2);
+        VAULT = GeniusVault(_vault);
+        STABLECOIN = IERC20(VAULT.STABLECOIN());
 
         assembly {
             // Throughout this code, we will abuse returndatasize
@@ -79,14 +84,13 @@ contract Permit2Multicaller {
      * @param signature The signature for the permit.
      */
     function _permitAndBatchTransfer(
-        address owner, // owner of the tokens
         IAllowanceTransfer.PermitBatch calldata permitBatch, // permissions for the batch transfer
         bytes calldata signature // signature for the permit from the owner
     ) private {
         if (permitBatch.spender != address(this)) {
             revert InvalidSpender();
         }
-        PERMIT2.permit(owner, permitBatch, signature);
+        PERMIT2.permit(msg.sender, permitBatch, signature);
 
         IAllowanceTransfer.AllowanceTransferDetails[] memory transferDetails = new IAllowanceTransfer.AllowanceTransferDetails[](
             permitBatch.details.length
@@ -123,11 +127,10 @@ contract Permit2Multicaller {
         bytes[] calldata data, // calldata
         uint256[] calldata values, // native 
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
-        address owner
+        bytes calldata signature
     ) external payable returns (bytes[] memory) {
 
-        _permitAndBatchTransfer(owner, permitBatch, signature);
+        _permitAndBatchTransfer(permitBatch, signature);
 
         assembly {
             if iszero(and(eq(targets.length, data.length), eq(data.length, values.length))) {
@@ -294,6 +297,87 @@ contract Permit2Multicaller {
             sstore(0, shl(160, 1))
             // Direct return.
             return(0x00, add(resultsOffset, 0x40))
+        }
+    }
+
+       /**
+     * @dev Aggregates multiple calls in a single transaction.
+     *      This method will set `sender` to the `msg.sender` temporarily
+     *      for the span of its execution.
+     *      This method does not support reentrancy.
+     * @param target An array of addresses to call.
+     * @param data    An array of calldata to forward to the targets.
+     * @param value  How much ETH to forward to each target.
+     * @param permitBatch The permit information for batch transfer.
+     * @param signature The signature for the permit.
+     * @param trader The address of the trader to deposit for.
+     */
+    function tokenSwapAndDeposit(
+        address target, // routers
+        bytes calldata data, // calldata
+        uint256 value, // native 
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata signature,
+        address trader
+    ) external payable {
+         _permitAndBatchTransfer(permitBatch, signature);
+         
+        assembly {
+            sstore(returndatasize(), caller())
+        }
+
+        address tokenToSwapAddress = permitBatch.details[0].token;
+        IERC20 tokenToSwap = IERC20(tokenToSwapAddress);
+
+        uint256 amountToSwap = tokenToSwap.balanceOf(address(this));
+        require(tokenToSwap.approve(target, amountToSwap), "Approval failed");
+
+        (bool success, ) = target.call{value: value}(data);
+
+        require(success, "External call failed");
+
+        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this));
+        require(STABLECOIN.approve(address(VAULT), amountToDeposit), "Approval failed");
+
+        VAULT.addLiquidity(trader, amountToDeposit);
+
+        assembly {
+            // Restore the `sender` slot.
+            sstore(0, shl(160, 1))
+        }
+    }
+
+/**
+ * @dev Simplified function to perform a single swap and then deposit stablecoins to a vault.
+ * @param target The address to call.
+ * @param data The calldata to forward to the target.
+ * @param value How much ETH to forward to the target.
+ * @param trader The address of the trader to deposit for.
+ */
+function nativeSwapAndDeposit(
+    address target,
+    bytes calldata data,
+    uint256 value,
+    address trader
+) external payable {
+        require(target != address(0), "Invalid target address");
+
+        assembly {
+            // Set the sender slot temporarily for the span of this transaction.
+            sstore(returndatasize(), caller())
+        }
+
+        (bool success, ) = target.call{value: value}(data);
+        require(success, "External call failed");
+
+        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this));
+        require(STABLECOIN.approve(address(VAULT), amountToDeposit), "Approval failed");
+
+        VAULT.addLiquidity(trader, amountToDeposit);
+
+        assembly {
+            // Restore the `sender` slot.
+            sstore(0, shl(160, 1))
         }
     }
 }

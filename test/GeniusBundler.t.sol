@@ -21,7 +21,7 @@ contract MulticallerWithSenderTest is Test {
     LBRouter public lbRouter = LBRouter(routerAddress);
     LBQuoter lbQuoter = LBQuoter(quoterAddress);
 
-    Permit2Multicaller public multicallerWithSender = new Permit2Multicaller(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    Permit2Multicaller public multicallerWithSender = new Permit2Multicaller(0x000000000022D473030F116dDEE9F6B43aC78BA3, 0x000000000022D473030F116dDEE9F6B43aC78BA3);
     TestERC20 public testERC20 = new TestERC20();
 
     function test_should_get_quote() public {
