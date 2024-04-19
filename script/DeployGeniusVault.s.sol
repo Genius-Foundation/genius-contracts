@@ -22,7 +22,7 @@ contract DeployGeniusVault is Script {
         vm.broadcast(deployerPrivateKey);
 
         GeniusVault geniusVault = new GeniusVault(
-            0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA,
+            0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E,
             0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909
         );
     }
