@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "permit2/interfaces/IAllowanceTransfer.sol";
-import "./GeniusVault.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
+import { GeniusVault } from "./GeniusVault.sol";
 
 /**
  * @title GeniusExecutor
@@ -24,28 +24,12 @@ contract GeniusExecutor {
     GeniusVault public immutable VAULT;
     IERC20 public immutable STABLECOIN;
 
-    // =============================================================
-    //                            ERRORS
-    // =============================================================
-
-    /**
-     * @dev The lengths of the input arrays are not the same.
-     */
     error ArrayLengthsMismatch();
-
-    /**
-     * @dev This function does not support reentrancy.
-     */
     error Reentrancy();
-
-    /**
-     * @dev The spender is not the contract itself.
-     */
-    error InvalidSpender();
-
-    // =============================================================
-    //                          CONSTRUCTOR
-    // =============================================================
+    error InvalidSpender(address invalidSpender);
+    error ApprovalFailure(address token, uint256 amount);
+    error ExternalCallFailed(address target, uint256 index);
+    error InsufficientNativeBalance(uint256 expectedAmount, uint256 actualAmount);
 
     constructor(address _permit2, address _vault) payable {
 
@@ -54,18 +38,10 @@ contract GeniusExecutor {
         STABLECOIN = IERC20(VAULT.STABLECOIN());
 
         assembly {
-            // Throughout this code, we will abuse returndatasize
-            // in place of zero anywhere before a call to save a bit of gas.
-            // We will use storage slot zero to store the caller at
-            // bits [0..159] and reentrancy guard flag at bit 160.
             sstore(returndatasize(), shl(160, 1))
         }
 
     }
-
-    // =============================================================
-    //                    AGGREGATION OPERATIONS
-    // =============================================================
 
     /**
      * @dev Returns the address that called `aggregateWithSender` on this contract.
@@ -76,42 +52,6 @@ contract GeniusExecutor {
             mstore(returndatasize(), and(sub(shl(160, 1), 1), sload(returndatasize())))
             return(returndatasize(), 0x20)
         }
-    }
-
-
-    /**
-     * @dev Internal function to permit and transfer tokens from the caller's address.
-     * @param permitBatch The permit information for batch transfer.
-     * @param signature The signature for the permit.
-     * @param owner The address of the trader to deposit for.
-     */
-    function _permitAndBatchTransfer(
-        IAllowanceTransfer.PermitBatch calldata permitBatch, // permissions for the batch transfer
-        bytes calldata signature, // signature for the permit from the owner
-        address owner
-    ) private {
-        if (permitBatch.spender != address(this)) {
-            revert InvalidSpender();
-        }
-        PERMIT2.permit(owner, permitBatch, signature);
-
-        IAllowanceTransfer.AllowanceTransferDetails[] memory transferDetails = new IAllowanceTransfer.AllowanceTransferDetails[](
-            permitBatch.details.length
-        );
-        for (uint i = 0; i < permitBatch.details.length; ) {
-            transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
-                from: owner,
-                to: address(this),
-                amount: permitBatch.details[i].amount,
-                token: permitBatch.details[i].token
-            });
-
-            unchecked {
-                i++;
-            }
-        }
-
-        PERMIT2.transferFrom(transferDetails);
     }
 
 
@@ -317,9 +257,9 @@ contract GeniusExecutor {
      * @param owner The address of the trader to deposit for.
      */
     function tokenSwapAndDeposit(
-        address target, // routers
-        bytes calldata data, // calldata
-        uint256 value, // native 
+        address target,
+        bytes calldata data,
+        uint256 value,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
@@ -334,14 +274,15 @@ contract GeniusExecutor {
         IERC20 tokenToSwap = IERC20(tokenToSwapAddress);
 
         uint256 amountToSwap = tokenToSwap.balanceOf(address(this));
-        require(tokenToSwap.approve(target, amountToSwap), "Approval failed");
+        if (!tokenToSwap.approve(target, amountToSwap)) revert ApprovalFailure(tokenToSwapAddress, amountToSwap);
+
+        uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
 
         (bool success, ) = target.call{value: value}(data);
+        if(!success) revert ExternalCallFailed(target, 0);
 
-        require(success, "External call failed");
-
-        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this));
-        require(STABLECOIN.approve(address(VAULT), amountToDeposit), "Approval failed");
+        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
+        if (!STABLECOIN.approve(address(VAULT), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         VAULT.addLiquidity(owner, amountToDeposit);
 
@@ -350,6 +291,8 @@ contract GeniusExecutor {
             sstore(0, shl(160, 1))
         }
     }
+
+
     /**
      * @dev Executes multiple swaps and deposits in a single transaction.
      * @param targets The array of target addresses to call.
@@ -362,42 +305,51 @@ contract GeniusExecutor {
      *      Native swaps can be performed by setting the token address to 0.
      *      If the token address is not 0, the contract will approve the target 
      */
-
     function multiSwapAndDeposit(
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values,
+        address[] calldata routers,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
     ) external payable {
-        if (targets.length != data.length || data.length != values.length) revert ArrayLengthsMismatch();
+        if (
+            targets.length != data.length ||
+            data.length != values.length ||
+            routers.length != permitBatch.details.length
+        ) revert ArrayLengthsMismatch();
+
+        uint256 totalRequiredValue = 0;
+        for (uint i = 0; i < values.length; i++) {
+            totalRequiredValue += values[i];
+        }
+        if (totalRequiredValue > address(this).balance) revert InsufficientNativeBalance(totalRequiredValue, address(this).balance);
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
-        assembly {
-            sstore(returndatasize(), caller())
-        }
+        for (uint i = 0; i < permitBatch.details.length;) {
+            IERC20 tokenToApprove = IERC20(permitBatch.details[i].token);
+            uint256 amountToApprove = permitBatch.details[i].amount;
 
-        for (uint i = 0; i < targets.length;) {
-            if (values[i] == 0 && permitBatch.details[i].token != address(0)) {
-                IERC20 tokenToApprove = IERC20(permitBatch.details[i].token);
-                uint256 tokenAmount = tokenToApprove.balanceOf(address(this));
-                require(tokenToApprove.approve(targets[i], tokenAmount), "Approval failed");
-            }
-
-            (bool success, ) = targets[i].call{value: values[i]}(data[i]);
-            require(success, "Target call failed");
+            if (!tokenToApprove.approve(routers[i], amountToApprove)) revert ApprovalFailure(permitBatch.details[i].token, amountToApprove);
 
             unchecked { i++; }
         }
 
-        assembly {
-            sstore(0, shl(160, 1))
+        uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
+        
+        for (uint i = 0; i < targets.length; i++) {
+            (bool success, ) = targets[i].call{value: values[i]}(data[i]);
+            require(success, "External call failed");
         }
+
+        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
+
+        if (!STABLECOIN.approve(address(VAULT), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
+
+        VAULT.addLiquidity(owner, amountToDeposit);
     }
-
-
 
 
     /**
@@ -421,10 +373,11 @@ contract GeniusExecutor {
         }
 
         (bool success, ) = target.call{value: value}(data);
-        require(success, "External call failed");
+
+        if (!success) revert ExternalCallFailed(target, 0);
 
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this));
-        require(STABLECOIN.approve(address(VAULT), amountToDeposit), "Approval failed");
+        if (!STABLECOIN.approve(address(VAULT), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         VAULT.addLiquidity(trader, amountToDeposit);
 
@@ -432,5 +385,41 @@ contract GeniusExecutor {
             // Restore the `sender` slot.
             sstore(0, shl(160, 1))
         }
+    }
+
+
+    /**
+     * @dev Internal function to permit and transfer tokens from the caller's address.
+     * @param permitBatch The permit information for batch transfer.
+     * @param signature The signature for the permit.
+     * @param owner The address of the trader to deposit for.
+     */
+    function _permitAndBatchTransfer(
+        IAllowanceTransfer.PermitBatch calldata permitBatch, // permissions for the batch transfer
+        bytes calldata signature, // signature for the permit from the owner
+        address owner
+    ) private {
+        if (permitBatch.spender != address(this)) {
+            revert InvalidSpender(permitBatch.spender);
+        }
+        PERMIT2.permit(owner, permitBatch, signature);
+
+        IAllowanceTransfer.AllowanceTransferDetails[] memory transferDetails = new IAllowanceTransfer.AllowanceTransferDetails[](
+            permitBatch.details.length
+        );
+        for (uint i = 0; i < permitBatch.details.length; ) {
+            transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
+                from: owner,
+                to: address(this),
+                amount: permitBatch.details[i].amount,
+                token: permitBatch.details[i].token
+            });
+
+            unchecked {
+                i++;
+            }
+        }
+
+        PERMIT2.transferFrom(transferDetails);
     }
 }
