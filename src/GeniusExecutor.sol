@@ -14,9 +14,6 @@ import { GeniusVault } from "./GeniusVault.sol";
  *         this contract also allows for the aggregation of multiple token transfers
  *         and permits utilizing the Permit2 contract, as well as depositing stablecoins
  *         to a Genius Vault.
- * 
- * @dev Originally authored by vectorized.eth, this contract was modified to support
- *      Permit2 token transfers and permits for multiple tokens.
  */
 contract GeniusExecutor {
 
@@ -37,23 +34,7 @@ contract GeniusExecutor {
         VAULT = GeniusVault(_vault);
         STABLECOIN = IERC20(VAULT.STABLECOIN());
 
-        assembly {
-            sstore(returndatasize(), shl(160, 1))
-        }
-
     }
-
-    /**
-     * @dev Returns the address that called `aggregateWithSender` on this contract.
-     *      The value is always the zero address outside a transaction.
-     */
-    receive() external payable {
-        assembly {
-            mstore(returndatasize(), and(sub(shl(160, 1), 1), sload(returndatasize())))
-            return(returndatasize(), 0x20)
-        }
-    }
-
 
     /**
      * @dev Aggregates multiple calls in a single transaction.
@@ -63,185 +44,31 @@ contract GeniusExecutor {
      * @param targets An array of addresses to call.
      * @param data    An array of calldata to forward to the targets.
      * @param values  How much ETH to forward to each target.
-     * @return An array of the returndata from each call.
      */
-    function aggregatePermit2WithSender(
+    function aggregateWithPermit2(
         address[] calldata targets, // routers
         bytes[] calldata data, // calldata
         uint256[] calldata values, // native 
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external payable returns (bytes[] memory) {
-
+    ) external payable {
         _permitAndBatchTransfer(permitBatch, signature, owner);
-
-        assembly {
-            if iszero(and(eq(targets.length, data.length), eq(data.length, values.length))) {
-                // Store the function selector of `ArrayLengthsMismatch()`.
-                mstore(returndatasize(), 0x3b800a46)
-                // Revert with (offset, size).
-                revert(0x1c, 0x04)
-            }
-
-            if iszero(and(sload(returndatasize()), shl(160, 1))) {
-                // Store the function selector of `Reentrancy()`.
-                mstore(returndatasize(), 0xab143c06)
-                // Revert with (offset, size).
-                revert(0x1c, 0x04)
-            }
-
-            mstore(returndatasize(), 0x20) // Store the memory offset of the `results`.
-            mstore(0x20, data.length) // Store `data.length` into `results`.
-            // Early return if no data.
-            if iszero(data.length) { return(returndatasize(), 0x40) }
-
-            // Set the sender slot temporarily for the span of this transaction.
-            sstore(returndatasize(), caller())
-
-            let results := 0x40
-            // Left shift by 5 is equivalent to multiplying by 0x20.
-            data.length := shl(5, data.length)
-            // Copy the offsets from calldata into memory.
-            calldatacopy(results, data.offset, data.length)
-            // Offset into `results`.
-            let resultsOffset := data.length
-            // Pointer to the end of `results`.
-            // Recycle `data.length` to avoid stack too deep.
-            data.length := add(results, data.length)
-
-            for {} 1 {} {
-                // The offset of the current bytes in the calldata.
-                let o := add(data.offset, mload(results))
-                let memPtr := add(resultsOffset, 0x40)
-                // Copy the current bytes from calldata to the memory.
-                calldatacopy(
-                    memPtr,
-                    add(o, 0x20), // The offset of the current bytes' bytes.
-                    calldataload(o) // The length of the current bytes.
-                )
-                if iszero(
-                    call(
-                        gas(), // Remaining gas.
-                        calldataload(targets.offset), // Address to call.
-                        calldataload(values.offset), // ETH to send.
-                        memPtr, // Start of input calldata in memory.
-                        calldataload(o), // Size of input calldata.
-                        0x00, // We will use returndatacopy instead.
-                        0x00 // We will use returndatacopy instead.
-                    )
-                ) {
-                    // Bubble up the revert if the call reverts.
-                    returndatacopy(0x00, 0x00, returndatasize())
-                    revert(0x00, returndatasize())
-                }
-                // Advance the `targets.offset`.
-                targets.offset := add(targets.offset, 0x20)
-                // Advance the `values.offset`.
-                values.offset := add(values.offset, 0x20)
-                // Append the current `resultsOffset` into `results`.
-                mstore(results, resultsOffset)
-                results := add(results, 0x20)
-                // Append the returndatasize, and the returndata.
-                mstore(memPtr, returndatasize())
-                returndatacopy(add(memPtr, 0x20), 0x00, returndatasize())
-                // Advance the `resultsOffset` by `returndatasize() + 0x20`,
-                // rounded up to the next multiple of 0x20.
-                resultsOffset := and(add(add(resultsOffset, returndatasize()), 0x3f), not(0x1f))
-                if iszero(lt(results, data.length)) { break }
-            }
-            // Restore the `sender` slot.
-            sstore(0, shl(160, 1))
-            // Direct return.
-            return(0x00, add(resultsOffset, 0x40))
-        }
+        _batchExecution(targets, data, values);
     }
 
-    function aggregateWithSender(
+    /**
+     * @dev Executes a batch of calls to external contracts with the sender's address.
+     * @param targets The array of target contract addresses to call.
+     * @param data The array of calldata for each call.
+     * @param values The array of ETH values to send with each call.
+     */
+    function aggregate(
         address[] calldata targets, // routers
         bytes[] calldata data, // calldata
         uint256[] calldata values // native 
-    ) external payable returns (bytes[] memory) {
-
-        assembly {
-            if iszero(and(eq(targets.length, data.length), eq(data.length, values.length))) {
-                // Store the function selector of `ArrayLengthsMismatch()`.
-                mstore(returndatasize(), 0x3b800a46)
-                // Revert with (offset, size).
-                revert(0x1c, 0x04)
-            }
-
-            if iszero(and(sload(returndatasize()), shl(160, 1))) {
-                // Store the function selector of `Reentrancy()`.
-                mstore(returndatasize(), 0xab143c06)
-                // Revert with (offset, size).
-                revert(0x1c, 0x04)
-            }
-
-            mstore(returndatasize(), 0x20) // Store the memory offset of the `results`.
-            mstore(0x20, data.length) // Store `data.length` into `results`.
-            // Early return if no data.
-            if iszero(data.length) { return(returndatasize(), 0x40) }
-
-            // Set the sender slot temporarily for the span of this transaction.
-            sstore(returndatasize(), caller())
-
-            let results := 0x40
-            // Left shift by 5 is equivalent to multiplying by 0x20.
-            data.length := shl(5, data.length)
-            // Copy the offsets from calldata into memory.
-            calldatacopy(results, data.offset, data.length)
-            // Offset into `results`.
-            let resultsOffset := data.length
-            // Pointer to the end of `results`.
-            // Recycle `data.length` to avoid stack too deep.
-            data.length := add(results, data.length)
-
-            for {} 1 {} {
-                // The offset of the current bytes in the calldata.
-                let o := add(data.offset, mload(results))
-                let memPtr := add(resultsOffset, 0x40)
-                // Copy the current bytes from calldata to the memory.
-                calldatacopy(
-                    memPtr,
-                    add(o, 0x20), // The offset of the current bytes' bytes.
-                    calldataload(o) // The length of the current bytes.
-                )
-                if iszero(
-                    call(
-                        gas(), // Remaining gas.
-                        calldataload(targets.offset), // Address to call.
-                        calldataload(values.offset), // ETH to send.
-                        memPtr, // Start of input calldata in memory.
-                        calldataload(o), // Size of input calldata.
-                        0x00, // We will use returndatacopy instead.
-                        0x00 // We will use returndatacopy instead.
-                    )
-                ) {
-                    // Bubble up the revert if the call reverts.
-                    returndatacopy(0x00, 0x00, returndatasize())
-                    revert(0x00, returndatasize())
-                }
-                // Advance the `targets.offset`.
-                targets.offset := add(targets.offset, 0x20)
-                // Advance the `values.offset`.
-                values.offset := add(values.offset, 0x20)
-                // Append the current `resultsOffset` into `results`.
-                mstore(results, resultsOffset)
-                results := add(results, 0x20)
-                // Append the returndatasize, and the returndata.
-                mstore(memPtr, returndatasize())
-                returndatacopy(add(memPtr, 0x20), 0x00, returndatasize())
-                // Advance the `resultsOffset` by `returndatasize() + 0x20`,
-                // rounded up to the next multiple of 0x20.
-                resultsOffset := and(add(add(resultsOffset, returndatasize()), 0x3f), not(0x1f))
-                if iszero(lt(results, data.length)) { break }
-            }
-            // Restore the `sender` slot.
-            sstore(0, shl(160, 1))
-            // Direct return.
-            return(0x00, add(resultsOffset, 0x40))
-        }
+    ) external payable {
+        _batchExecution(targets, data, values);
     }
 
        /**
@@ -265,10 +92,6 @@ contract GeniusExecutor {
         address owner
     ) external payable {
         _permitAndBatchTransfer(permitBatch, signature, owner);
-         
-        assembly {
-            sstore(returndatasize(), caller())
-        }
 
         address tokenToSwapAddress = permitBatch.details[0].token;
         IERC20 tokenToSwap = IERC20(tokenToSwapAddress);
@@ -285,11 +108,6 @@ contract GeniusExecutor {
         if (!STABLECOIN.approve(address(VAULT), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         VAULT.addLiquidity(owner, amountToDeposit);
-
-        assembly {
-            // Restore the `sender` slot.
-            sstore(0, shl(160, 1))
-        }
     }
 
 
@@ -327,22 +145,11 @@ contract GeniusExecutor {
         if (totalRequiredValue > address(this).balance) revert InsufficientNativeBalance(totalRequiredValue, address(this).balance);
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
-
-        for (uint i = 0; i < permitBatch.details.length;) {
-            IERC20 tokenToApprove = IERC20(permitBatch.details[i].token);
-            uint256 amountToApprove = permitBatch.details[i].amount;
-
-            if (!tokenToApprove.approve(routers[i], amountToApprove)) revert ApprovalFailure(permitBatch.details[i].token, amountToApprove);
-
-            unchecked { i++; }
-        }
+        _approveRouters(routers, permitBatch);
 
         uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
         
-        for (uint i = 0; i < targets.length; i++) {
-            (bool success, ) = targets[i].call{value: values[i]}(data[i]);
-            require(success, "External call failed");
-        }
+        _batchExecution(targets, data, values);
 
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
 
@@ -367,11 +174,6 @@ contract GeniusExecutor {
     ) external payable {
         require(target != address(0), "Invalid target address");
 
-        assembly {
-            // Set the sender slot temporarily for the span of this transaction.
-            sstore(returndatasize(), caller())
-        }
-
         (bool success, ) = target.call{value: value}(data);
 
         if (!success) revert ExternalCallFailed(target, 0);
@@ -380,11 +182,6 @@ contract GeniusExecutor {
         if (!STABLECOIN.approve(address(VAULT), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         VAULT.addLiquidity(trader, amountToDeposit);
-
-        assembly {
-            // Restore the `sender` slot.
-            sstore(0, shl(160, 1))
-        }
     }
 
 
@@ -415,11 +212,47 @@ contract GeniusExecutor {
                 token: permitBatch.details[i].token
             });
 
-            unchecked {
-                i++;
-            }
+            unchecked { i++; }
         }
 
         PERMIT2.transferFrom(transferDetails);
+    }
+
+    /**
+     * @dev Executes a batch of external function calls.
+     * @param targets The array of target addresses to call.
+     * @param data The array of function call data.
+     * @param values The array of values to send along with the function calls.
+     */
+    function _batchExecution(
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
+    ) private {
+        for (uint i = 0; i < targets.length;) {
+            (bool success, ) = targets[i].call{value: values[i]}(data[i]);
+            require(success, "External call failed");
+
+            unchecked { i++; }
+        }
+    }
+
+    /**
+     * @dev Approves multiple routers to spend tokens on behalf of the contract.
+     * @param routers The addresses of the routers to be approved.
+     * @param permitBatch The permit batch containing token and amount details.
+     */
+    function _approveRouters(
+        address[] calldata routers,
+        IAllowanceTransfer.PermitBatch calldata permitBatch
+    ) private {
+        for (uint i = 0; i < permitBatch.details.length;) {
+            IERC20 tokenToApprove = IERC20(permitBatch.details[i].token);
+            uint256 amountToApprove = permitBatch.details[i].amount;
+
+            if (!tokenToApprove.approve(routers[i], amountToApprove)) revert ApprovalFailure(permitBatch.details[i].token, amountToApprove);
+
+            unchecked { i++; }
+        }
     }
 }
