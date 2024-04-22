@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
@@ -137,7 +137,7 @@ contract GeniusExecutor {
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
         if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
-        POOL.addLiquidity(owner, amountToDeposit);
+        POOL.addLiquiditySwap(owner, amountToDeposit);
     }
 
 
@@ -185,7 +185,7 @@ contract GeniusExecutor {
 
         if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
-        POOL.addLiquidity(owner, amountToDeposit);
+        POOL.addLiquiditySwap(owner, amountToDeposit);
     }
 
 
@@ -211,7 +211,7 @@ contract GeniusExecutor {
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this));
         if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
-        POOL.addLiquidity(trader, amountToDeposit);
+        POOL.addLiquiditySwap(trader, amountToDeposit);
     }
 
 
