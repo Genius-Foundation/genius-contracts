@@ -16,17 +16,52 @@ import "permit2/interfaces/IAllowanceTransfer.sol";
 
 contract GeniusPool is Ownable {
 
+    // =============================================================
+    //                          INTERFACES
+    // =============================================================
+
     IERC20 public immutable STABLECOIN;
+
+    // =============================================================
+    //                          VARIABLES
+    // =============================================================
 
     uint256 public currentDeposits;
     mapping(address => uint256) public isOrchestrator;
     mapping(address => uint256) public traderDeposits;
 
+    // =============================================================
+    //                            ERRORS
+    // =============================================================
+
+    /**
+     * @dev The msg.sender is not an orchestrator.
+     */
     error NotOrchestrator();
+
+    /**
+     * @dev Error thrown when an invalid spender is encountered.
+     */
     error InvalidSpender();
+
+    /**
+     * @dev Error thrown when an invalid trader is encountered.
+     */
     error InvalidTrader();
+
+    /**
+     * @dev Error thrown when an invalid amount is encountered.
+     */
     error InvalidAmount();
-    error InvalidDepositToken();
+
+    /**
+     * @dev Error thrown when an invalid deposit token is encountered.
+     */
+     error InvalidDepositToken();
+
+    // =============================================================
+    //                          EVENTS
+    // =============================================================
 
     event Deposit(
         address indexed trader,
@@ -41,6 +76,10 @@ contract GeniusPool is Ownable {
         uint256 amountWithdrawn
     );
 
+    // =============================================================
+    //                          MODIFIERS
+    // =============================================================
+
     /**
      * @dev Modifier that allows only the orchestrator to call the function.
      * @notice This modifier is used to restrict access to certain functions only to the orchestrator.
@@ -54,6 +93,10 @@ contract GeniusPool is Ownable {
         _;
     }
 
+    // =============================================================
+    //                          CONSTRUCTOR
+    // =============================================================
+
     constructor(address _stablecoin, address _owner) Ownable(_owner) {
         require(_stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
         require(_owner != address(0), "GeniusVault: Owner address is the zero address");
@@ -61,6 +104,10 @@ contract GeniusPool is Ownable {
 
         STABLECOIN = IERC20(_stablecoin);
     }
+
+    // =============================================================
+    //                      EXTERNAL FUNCTIONS
+    // =============================================================
 
     /**
      * @notice Deposits tokens into the vault
