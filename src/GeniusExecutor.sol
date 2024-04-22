@@ -3,7 +3,7 @@ pragma solidity ^0.8.4;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
-import { GeniusVault } from "./GeniusVault.sol";
+import { GeniusPool } from "./GeniusPool.sol";
 
 /**
  * @title GeniusExecutor
@@ -22,17 +22,12 @@ contract GeniusExecutor {
     // =============================================================
 
     IAllowanceTransfer public immutable PERMIT2;
-    GeniusVault public immutable VAULT;
+    GeniusPool public immutable POOL;
     IERC20 public immutable STABLECOIN;
 
     // =============================================================
     //                            ERRORS
     // =============================================================
-
-    /**
-     * @dev Error thrown when an invalid spender is encountered.
-     */
-    error InvalidSpender();
 
     /**
     * @dev Error thrown when the array lengths do not match.
@@ -59,11 +54,11 @@ contract GeniusExecutor {
      */
     error InsufficientNativeBalance(uint256 expectedAmount, uint256 actualAmount);
 
-    constructor(address _permit2, address _vault) payable {
+    constructor(address _permit2, address _pool) payable {
 
         PERMIT2 = IAllowanceTransfer(_permit2);
-        VAULT = GeniusVault(_vault);
-        STABLECOIN = IERC20(VAULT.STABLECOIN());
+        POOL = GeniusPool(_pool);
+        STABLECOIN = IERC20(POOL.STABLECOIN());
 
     }
 
@@ -140,9 +135,9 @@ contract GeniusExecutor {
         if(!success) revert ExternalCallFailed(target, 0);
 
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
-        if (!STABLECOIN.approve(address(VAULT), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
+        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
-        VAULT.addLiquidity(owner, amountToDeposit);
+        POOL.addLiquidity(owner, amountToDeposit);
     }
 
 
@@ -188,9 +183,9 @@ contract GeniusExecutor {
 
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
 
-        if (!STABLECOIN.approve(address(VAULT), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
+        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
-        VAULT.addLiquidity(owner, amountToDeposit);
+        POOL.addLiquidity(owner, amountToDeposit);
     }
 
 
@@ -214,9 +209,9 @@ contract GeniusExecutor {
         if (!success) revert ExternalCallFailed(target, 0);
 
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this));
-        if (!STABLECOIN.approve(address(VAULT), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
+        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
-        VAULT.addLiquidity(trader, amountToDeposit);
+        POOL.addLiquidity(trader, amountToDeposit);
     }
 
 
