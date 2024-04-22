@@ -7,7 +7,7 @@ import { GeniusVault } from "./GeniusVault.sol";
 
 /**
  * @title GeniusExecutor
- * @author altloot
+ * @author looter
  * 
  * @notice Contract that allows for efficient aggregation of multiple calls
  *         in a single transaction, while "forwarding" the `msg.sender`. Additionally,
@@ -17,15 +17,46 @@ import { GeniusVault } from "./GeniusVault.sol";
  */
 contract GeniusExecutor {
 
+    // =============================================================
+    //                          INTERFACES
+    // =============================================================
+
     IAllowanceTransfer public immutable PERMIT2;
     GeniusVault public immutable VAULT;
     IERC20 public immutable STABLECOIN;
 
+    // =============================================================
+    //                            ERRORS
+    // =============================================================
+
+    /**
+     * @dev Error thrown when an invalid spender is encountered.
+     */
+    error InvalidSpender();
+
+    /**
+    * @dev Error thrown when the array lengths do not match.
+    */
     error ArrayLengthsMismatch();
-    error Reentrancy();
+
+    /**
+     * @dev Error thrown when an invalid spender is encountered.
+     */
     error InvalidSpender(address invalidSpender);
+
+    /**
+     * @dev Error thrown when an approval fails.
+     */
     error ApprovalFailure(address token, uint256 amount);
+
+    /**
+     * @dev Error thrown when an external call fails.
+     */
     error ExternalCallFailed(address target, uint256 index);
+
+    /**
+     * @dev Error thrown when there is insufficient native balance.
+     */
     error InsufficientNativeBalance(uint256 expectedAmount, uint256 actualAmount);
 
     constructor(address _permit2, address _vault) payable {
@@ -35,6 +66,10 @@ contract GeniusExecutor {
         STABLECOIN = IERC20(VAULT.STABLECOIN());
 
     }
+
+    // =============================================================
+    //                      EXTERNAL FUNCTIONS
+    // =============================================================
 
     /**
      * @dev Aggregates multiple calls in a single transaction.
@@ -217,6 +252,11 @@ contract GeniusExecutor {
 
         PERMIT2.transferFrom(transferDetails);
     }
+
+
+    // =============================================================
+    //                      INTERNAL FUNCTIONS
+    // =============================================================
 
     /**
      * @dev Executes a batch of external function calls.
