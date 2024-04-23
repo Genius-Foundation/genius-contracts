@@ -28,9 +28,10 @@ contract GeniusPool is Orchestratable {
     //                          VARIABLES
     // =============================================================
 
-    uint256 public currentDeposits;
+    uint256 public totalDeposits;
+    uint256 public totalStakedDeposits;
     mapping(address => uint256) public isOrchestrator;
-    mapping(address => uint256) public traderDeposits;
+    mapping(address => uint256) public stakedDeposits;
 
     // =============================================================
     //                            ERRORS
@@ -116,7 +117,7 @@ contract GeniusPool is Orchestratable {
         if (_amount == 0) revert InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(tx.origin, address(this), _amount);
-        currentDeposits = STABLECOIN.balanceOf(address(this));
+        totalDeposits = STABLECOIN.balanceOf(address(this));
 
         emit ReceiveBridgeFunds(
             _amount,
@@ -163,7 +164,7 @@ contract GeniusPool is Orchestratable {
             bytes("") 
         );
 
-        currentDeposits = STABLECOIN.balanceOf(address(this));
+        totalDeposits = STABLECOIN.balanceOf(address(this));
 
         emit BridgeFunds(
             _amountIn,
@@ -212,7 +213,7 @@ contract GeniusPool is Orchestratable {
         if (_amount == 0) revert InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
-        currentDeposits = STABLECOIN.balanceOf(address(this));
+        totalDeposits = STABLECOIN.balanceOf(address(this));
 
         emit SwapDeposit(
             _trader,
@@ -227,13 +228,13 @@ contract GeniusPool is Orchestratable {
      */
     function removeLiquiditySwap(address _trader, uint256 _amount) external onlyOrchestrator {
         if (_amount == 0) revert InvalidAmount();
-        if (_amount > currentDeposits) revert InvalidAmount();
+        if (_amount > totalDeposits) revert InvalidAmount();
         if (_trader == address(0)) revert InvalidTrader();
         if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
 
 
         IERC20(STABLECOIN).transfer(msg.sender, _amount);
-        currentDeposits = STABLECOIN.balanceOf(address(this));
+        totalDeposits = STABLECOIN.balanceOf(address(this));
         
         emit SwapWithdrawal(_trader, _amount);
     }
@@ -244,11 +245,11 @@ contract GeniusPool is Orchestratable {
 
     function removeRewardLiquidity(uint256 _amount) external onlyOrchestrator {
         if (_amount == 0) revert InvalidAmount();
-        if (_amount > currentDeposits) revert InvalidAmount();
+        if (_amount > totalDeposits) revert InvalidAmount();
         if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
 
         IERC20(STABLECOIN).transfer(msg.sender, _amount);
-        currentDeposits = STABLECOIN.balanceOf(address(this));
+        totalDeposits = STABLECOIN.balanceOf(address(this));
     }
 
     // =============================================================
@@ -260,20 +261,21 @@ contract GeniusPool is Orchestratable {
      * @param _amount The amount of liquidity tokens to stake.
      * @notice The `_amount` parameter must be greater than 0.
      * @notice The function transfers the specified amount of liquidity tokens from the caller to the contract.
-     * @notice After the transfer, the function updates the `currentDeposits` variable with the balance of liquidity tokens held by the contract.
+     * @notice After the transfer, the function updates the `totalDeposits` variable with the balance of liquidity tokens held by the contract.
      */
     function stakeLiquidity(address _trader, uint256 _amount) external {
         if (_amount == 0) revert InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
-        currentDeposits = STABLECOIN.balanceOf(address(this));
+        totalDeposits = STABLECOIN.balanceOf(address(this));
 
-        traderDeposits[_trader] += _amount;
+        stakedDeposits[_trader] += _amount;
+        totalStakedDeposits += _amount;
 
         emit Stake(
             _trader,
             _amount,
-            traderDeposits[_trader] + _amount
+            stakedDeposits[_trader] + _amount
         );
     }
 
@@ -287,18 +289,19 @@ contract GeniusPool is Orchestratable {
      */
     function removeStakedLiquidity(address _trader, uint256 _amount) external {
         if (_amount == 0) revert InvalidAmount();
-        if (_amount > currentDeposits) revert InvalidAmount();
+        if (_amount > totalDeposits) revert InvalidAmount();
         if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
 
         IERC20(STABLECOIN).transfer(msg.sender, _amount);
-        currentDeposits = STABLECOIN.balanceOf(address(this));
+        totalDeposits = STABLECOIN.balanceOf(address(this));
 
-        traderDeposits[_trader] -= _amount;
+        stakedDeposits[_trader] -= _amount;
+        totalStakedDeposits -= _amount;
 
         emit Unstake(
             _trader,
             _amount,
-            traderDeposits[_trader] - _amount
+            stakedDeposits[_trader] - _amount
         );
     }
 }
