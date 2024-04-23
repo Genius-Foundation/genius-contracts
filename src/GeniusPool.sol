@@ -304,6 +304,12 @@ contract GeniusPool is Orchestrable {
         );
     }
 
+    /**
+     * @dev Sets the rebalance threshold for the GeniusPool contract.
+     * @param _threshold The new rebalance threshold to be set.
+     * Requirements:
+     * - Only the contract owner can call this function.
+     */
     function setRebalanceThreshold(uint256 _threshold) external onlyOwner {
         rebalanceThreshold = _threshold;
     }
@@ -312,6 +318,12 @@ contract GeniusPool is Orchestrable {
     //                     READ FUNCTIONS
     // =============================================================
 
+    /**
+     * @dev Returns the fee and layer zero transaction parameters for a given chain ID.
+     * @param _chainId The chain ID for which to retrieve the fee and transaction parameters.
+     * @return fee The fee amount for the layer zero transaction.
+     * @return lzTxParams The layer zero transaction parameters.
+     */
     function layerZeroFee(
         uint16 _chainId
     ) public view returns (uint256 fee, IStargateRouter.lzTxObj memory lzTxParams) {
@@ -339,23 +351,41 @@ contract GeniusPool is Orchestrable {
     //                     INTERNAL FUNCTIONS
     // =============================================================
 
-    // balance is the current balance of the stable coin in the contract
+    /**
+     * @dev Checks if the given balance is within the threshold limit.
+     * @param balance The balance to be checked.
+     * @return A boolean value indicating whether the balance is within the threshold limit.
+     */
     function _isBalanceWithinThreshold(uint256 balance) public view returns (bool) {
         uint256 lowerBound = (totalStakedAssets * rebalanceThreshold) / 100;
 
         return balance >= lowerBound;
     }
 
+    /**
+     * @dev Checks if the balance is within the threshold after unstaking a certain amount.
+     * @param balance The current balance of the account.
+     * @param amountToUnstake The amount to be unstaked.
+     * @return boolean indicating whether the balance is within the threshold.
+     */
     function _isBalanceWithinThreshold(uint256 balance, uint256 amountToUnstake) internal view returns (bool) {
         uint256 lowerBound = ((totalStakedAssets - amountToUnstake) * rebalanceThreshold) / 100;
 
         return balance >= lowerBound;
     }
 
+    /**
+     * @dev Updates the balance of the contract by fetching the total assets of the STABLECOIN token.
+     * This function is internal and can only be called from within the contract.
+     */
     function _updateBalance() internal {
         totalAssets = STABLECOIN.balanceOf(address(this));
     }
 
+    /**
+     * @dev Updates the available assets by calculating the liquidity needed based on the staked assets and the rebalance threshold.
+     * If the total assets exceed the needed liquidity, the available assets are updated accordingly.
+     */
     function _updateAvailableAssets() internal {
         // Calculate the amount that is the threshold percentage of the staked assets
         uint256 reduction = (totalStakedAssets * rebalanceThreshold) / 100;
