@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
-import {Orchestrator, Ownable} from "./access/Orchestrator.sol";
+import {Orchestratable, Ownable} from "./access/Orchestratable.sol";
 import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
 
 /**
@@ -15,7 +15,7 @@ import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
  *         and other Genius related activities.
  */
 
-contract GeniusPool is Orchestrator {
+contract GeniusPool is Orchestratable {
 
     // =============================================================
     //                          INTERFACES

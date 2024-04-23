@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  * @author altloot
  * @dev A contract for managing Genius Orchestrator permissions.
  */
-abstract contract Orchestrator is Ownable {
+abstract contract Orchestratable is Ownable {
     mapping(address => uint256) private isOrchestrator;
 
     error AlreadyOrchestrator(address orchestrator);
