@@ -4,14 +4,21 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {console} from "forge-std/Test.sol";
 
 /**
- * @title Orchestrator
+ * @title Orchestrable
  * @author altloot
  * @dev A contract for managing Genius Orchestrator permissions.
  */
 abstract contract Orchestrable is Ownable {
-    mapping(address => uint256) private isOrchestrator;
+
+    enum Status {
+        UNAUTHORIZED,
+        AUTHORIZED
+    }
+
+    mapping(address => Status) private isOrchestrator;
 
     error AlreadyOrchestrator(address orchestrator);
     error InvalidOrchestrator(address orchestrator);
@@ -39,13 +46,13 @@ abstract contract Orchestrable is Ownable {
     * @param _orchestrator The address of the orchestrator to add
     */
     function addOrchestrator(address _orchestrator) external onlyOwner {
-        bool status = _convertUintToBool(isOrchestrator[_orchestrator]);
+        Status status = isOrchestrator[_orchestrator];
 
-        if (status) revert AlreadyOrchestrator(_orchestrator);
+        if (status == Status.AUTHORIZED) revert AlreadyOrchestrator(_orchestrator);
         if (_orchestrator == address(0)) revert InvalidOrchestrator(_orchestrator);
         if (_orchestrator == owner()) revert InvalidOrchestrator(_orchestrator);
 
-        _editOrchestrator(_orchestrator, 1);
+        _editOrchestrator(_orchestrator, Status.AUTHORIZED);
         emit OrchestratorAdded(_orchestrator);
     }
 
@@ -57,8 +64,12 @@ abstract contract Orchestrable is Ownable {
         bool status = _convertUintToBool(isOrchestrator[_orchestrator]);
         if (!status) revert NotOrchestrator(_orchestrator);
 
-        _editOrchestrator(_orchestrator, 0);
+        _editOrchestrator(_orchestrator, Status.UNAUTHORIZED);
         emit OrchestratorRemoved(_orchestrator);
+    }
+
+    function orchestrator(address _orchestrator) external view returns (bool) {
+        return _convertUintToBool(isOrchestrator[_orchestrator]);
     }
 
     /**
@@ -66,12 +77,11 @@ abstract contract Orchestrable is Ownable {
      * @param _orchestrator The address of the orchestrator to be edited.
      * @param _status The new status to be set for the orchestrator.
      */
-    function _editOrchestrator(address _orchestrator, uint256 _status) internal virtual {
-        if (_status != 0 || _status != 1) revert InvalidIndex();
+    function _editOrchestrator(address _orchestrator, Status _status) internal virtual {
         isOrchestrator[_orchestrator] = _status;
     }
 
-    function _convertUintToBool(uint256 _status) internal pure returns (bool) {
-        return _status == 1 ? true : false;
+    function _convertUintToBool(Status _status) internal pure returns (bool) {
+        return _status == Status.AUTHORIZED ? true : false;
     }
 }
