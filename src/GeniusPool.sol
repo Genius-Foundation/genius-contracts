@@ -60,17 +60,36 @@ contract GeniusPool is Orchestratable {
     //                          EVENTS
     // =============================================================
 
-    event Deposit(
+    event Stake(
         address indexed trader,
         uint256 amountDeposited,
-        uint256 oldDepositAmount,
-        uint256 newDepositAmount,
-        bool isOrchestrator
+        uint256 newTotalDeposits
     );
 
-    event Withdrawal(
+    event Unstake(
+        address indexed trader,
+        uint256 amountWithdrawn,
+        uint256 newTotalDeposits
+    );
+
+    event SwapDeposit(
+        address indexed trader,
+        uint256 amountDeposited
+    );
+
+    event SwapWithdrawal(
         address indexed trader,
         uint256 amountWithdrawn
+    );
+
+    event BridgeFunds(
+        uint256 amount,
+        uint16 chainId
+    );
+
+    event ReceiveBridgeFunds(
+        uint256 amount,
+        uint16 chainId
     );
 
     // =============================================================
@@ -90,13 +109,19 @@ contract GeniusPool is Orchestratable {
         STARGATE_ROUTER = IStargateRouter(_bridgeRouter);
     }
     // =============================================================
-    //                BRIDGE LIQUIDITY REBLANCING
+    //                 BRIDGE LIQUIDITY REBALANCING
     // =============================================================
 
-    function addBridgeLiquidity(uint256 _amount) onlyOrchestrator {
+    function addBridgeLiquidity(uint256 _amount, uint16 _chainId) public onlyOrchestrator {
         if (_amount == 0) revert InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(tx.origin, address(this), _amount);
+        currentDeposits = STABLECOIN.balanceOf(address(this));
+
+        emit ReceiveBridgeFunds(
+            _amount,
+            _chainId
+        );
     }
 
     /**
@@ -106,25 +131,21 @@ contract GeniusPool is Orchestratable {
      * @param _dstChainId The chain ID of the destination chain.
      * @param _srcPoolId The ID of the source pool on the bridge.
      * @param _dstPoolId The ID of the destination pool on the bridge.
-     * @param _amountLD The amount of liquidity tokens to remove from the bridge pool.
-     * @param _minAmountLD The minimum amount of liquidity tokens expected to receive after the swap.
      */
     function removeBridgeLiquidity(
         uint256 _amountIn, // = _amountLD
         uint256 _minAmountOut, // = _minAmountLD
         uint16 _dstChainId,
         uint256 _srcPoolId,
-        uint256 _dstPoolId,
-        uint256 _amountLD,
-        uint256 _minAmountLD
-    ) onlyOrchestrator payable {
+        uint256 _dstPoolId
+    ) public onlyOrchestrator payable {
         if (_amountIn == 0) revert InvalidAmount();
         if (_amountIn > STABLECOIN.balanceOf(address(this))) revert InvalidAmount();
 
         (
         uint256 fee,
         IStargateRouter.lzTxObj memory lzTxParams
-        ) = layerZeroFee(_dstChainId, _amountIn);
+        ) = layerZeroFee(_dstChainId);
 
         if (msg.value != fee) revert InvalidAmount();
 
@@ -141,11 +162,17 @@ contract GeniusPool is Orchestratable {
             abi.encode(tx.origin),
             bytes("") 
         );
+
+        currentDeposits = STABLECOIN.balanceOf(address(this));
+
+        emit BridgeFunds(
+            _amountIn,
+            _dstChainId
+        );
     }
 
     function layerZeroFee(
-        uint16 _chainId,
-        uint256 _amount
+        uint16 _chainId
     ) public view returns (uint256 fee, IStargateRouter.lzTxObj memory lzTxParams) {
 
         IStargateRouter.lzTxObj memory _lzTxParams = IStargateRouter.lzTxObj({
@@ -156,10 +183,7 @@ contract GeniusPool is Orchestratable {
 
         bytes memory transferAndCallPayload = abi.encode(_lzTxParams); 
 
-        (
-        uint256 _irrevelantValue,
-        uint256 _fee
-        ) = STARGATE_ROUTER.quoteLayerZeroFee(
+        (, uint256 _fee) = STARGATE_ROUTER.quoteLayerZeroFee(
             _chainId,
             1,
             abi.encode(tx.origin),
@@ -187,25 +211,12 @@ contract GeniusPool is Orchestratable {
         if (_trader == address(0)) revert InvalidTrader();
         if (_amount == 0) revert InvalidAmount();
 
-        uint256 oldDepositAmount = traderDeposits[_trader];
-
-        // Transfer the amount from the trader to the vault
         IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
-
         currentDeposits = STABLECOIN.balanceOf(address(this));
 
-        traderDeposits[_trader] += _amount;
-
-        uint256 newDepositAmount = traderDeposits[_trader];
-
-        bool isSenderOrchestrator = isOrchestrator[tx.origin] == 1 ? true : false;
-
-        emit Deposit(
+        emit SwapDeposit(
             _trader,
-            _amount,
-            oldDepositAmount,
-            newDepositAmount,
-            isSenderOrchestrator
+            _amount
         );
     }
 
@@ -224,6 +235,70 @@ contract GeniusPool is Orchestratable {
         IERC20(STABLECOIN).transfer(msg.sender, _amount);
         currentDeposits = STABLECOIN.balanceOf(address(this));
         
-        emit Withdrawal(_trader, _amount);
+        emit SwapWithdrawal(_trader, _amount);
+    }
+
+    // =============================================================
+    //                     REWARD LIQUIDITY
+    // =============================================================
+
+    function removeRewardLiquidity(uint256 _amount) external onlyOrchestrator {
+        if (_amount == 0) revert InvalidAmount();
+        if (_amount > currentDeposits) revert InvalidAmount();
+        if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
+
+        IERC20(STABLECOIN).transfer(msg.sender, _amount);
+        currentDeposits = STABLECOIN.balanceOf(address(this));
+    }
+
+    // =============================================================
+    //                     STAKING LIQUIDITY
+    // =============================================================
+
+    /**
+     * @dev Allows a user to stake liquidity tokens.
+     * @param _amount The amount of liquidity tokens to stake.
+     * @notice The `_amount` parameter must be greater than 0.
+     * @notice The function transfers the specified amount of liquidity tokens from the caller to the contract.
+     * @notice After the transfer, the function updates the `currentDeposits` variable with the balance of liquidity tokens held by the contract.
+     */
+    function stakeLiquidity(address _trader, uint256 _amount) external {
+        if (_amount == 0) revert InvalidAmount();
+
+        IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
+        currentDeposits = STABLECOIN.balanceOf(address(this));
+
+        traderDeposits[_trader] += _amount;
+
+        emit Stake(
+            _trader,
+            _amount,
+            traderDeposits[_trader] + _amount
+        );
+    }
+
+    /**
+     * @dev Removes staked liquidity from the GeniusPool contract.
+     * @param _amount The amount of liquidity to be removed.
+     * @notice The `_amount` must be greater than zero, less than or equal to the current deposits, and less than or equal to the balance of the STABLECOIN token in the contract.
+     * @notice Transfers the specified `_amount` of STABLECOIN tokens to the caller's address.
+     * @notice Updates the current deposits by getting the updated balance of the STABLECOIN token in the contract.
+     * @notice Throws an exception if any of the conditions are not met.
+     */
+    function removeStakedLiquidity(address _trader, uint256 _amount) external {
+        if (_amount == 0) revert InvalidAmount();
+        if (_amount > currentDeposits) revert InvalidAmount();
+        if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
+
+        IERC20(STABLECOIN).transfer(msg.sender, _amount);
+        currentDeposits = STABLECOIN.balanceOf(address(this));
+
+        traderDeposits[_trader] -= _amount;
+
+        emit Unstake(
+            _trader,
+            _amount,
+            traderDeposits[_trader] - _amount
+        );
     }
 }
