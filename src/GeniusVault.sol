@@ -65,7 +65,7 @@ contract GeniusVault is ERC4626, Ownable {
      * @return uint256 total amount of assets held in the GeniusVault contract.
      */
     function totalAssets() public view override returns (uint256) {
-        return geniusPool.totalStakedDeposits();
+        return geniusPool.totalStakedAssets();
     }
 
     /**
@@ -110,15 +110,12 @@ contract GeniusVault is ERC4626, Ownable {
      * @param assets The amount of assets being withdrawn.
      * @param shares The amount of shares being withdrawn.
      * 
-     * @throws NotInitialized if the contract is not initialized.
-     * @throws InvalidAmount if the assets or shares being withdrawn are zero.
-     * @throws InvalidAmount if the assets being withdrawn exceed the total deposits in the GeniusPool contract.
      */
     function beforeWithdraw(uint256 assets, uint256 shares) internal override {
         if (!initialized) revert NotInitialized();
         if (assets == 0 || shares == 0) revert InvalidAmount(assets, shares);
 
-        uint256 vaultDeposits = geniusPool.totalDeposits();
+        uint256 vaultDeposits = geniusPool.totalAssets();
         if (assets > vaultDeposits) revert InvalidAmount(assets, shares);
 
         geniusPool.removeStakedLiquidity(msg.sender, assets);
