@@ -49,11 +49,9 @@ contract GeniusVault is ERC4626, Ownable {
     // =============================================================
 
     constructor(
-        ERC20 _asset,
-        address _geniusPool
-    ) ERC4626(_asset, "Genius USD", "gUSD") Ownable(msg.sender) {
+        address _asset
+    ) ERC4626(ERC20(_asset), "Genius USD", "gUSD") Ownable(tx.origin) {
         initialized = false;
-        geniusPool = GeniusPool(_geniusPool);
     }
 
     // =============================================================
@@ -116,6 +114,7 @@ contract GeniusVault is ERC4626, Ownable {
         if (assets == 0 || shares == 0) revert InvalidAmount(assets, shares);
 
         uint256 vaultDeposits = geniusPool.totalAssets();
+
         if (assets > vaultDeposits) revert InvalidAmount(assets, shares);
 
         geniusPool.removeStakedLiquidity(msg.sender, assets);

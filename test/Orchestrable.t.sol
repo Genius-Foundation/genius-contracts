@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
-import {OrchestrableERC20} from "../src/OrchestrableERC20.sol";
+import {OrchestrableERC20} from "./mocks/OrchestrableERC20.sol";
 
 // forge test -vvv --tx-origin 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38
 contract OrchestrableTest is Test {

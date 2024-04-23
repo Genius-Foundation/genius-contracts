@@ -28,11 +28,13 @@ contract GeniusPool is Orchestrable {
     //                          VARIABLES
     // =============================================================
 
+    bool public initialized;
     uint256 public totalAssets; // The total amount of stablecoin assets in the contract
     uint256 public availableAssets; // totalAssets - (totalStakedAssets * (1 + rebalanceThreshold) (in percentage)
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
     uint256 public rebalanceThreshold = 10; // The maximum % of deviation from totalStakedAssets before blocking trades
 
+    address public geniusVault;
     mapping(address => uint256) public stakedDeposits;
 
     // =============================================================
@@ -50,14 +52,24 @@ contract GeniusPool is Orchestrable {
     error InvalidTrader();
 
     /**
+     * @dev Error thrown when the contract is already initialized.
+     */
+    error IsNotVault();
+
+    /**
+     * @dev Error thrown when the contract is already initialized.
+     */
+    error Initialized();
+
+    /**
+     * @dev Error thrown when the contract is not initialized.
+     */
+    error NotInitialized();
+
+    /**
      * @dev Error thrown when an invalid amount is encountered.
      */
     error InvalidAmount();
-
-    /**
-     * @dev Error thrown when an invalid deposit token is encountered.
-     */
-     error InvalidDepositToken();
 
     /**
     * @dev Error thrown when the contract needs to be rebalanced.
@@ -115,12 +127,38 @@ contract GeniusPool is Orchestrable {
 
         STABLECOIN = IERC20(_stablecoin);
         STARGATE_ROUTER = IStargateRouter(_bridgeRouter);
+
+        initialized = false;
     }
+
+    /**
+     * @dev Initializes the GeniusVault contract.
+     * @param _geniusVault The address of the GeniusPool contract.
+     * @notice This function can only be called once to initialize the contract.
+     */
+    function initialize(address _geniusVault) external onlyOwner {
+        if (initialized) revert Initialized();
+        geniusVault = _geniusVault;
+
+        initialized = true;
+    }
+
     // =============================================================
     //                 BRIDGE LIQUIDITY REBALANCING
     // =============================================================
 
+    /**
+     * @dev Adds liquidity to the bridge pool.
+     * @param _amount The amount of stablecoin to add as liquidity.
+     * @param _chainId The chain ID of the bridge.
+     * @notice Only the orchestrator can call this function.
+     * @notice The `_amount` must be greater than 0.
+     * @notice Transfers the specified amount of stablecoin from the caller to the contract.
+     * @notice Updates the balance and available assets of the bridge pool.
+     * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
+     */
     function addBridgeLiquidity(uint256 _amount, uint16 _chainId) public onlyOrchestrator {
+        if (!initialized) revert NotInitialized();
         if (_amount == 0) revert InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(tx.origin, address(this), _amount);
@@ -148,6 +186,7 @@ contract GeniusPool is Orchestrable {
         uint256 _srcPoolId,
         uint256 _dstPoolId
     ) public onlyOrchestrator payable {
+        if (!initialized) revert NotInitialized();
         if (_amountIn == 0) revert InvalidAmount();
         if (_amountIn > STABLECOIN.balanceOf(address(this))) revert InvalidAmount();
         if (!_isBalanceWithinThreshold(totalAssets - _amountIn)) revert NeedsRebalance(totalAssets, availableAssets);
@@ -195,6 +234,7 @@ contract GeniusPool is Orchestrable {
         address _trader,
         uint256 _amount
     ) external {
+        if (!initialized) revert NotInitialized();
         if (_trader == address(0)) revert InvalidTrader();
         if (_amount == 0) revert InvalidAmount();
 
@@ -214,6 +254,7 @@ contract GeniusPool is Orchestrable {
      * @param _amount The amount of tokens to withdraw
      */
     function removeLiquiditySwap(address _trader, uint256 _amount) external onlyOrchestrator {
+        if (!initialized) revert NotInitialized();
         if (_amount == 0) revert InvalidAmount();
         if (_amount > totalAssets) revert InvalidAmount();
         if (_trader == address(0)) revert InvalidTrader();
@@ -232,7 +273,18 @@ contract GeniusPool is Orchestrable {
     //                     REWARD LIQUIDITY
     // =============================================================
 
+    /**
+     * @dev Removes reward liquidity from the GeniusPool contract.
+     * @param _amount The amount of reward liquidity to remove.
+     * @notice Only the orchestrator can call this function.
+     * @notice The `_amount` must be greater than 0, less than or equal to the total assets in the contract,
+     * and less than or equal to the balance of the STABLECOIN token held by the contract.
+     * @notice The total assets in the contract must remain within a certain threshold after removing the reward liquidity.
+     * @notice This function transfers the specified amount of STABLECOIN tokens to the caller's address.
+     * @notice It also updates the balance and available assets in the contract.
+     */
     function removeRewardLiquidity(uint256 _amount) external onlyOrchestrator {
+        if (!initialized) revert NotInitialized();
         if (_amount == 0) revert InvalidAmount();
         if (_amount > totalAssets) revert InvalidAmount();
         if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
@@ -255,6 +307,7 @@ contract GeniusPool is Orchestrable {
      * @notice After the transfer, the function updates the `totalAssets` variable with the balance of liquidity tokens held by the contract.
      */
     function stakeLiquidity(address _trader, uint256 _amount) external {
+        if (!initialized) revert NotInitialized();
         if (_amount == 0) revert InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
@@ -281,7 +334,8 @@ contract GeniusPool is Orchestrable {
      * @notice Throws an exception if any of the conditions are not met.
      */
     function removeStakedLiquidity(address _trader, uint256 _amount) external {
-        if (_trader != tx.origin) revert InvalidTrader();
+        if (!initialized) revert NotInitialized();
+        if (msg.sender != geniusVault) revert IsNotVault();
         if (_trader == address(0)) revert InvalidTrader();
         if (_amount == 0) revert InvalidAmount();
         if (_amount > totalAssets) revert InvalidAmount();
@@ -292,17 +346,24 @@ contract GeniusPool is Orchestrable {
         IERC20(STABLECOIN).transfer(msg.sender, _amount);
         _updateBalance();
 
+        uint256 originalStakedBalance = stakedDeposits[_trader];
+
         stakedDeposits[_trader] -= _amount;
         totalStakedAssets -= _amount;
 
         _updateAvailableAssets();
 
+
         emit Unstake(
             _trader,
             _amount,
-            stakedDeposits[_trader] - _amount
+            originalStakedBalance - _amount
         );
     }
+
+    // =============================================================
+    //                     REBALANCE THRESHOLD
+    // =============================================================
 
     /**
      * @dev Sets the rebalance threshold for the GeniusPool contract.
