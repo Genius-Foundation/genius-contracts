@@ -4,12 +4,13 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import {console} from "forge-std/Test.sol";
 
 /**
  * @title Orchestrable
  * @author altloot
- * @dev A contract for managing Genius Orchestrator permissions.
+ * @dev A contract for managing Genius Orchestrator permissions. Only allows EOA orchestrators, as 
+ *      instead of using msg.sender we use tx.origin to check the orchestrator. As a result,
+ *      contracts cannot be orchestrators.
  */
 abstract contract Orchestrable is Ownable {
 
