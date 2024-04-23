@@ -23,7 +23,6 @@ abstract contract Orchestrable is Ownable {
     error AlreadyOrchestrator(address orchestrator);
     error InvalidOrchestrator(address orchestrator);
     error NotOrchestrator(address orchestrator);
-    error InvalidIndex();
 
     event OrchestratorAdded(address indexed orchestrator);
     event OrchestratorRemoved(address indexed orchestrator);
@@ -33,12 +32,14 @@ abstract contract Orchestrable is Ownable {
         _;
     }
 
+    /**
+     * @dev Internal function to check if the caller is the orchestrator.
+     * @dev Throws a `NotOrchestrator` error if the caller is not the orchestrator.
+     */
     function _checkOrchestrator() internal view virtual {
-        bool status = _convertUintToBool(isOrchestrator[tx.origin]);
+        Status status = isOrchestrator[tx.origin];
 
-        if (!status) {
-            revert NotOrchestrator(tx.origin);
-        }
+        if (status != Status.AUTHORIZED) revert NotOrchestrator(tx.origin);
     }
 
     /**
@@ -61,15 +62,16 @@ abstract contract Orchestrable is Ownable {
     * @param _orchestrator The address of the orchestrator to remove
     */
     function removeOrchestrator(address _orchestrator) external onlyOwner {
-        bool status = _convertUintToBool(isOrchestrator[_orchestrator]);
-        if (!status) revert NotOrchestrator(_orchestrator);
+        Status status = isOrchestrator[tx.origin];
+
+        if (status == Status.UNAUTHORIZED) revert NotOrchestrator(_orchestrator);
 
         _editOrchestrator(_orchestrator, Status.UNAUTHORIZED);
         emit OrchestratorRemoved(_orchestrator);
     }
 
     function orchestrator(address _orchestrator) external view returns (bool) {
-        return _convertUintToBool(isOrchestrator[_orchestrator]);
+        return isOrchestrator[_orchestrator] == Status.AUTHORIZED;
     }
 
     /**
@@ -79,9 +81,5 @@ abstract contract Orchestrable is Ownable {
      */
     function _editOrchestrator(address _orchestrator, Status _status) internal virtual {
         isOrchestrator[_orchestrator] = _status;
-    }
-
-    function _convertUintToBool(Status _status) internal pure returns (bool) {
-        return _status == Status.AUTHORIZED ? true : false;
     }
 }
