@@ -24,6 +24,8 @@ import {TestERC20} from "./mocks/TestERC20.sol";
  * Note while the executor is meant to be used for batching swaps, within the tests we simply
  *      use transfers to simulate the swap functionality, as all functions are extremely generalized,
  *      and the swap functionality is not the main focus of the tests.
+ *
+ *      Must use --via-ir flag when running tests to avoid stack too deep error.
  */
 contract GeniusExecutorTest is Test {
     // Setup the fork for the Avalanche network
