@@ -341,6 +341,7 @@ contract GeniusPool is Orchestrable {
      */
     function stakeLiquidity(address _trader, uint256 _amount) external {
         if (!initialized) revert NotInitialized();
+        if (msg.sender != geniusVault) revert IsNotVault();
         if (_amount == 0) revert InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
