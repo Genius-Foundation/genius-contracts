@@ -43,7 +43,7 @@ contract GeniusVaultTest is Test {
         usdc.mint(trader, 1_000 ether);
     }
 
-    function test_deposit_for_self() public {
+    function testSelfDeposit() public {
         uint256 initialContractUSDCBalance = usdc.balanceOf(address(this));
         assertEq(initialContractUSDCBalance, 1_000_000 ether, "Initial balance should be 1,000 ether");
 
@@ -69,7 +69,7 @@ contract GeniusVaultTest is Test {
     }
 
 
-    function test_deposit_for_diff_user() public {
+    function testDepositOnBehalfOf() public {
         uint256 usdcBalance = usdc.balanceOf(trader);
         uint256 geniusVaultBalance = usdc.balanceOf(address(geniusVault));
 
@@ -105,7 +105,7 @@ contract GeniusVaultTest is Test {
         assertEq(traderShares, 1_000 ether, "Trader should hold shares equivalent to the USDC deposited in GeniusVault");
     }
 
-    function test_deposit_and_withdrawal_for_same_user() public {
+    function testSelfDepositAndWithdraw() public {
         uint256 usdcBalance = usdc.balanceOf(address(this));
         assertEq(usdcBalance, 1_000_000 ether, "Contract should initially have 1,000,000 USDC");
 
@@ -127,7 +127,7 @@ contract GeniusVaultTest is Test {
         assertEq(vaultAssets, 0, "Assets in the GeniusVault should be 0 after complete withdrawal");
     }
 
-    function test_deposit_and_withdrawal_for_diff_user() public {
+    function testDepositAndWithdrawOnBehalfOf() public {
 
         uint256 traderUSDCBalance = usdc.balanceOf(trader);
         assertEq(traderUSDCBalance, 1_000 ether, "Trader should initially have 1,000 USDC");
@@ -158,13 +158,13 @@ contract GeniusVaultTest is Test {
         assertEq(vaultAssets, 0, "Assets in the GeniusVault should be 0 after complete withdrawal");
     }
 
-    function test_revert_deposit_without_approval() public {
+    function testRevertDepositWithoutApproval() public {
         vm.prank(trader);
         vm.expectRevert("TRANSFER_FROM_FAILED");
         geniusVault.deposit(1_000 ether, trader);
     }
 
-    function test_revert_withdraw_more_than_deposited() public {
+    function testWithdrawMoreThanDeposited() public {
         // First, approve and deposit some amount
         vm.prank(trader);
         usdc.approve(address(geniusVault), 500 ether);
