@@ -10,19 +10,21 @@ import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusPool} from "../src/GeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 
-// DEX contracts
-import {LBQuoter} from "joe-v2/LBQuoter.sol";
-import {LBRouter} from "joe-v2/LBRouter.sol";
-
 // Interfaces
-import {ILBRouter} from "joe-v2/interfaces/ILBRouter.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IAllowanceTransfer, IEIP712 } from "permit2/interfaces/IAllowanceTransfer.sol";
 
 // Mocks
 import {TestERC20} from "./mocks/TestERC20.sol";
 
-
+/**
+ * @title GeniusExecutorTest
+ * @dev A contract for testing the GeniusExecutor contract.
+ *
+ * Note while the executor is meant to be used for batching swaps, within the tests we simply
+ *      use transfers to simulate the swap functionality, as all functions are extremely generalized,
+ *      and the swap functionality is not the main focus of the tests.
+ */
 contract GeniusExecutorTest is Test {
     // Setup the fork for the Avalanche network
     uint256 avalanche;
@@ -43,8 +45,6 @@ contract GeniusExecutorTest is Test {
     address meow = 0x8aD25B0083C9879942A64f00F20a70D3278f6187;
 
     // External contracts
-    LBRouter public lbRouter;
-    LBQuoter public lbQuoter;
     TestERC20 public testERC20;
 
     ERC20 public wavaxContract;
@@ -69,8 +69,6 @@ contract GeniusExecutorTest is Test {
         privateKey = traderKey;
         coinReceiver = makeAddr("coinReceiver");
 
-        lbRouter = LBRouter(routerAddress);
-        lbQuoter = LBQuoter(quoterAddress);
         testERC20 = new TestERC20();
 
         wavaxContract = ERC20(wavax);
@@ -191,11 +189,6 @@ contract GeniusExecutorTest is Test {
 
 
     function testTokenSwapAndDeposit() public {
-        // Setup initial balances and approvals
-        uint256 initialWavaxBalance = wavaxContract.balanceOf(address(geniusExecutor));
-        uint256 initialTestERC20Balance = testERC20.balanceOf(address(geniusExecutor));
-        uint256 initialPoolTestERC20Balance = testERC20.balanceOf(address(geniusPool));
-        
         uint160 transferAmount = 10 ether;  // Define the amount of wavax to swap
 
         // Approve LBRouter to spend wavax from GeniusExecutor
@@ -252,6 +245,157 @@ contract GeniusExecutorTest is Test {
 
         assertEq(totalAssets, 5 ether, "Pool should have 5 test tokens available");
         assertEq(poolAvailableAssets, 5 ether, "Pool should have 90% of test tokens available");
+        assertEq(poolStakedAssets, 0, "Pool should have 0 test tokens staked");
+    }
+
+    function testNativeSwapAndDeposit() public {
+        address target = makeAddr("target");
+        uint256 value = 0;
+
+        testERC20.transfer(target, 10 ether);
+
+        vm.prank(target);
+        testERC20.approve(address(geniusExecutor), 10 ether);
+
+        // Encode a transferFrom call to the target address to the executor contract
+        bytes memory transferCalldata = abi.encodeWithSignature(
+            "transferFrom(address,address,uint256)",
+            target,
+            address(geniusExecutor),
+            10 ether
+        );
+
+
+        geniusExecutor.nativeSwapAndDeposit(
+            address(testERC20),
+            transferCalldata,
+            value,
+            trader
+        );
+
+        uint256 executorTestERC20Balance = testERC20.balanceOf(address(geniusExecutor));
+        uint256 poolTestERC20Balance = testERC20.balanceOf(address(geniusPool));
+
+        assertEq(executorTestERC20Balance, 0, "Executor should have 0 test tokens");
+        assertEq(poolTestERC20Balance, 10 ether, "Executor should have 10 test tokens");
+
+        uint256 totalAssets = geniusPool.totalAssets();
+        uint256 poolAvailableAssets = geniusPool.availableAssets();
+        uint256 poolStakedAssets = geniusPool.totalStakedAssets();
+
+        assertEq(totalAssets, 10 ether, "Pool should have 10 test tokens available");
+        assertEq(poolAvailableAssets, 10 ether, "Pool should have 10 test tokens available");
+        assertEq(poolStakedAssets, 0, "Pool should have 0 test tokens staked");
+    }
+
+
+    function testMultiSwapAndDeposit() public {
+        address holderOne = makeAddr("holderOne");
+        address holderTwo = makeAddr("holderTwo");
+
+        // Create the targets, data, and vlues arrays
+        address target = address(testERC20);
+        address[] memory targets = new address[](2);
+        targets[0] = target;
+        targets[1] = target;
+
+        
+        uint256 value = 0;
+        uint256[] memory values = new uint256[](2);
+        values[0] = value;
+        values[1] = value;
+
+
+        testERC20.transfer(trader, 100 ether);
+        testERC20.transfer(holderOne, 100 ether);
+        testERC20.transfer(holderTwo, 100 ether);
+
+        vm.prank(trader);
+        testERC20.approve(address(permit2), 100 ether);
+
+        vm.prank(holderOne);
+        testERC20.approve(address(permit2), 100 ether);
+        vm.prank(holderOne);
+        testERC20.approve(address(geniusExecutor), 100 ether);
+
+        vm.prank(holderTwo);
+        testERC20.approve(address(permit2), 100 ether);
+        vm.prank(holderTwo);
+        testERC20.approve(address(geniusExecutor), 100 ether);
+
+        // Encode a transferFrom call to the target address to the executor contract
+        bytes memory transferCalldata_one = abi.encodeWithSignature(
+            "transferFrom(address,address,uint256)",
+            holderOne,
+            address(geniusExecutor),
+            10 ether
+        );
+
+        bytes memory transferCalldata_two = abi.encodeWithSignature(
+            "transferFrom(address,address,uint256)",
+            holderTwo,
+            address(geniusExecutor),
+            10 ether
+        );
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = transferCalldata_one;
+        data[1] = transferCalldata_two;
+
+        IAllowanceTransfer.PermitDetails[] memory permitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        permitDetails[0] = IAllowanceTransfer.PermitDetails({
+            token: address(testERC20),
+            amount: 100 ether,
+            expiration: 1900000000,
+            nonce: 0
+        });
+
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer.PermitBatch({
+            details: permitDetails,
+            spender: address(geniusExecutor),
+            sigDeadline: 1900000000
+        });
+
+        bytes memory signature = sigUtils.getPermitBatchSignature(
+            permitBatch,
+            privateKey,
+            DOMAIN_SEPERATOR
+        );
+
+        address[] memory routers = new address[](1);
+        routers[0] = makeAddr("fakeRouter1");
+
+        uint256 traderBalance = testERC20.balanceOf(trader);
+
+        vm.prank(trader);
+        geniusExecutor.multiSwapAndDeposit(
+            targets,
+            data,
+            values,
+            routers,
+            permitBatch,
+            signature,
+            trader
+        );
+
+        uint256 executorTestERC20Balance = testERC20.balanceOf(address(geniusExecutor));
+        uint256 poolTestERC20Balance = testERC20.balanceOf(address(geniusPool));
+        uint256 holderOneBalance = testERC20.balanceOf(holderOne);
+        uint256 holderTwoBalance = testERC20.balanceOf(holderTwo);
+        uint256 afterSwapTraderBalance = testERC20.balanceOf(trader);
+
+        assertEq(executorTestERC20Balance, 0, "Executor should have 0 test tokens");
+        assertEq(poolTestERC20Balance, 120 ether, "Executor should have 120 test tokens");
+        assertEq(holderOneBalance, 90 ether, "Holder One should have 90 test tokens");
+        assertEq(holderTwoBalance, 90 ether, "Holder Two should have 90 test tokens");
+        assertEq(afterSwapTraderBalance, traderBalance - 100 ether, "Trader should have expected balance");
+
+        uint256 totalAssets = geniusPool.totalAssets();
+        uint256 poolAvailableAssets = geniusPool.availableAssets();
+        uint256 poolStakedAssets = geniusPool.totalStakedAssets();
+
+        assertEq(totalAssets, 120 ether, "Pool should have 120 test tokens available");
+        assertEq(poolAvailableAssets, 120 ether, "Pool should have 120 test tokens available");
         assertEq(poolStakedAssets, 0, "Pool should have 0 test tokens staked");
     }
 }

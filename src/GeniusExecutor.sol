@@ -177,12 +177,11 @@ contract GeniusExecutor {
             totalRequiredValue += values[i];
         }
         if (totalRequiredValue > address(this).balance) revert InsufficientNativeBalance(totalRequiredValue, address(this).balance);
+        
+        uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _approveRouters(routers, permitBatch);
-
-        uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
-        
         _batchExecution(targets, data, values);
 
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
