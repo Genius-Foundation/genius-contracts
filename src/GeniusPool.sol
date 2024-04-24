@@ -81,33 +81,65 @@ contract GeniusPool is Orchestrable {
     //                          EVENTS
     // =============================================================
 
+    /**
+     * @dev Emitted when a trader stakes their funds in the GeniusPool contract.
+     * @param trader The address of the trader who is staking their funds.
+     * @param amountDeposited The amount of funds being deposited by the trader.
+     * @param newTotalDeposits The new total amount of funds deposited in the GeniusPool contract after the stake.
+     */
     event Stake(
         address indexed trader,
         uint256 amountDeposited,
         uint256 newTotalDeposits
     );
 
+    /**
+     * @dev Emitted when a trader unstakes their funds from the GeniusPool contract.
+     * @param trader The address of the trader who unstaked their funds.
+     * @param amountWithdrawn The amount of funds that were withdrawn by the trader.
+     * @param newTotalDeposits The new total amount of deposits in the GeniusPool contract after the withdrawal.
+     */
     event Unstake(
         address indexed trader,
         uint256 amountWithdrawn,
         uint256 newTotalDeposits
     );
 
+    /**
+     * @dev An event emitted when a swap deposit is made.
+     * @param trader The address of the trader who made the deposit.
+     * @param amountDeposited The amount of tokens deposited.
+     */
     event SwapDeposit(
         address indexed trader,
         uint256 amountDeposited
     );
 
+    /**
+     * @dev An event emitted when a swap withdrawal occurs.
+     * @param trader The address of the trader who made the withdrawal.
+     * @param amountWithdrawn The amount that was withdrawn.
+     */
     event SwapWithdrawal(
         address indexed trader,
         uint256 amountWithdrawn
     );
 
+    /**
+     * @dev Event triggered when funds are bridged to another chain.
+     * @param amount The amount of funds being bridged.
+     * @param chainId The ID of the chain where the funds are being bridged to.
+     */
     event BridgeFunds(
         uint256 amount,
         uint16 chainId
     );
 
+    /**
+     * @dev Emitted when the contract receives funds from a bridge.
+     * @param amount The amount of funds received.
+     * @param chainId The chain ID that funds are received from.
+     */
     event ReceiveBridgeFunds(
         uint256 amount,
         uint16 chainId
