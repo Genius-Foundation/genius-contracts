@@ -1,135 +1,67 @@
-// // SPDX-License-Identifier: UNLICENSED
-// pragma solidity ^0.8.4;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.4;
 
-// import {Test, console} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 
-// import {GeniusVault} from "../src/GeniusVault.sol";
-// import {TestERC20} from "../src/TestERC20.sol";
-// import {Permit2} from "permit2/Permit2.sol";
+import {GeniusPool} from "../src/GeniusPool.sol";
+import {GeniusVault} from "../src/GeniusVault.sol";
 
-// contract GeniusVaultTest is Test {
-//     address public fakeOwner = makeAddr("owner");
-//     address public orchestrator = makeAddr("orchestrator");
-//     address public trader = makeAddr("trader");
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IStargateRouter} from "../src/interfaces/IStargateRouter.sol";
 
-//     uint256 public amount = 1000 ether;
 
-//     TestERC20 public testERC20 = new TestERC20();
-//     GeniusVault public geniusVault = new GeniusVault(address(testERC20));
-//     TestPermit public testPermit = new Permit2();
+contract GeniusPoolTest is Test {
+    uint256 avalanche;
+    string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
-//     function getPermit(address owner, uint256 amount, address spender) private returns (IAllowanceTransfer.PermitSingle memory, bytes memory) {
+    uint256 sourceChainId = 106; // avalanche
+    uint256 targetChainId = 101; // ethereum
 
-//         uint256[] memory allowanceDetils = testPermit.allowance(owner, address(testERC20), address(geniusVault));
-//         uint256 nonce = allowanceDetils[0];
+    uint256 sourcePoolId = 1;
+    uint256 targetPoolId = 1;
 
-//         IAllowanceTransfer.PermitSingle memory permit = IAllowanceTransfer.PermitSingle({
-//             details: IAllowanceTransfer.PermitDetails({
-//                 token: address(testERC20),
-//                 amount: amount,
-//                 expiration: block.timestamp + 30 seconds,
-//                 nonce: nonce
-//             }),
-//             spender: spender
-//         });
+    address owner;
+    address trader;
+    address orchestrator;
 
-//         return permit
-//     }
+    ERC20 public usdc;
+    IStargateRouter public stargateRouter;
 
-//     function test_constructor() view public {
-//         assertEq(geniusVault.owner(), address(this));
-//     }
+    GeniusPool public geniusPool;
+    GeniusVault public geniusVault;
 
-//     function test_add_orchestrator() public {
-//         geniusVault.addOrchestrator(address(orchestrator));
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 1);
-//     }
+    function setUp() public {
+        avalanche = vm.createFork(rpc);
+        vm.selectFork(avalanche);
+        assertEq(vm.activeFork(), avalanche);
 
-//     function test_add_orchestrator_without_owner() public {
-//         vm.prank(fakeOwner);
-//         vm.expectRevert();
-//         geniusVault.addOrchestrator(address(orchestrator));
-//     }
+        owner = makeAddr("owner");
+        trader = makeAddr("trader");
+        orchestrator = makeAddr("orchestrator");
 
-//     function test_remove_orchestrator() public {
-//         geniusVault.addOrchestrator(address(orchestrator));
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 1);
+        usdc = ERC20(0x1205f31718499dBf1fCa446663B532Ef87481fe1); // USDC on Avalanche
+        stargateRouter = IStargateRouter(0x45A01E4e04F14f7A4a6702c74187c5F6222033cd); // Stargate Router on Avalanche
 
-//         geniusVault.removeOrchestrator(address(orchestrator));
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 0);
-//     }
+        vm.startPrank(owner);
+        geniusPool = new GeniusPool(address(usdc), address(stargateRouter), owner);
 
-//     function test_remove_orchestrator_without_owner() public {
-//         geniusVault.addOrchestrator(address(orchestrator));
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 1);
+        console.log("Genius Pool Owner: %s", geniusPool.owner());
 
-//         vm.prank(fakeOwner);
-//         vm.expectRevert();
-//         geniusVault.removeOrchestrator(address(orchestrator));
-//     }
+        vm.startPrank(owner);
+        geniusVault = new GeniusVault(address(usdc));
 
-//     function test_deposit_with_trader_without_matching_msg_sender() public {
-//         vm.expectRevert();
-//         geniusVault.addLiquidity(address(trader), amount);
-//     }
+        console.log("Genius Vault Owner: %s", geniusVault.owner());
 
-//     function test_deposit_with_trader_with_matching_msg_sender() public {
-//         testERC20.approve(address(geniusVault), amount);
-//         geniusVault.addLiquidity(address(this), amount);
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
-//     }
+        vm.startPrank(0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        geniusVault.initialize(address(geniusPool));
 
-//     function test_deposit_with_orchestrator() public {
-//         geniusVault.addOrchestrator(address(orchestrator));
+        vm.startPrank(owner);
+        geniusPool.initialize(address(geniusVault));
 
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 1);
+        geniusPool.addOrchestrator(orchestrator);
+        assertEq(geniusPool.orchestrator(orchestrator), true);
 
-//         testERC20.transfer(address(orchestrator), amount);
+        deal(address(usdc), trader, 1_000 ether);
+    }
 
-//         vm.prank(orchestrator);
-//         testERC20.approve(address(geniusVault), amount);
-
-//         vm.prank(orchestrator);
-//         geniusVault.addLiquidity(address(trader), amount);
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
-//     }
-
-//     function test_deposit_without_orchestrator() public {
-//         testERC20.approve(address(geniusVault), amount);
-//         vm.expectRevert();
-//         geniusVault.addLiquidity(address(trader), amount);
-//     }
-
-//     function test_withdraw_without_orchestrator() public {
-//         geniusVault.addOrchestrator(address(this));
-//         testERC20.approve(address(geniusVault), amount);
-//         geniusVault.addLiquidity(address(trader), amount);
-
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
-
-//         vm.expectRevert();
-//         geniusVault.removeLiquidity(address(trader), amount);
-//     }
-
-//     function test_withdraw_with_orchestrator() public {
-//         geniusVault.addOrchestrator(address(this));
-//         testERC20.approve(address(geniusVault), amount);
-//         geniusVault.addLiquidity(address(trader), amount);
-
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
-
-//         geniusVault.removeLiquidity(address(trader), amount - 1);
-//         assertEq(testERC20.balanceOf(address(geniusVault)), 1);
-//     }
-
-//     function test_withdraw_with_orchestrator_with_insufficient_balance() public {
-//         geniusVault.addOrchestrator(address(this));
-//         testERC20.approve(address(geniusVault), amount);
-//         geniusVault.addLiquidity(address(trader), amount);
-
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
-
-//         vm.expectRevert();
-//         geniusVault.removeLiquidity(address(trader), amount);
-//     }
-// }
+}

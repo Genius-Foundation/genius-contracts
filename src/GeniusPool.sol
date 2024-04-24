@@ -12,7 +12,7 @@ import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
  * @author altloot
  * 
  * @notice Contract allows for Genius Orchestrators to credit and debit
- *         trader STABLECOIN balances for cross-chain swaps.
+ *         trader STABLECOIN balances for cross-chain swaps,
  *         and other Genius related activities.
  */
 
