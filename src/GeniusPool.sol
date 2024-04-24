@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
@@ -224,12 +223,9 @@ contract GeniusPool is Orchestrable {
         if (_amountIn > STABLECOIN.balanceOf(address(this))) revert InvalidAmount();
         if (!_isBalanceWithinThreshold(totalAssets - _amountIn)) revert NeedsRebalance(totalAssets, availableAssets);
 
-        (
-        uint256 fee,
+        (,
         IStargateRouter.lzTxObj memory lzTxParams
         ) = layerZeroFee(_dstChainId);
-
-        if (msg.value != fee) revert InvalidAmount();
 
         STABLECOIN.approve(address(STARGATE_ROUTER), _amountIn);
 

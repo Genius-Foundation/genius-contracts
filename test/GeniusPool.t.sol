@@ -37,22 +37,18 @@ contract GeniusPoolTest is Test {
 
         owner = makeAddr("owner");
         trader = makeAddr("trader");
-        orchestrator = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
+        orchestrator = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38; // The hardcoded tx.origin for forge
 
-        usdc = ERC20(0x1205f31718499dBf1fCa446663B532Ef87481fe1); // USDC on Avalanche
+        usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         stargateRouter = IStargateRouter(0x45A01E4e04F14f7A4a6702c74187c5F6222033cd); // Stargate Router on Avalanche
 
         vm.startPrank(owner);
         geniusPool = new GeniusPool(address(usdc), address(stargateRouter), owner);
-
-        console.log("Genius Pool Owner: %s", geniusPool.owner());
-
-        vm.startPrank(owner);
         geniusVault = new GeniusVault(address(usdc));
 
-        console.log("Genius Vault Owner: %s", geniusVault.owner());
+        assertEq(geniusPool.owner(), owner, "Owner should be orchestrator");
 
-        vm.startPrank(0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+        vm.startPrank(orchestrator);
         geniusVault.initialize(address(geniusPool));
 
         vm.startPrank(owner);
@@ -165,8 +161,6 @@ contract GeniusPoolTest is Test {
     }
 
     function testStakeLiquidity() public {
-        uint256 initialTraderBalance = usdc.balanceOf(trader);
-
         vm.expectRevert();
         geniusPool.stakeLiquidity(trader, 1_000 ether);
 
@@ -180,7 +174,6 @@ contract GeniusPoolTest is Test {
         uint256 availableAssets = geniusPool.availableAssets();
         uint256 totalStakedAssets = geniusPool.totalStakedAssets();
         uint256 traderStakedBalance = geniusPool.stakedDeposits(trader);
-        uint256 traderBalance = usdc.balanceOf(trader);
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
@@ -189,9 +182,6 @@ contract GeniusPoolTest is Test {
     }
 
     function testRemoveStakedLiquidity() public {
-        // Stake liquidity
-        uint256 initialTraderBalance = usdc.balanceOf(trader);
-
         vm.expectRevert();
         geniusPool.stakeLiquidity(trader, 1_000 ether);
 
@@ -240,7 +230,6 @@ contract GeniusPoolTest is Test {
          * Donated balances are balances that are transferred into the pool contract
          * but are done so directly without going through a contract function.
          */
-        uint256 initialTraderBalance = usdc.balanceOf(trader);
 
         vm.startPrank(trader);
         usdc.approve(address(geniusVault), 1_000 ether);
@@ -291,4 +280,38 @@ contract GeniusPoolTest is Test {
         assertEq(traderBalance, 0, "Trader balance should be 0 ether");
     }
 
+    function testRemoveBridgeLiquidity() public {
+        uint256 initialOrchestatorBalance = usdc.balanceOf(orchestrator);
+
+        // Add bridge liquidity
+        vm.startPrank(orchestrator);
+        usdc.approve(address(geniusPool), 1_000 ether);
+        geniusPool.addBridgeLiquidity(500 ether, targetChainId);
+
+        assertEq(usdc.balanceOf(address(geniusPool)), 500 ether, "GeniusPool balance should be 1,000 ether");
+        assertEq(usdc.balanceOf(orchestrator), initialOrchestatorBalance - 500 ether, "Orchestrator balance should be -500 ether");
+
+        vm.deal(orchestrator, 100 ether);
+
+        vm.startPrank(orchestrator);
+        usdc.approve(address(geniusPool), 1_000 ether);
+        geniusPool.removeBridgeLiquidity{value: 1 ether}(
+            100 * 1e6,
+            0,
+            targetChainId,
+            sourcePoolId,
+            targetPoolId
+        );
+
+        assertEq(usdc.balanceOf(address(geniusPool)), 499.9999999999 ether, "GeniusPool balance should be 499.9999999999 ether");
+        assertEq(usdc.balanceOf(orchestrator), initialOrchestatorBalance - 500 ether, "Orchestrator balance should be -500 ether");
+
+        uint256 totalAssets = geniusPool.totalAssets();
+        uint256 availableAssets = geniusPool.availableAssets();
+        uint256 totalStakedAssets = geniusPool.totalStakedAssets();
+
+        assertEq(totalAssets, 499.9999999999 ether, "Total assets should be 499.9999999999 ether");
+        assertEq(totalStakedAssets, 0, "Total staked assets should be 0 ether");
+        assertEq(availableAssets, 499.9999999999 ether, "Available assets should be 499.9999999999 ether");
+    }
 }
