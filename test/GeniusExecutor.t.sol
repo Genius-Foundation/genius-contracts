@@ -107,6 +107,66 @@ contract GeniusExecutorTest is Test {
         meowContract.approve(permit2Address, 100 ether);
     }
 
+    function testAggregateWithoutPermit2() public {
+        uint128 amountInOne = 1 ether;
+        uint128 amountInTwo = 2 ether;
+
+        address holderOne = makeAddr("holderOne");
+        address holderTwo = makeAddr("holderTwo");
+
+        testERC20.transfer(holderOne, 100 ether);
+        testERC20.transfer(holderTwo, 100 ether);
+
+        vm.prank(holderOne);
+        testERC20.approve(address(geniusExecutor), 100 ether);
+
+        vm.prank(holderTwo);
+        testERC20.approve(address(geniusExecutor), 100 ether);
+
+        // Create call data for swapExactNATIVEForTokens
+        bytes memory transferCalldata_one = abi.encodeWithSignature(
+            "transferFrom(address,address,uint256)",
+            holderOne,
+            address(geniusExecutor),
+            amountInOne
+        );
+
+        // Create call data for swapExactNATIVEForTokens
+        bytes memory transferCalldata_two = abi.encodeWithSignature(
+            "transferFrom(address,address,uint256)",
+            holderTwo,
+            address(geniusExecutor),
+            amountInTwo
+        );
+
+        // Declare the arrays in memory instead of calldata
+        address[] memory targets = new address[](2);
+        targets[0] = address(testERC20);
+        targets[1] = address(testERC20);
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = transferCalldata_one; 
+        data[1] = transferCalldata_two; 
+
+        uint256[] memory values = new uint256[](2);
+        values[0] = 0; 
+        values[1] = 0; 
+
+        geniusExecutor.aggregate(
+            targets,
+            data,
+            values
+        );
+
+        uint256 executorTestERC20Balance = testERC20.balanceOf(address(geniusExecutor));
+        uint256 holderOneBalance = testERC20.balanceOf(holderOne);
+        uint256 holderTwoBalance = testERC20.balanceOf(holderTwo);
+
+        assertEq(executorTestERC20Balance, 3 ether, "Executor should have 3 test tokens");
+        assertEq(holderOneBalance, 99 ether, "Holder One should have 97 test tokens");
+        assertEq(holderTwoBalance, 98 ether, "Holder Two should have 98 test tokens");
+    }
+
     function testAggregateWithPermit2() public {
 
         uint128 amountInOne = 1 ether;
