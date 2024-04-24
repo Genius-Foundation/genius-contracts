@@ -9,7 +9,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusPool} from "../src/GeniusPool.sol";
 
-// forge test -vvv --tx-origin 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38
 contract GeniusVaultTest is Test {
 
     address public immutable bridgeAddress = 0x150f94B44927F078737562f0fcF3C95c01Cc2376;
@@ -67,7 +66,7 @@ contract GeniusVaultTest is Test {
         assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
         assertEq(vaultAssets, 1_000 ether, "Vault assets should be 1,000 ether");
         assertEq(userShares, 1_000 ether, "User shares should be 1,000 ether");
-}
+    }
 
 
     function test_deposit_for_diff_user() public {
@@ -129,8 +128,6 @@ contract GeniusVaultTest is Test {
     }
 
     function test_deposit_and_withdrawal_for_diff_user() public {
-        address trader = makeAddr("trader");
-
 
         uint256 traderUSDCBalance = usdc.balanceOf(trader);
         assertEq(traderUSDCBalance, 1_000 ether, "Trader should initially have 1,000 USDC");

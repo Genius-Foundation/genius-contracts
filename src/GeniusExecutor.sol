@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Test, console} from "forge-std/Test.sol";
+
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 import { GeniusPool } from "./GeniusPool.sol";
@@ -127,6 +130,7 @@ contract GeniusExecutor {
         IERC20 tokenToSwap = IERC20(tokenToSwapAddress);
 
         uint256 amountToSwap = tokenToSwap.balanceOf(address(this));
+
         if (!tokenToSwap.approve(target, amountToSwap)) revert ApprovalFailure(tokenToSwapAddress, amountToSwap);
 
         uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
@@ -134,7 +138,7 @@ contract GeniusExecutor {
         (bool success, ) = target.call{value: value}(data);
         if(!success) revert ExternalCallFailed(target, 0);
 
-        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
+        uint256 amountToDeposit = initialStablecoinValue - STABLECOIN.balanceOf(address(this));
         if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         POOL.addLiquiditySwap(owner, amountToDeposit);
