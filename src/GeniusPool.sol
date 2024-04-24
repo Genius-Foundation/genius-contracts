@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {console} from "forge-std/Test.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
@@ -449,7 +451,7 @@ contract GeniusPool is Orchestrable {
      */
     function _updateAvailableAssets() internal {
         // Calculate the amount that is the threshold percentage of the staked assets
-        uint256 reduction = (totalStakedAssets * rebalanceThreshold) / 100;
+        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
 
         // Calculate the liquidity needed as the staked assets minus the reduction
         // Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0

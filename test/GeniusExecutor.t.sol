@@ -240,13 +240,18 @@ contract GeniusExecutorTest is Test {
             trader
         );
 
-        // Verify balances after operation
-        uint256 finalWavaxBalance = wavaxContract.balanceOf(address(geniusExecutor));
-        uint256 finalTestERC20Balance = testERC20.balanceOf(address(geniusExecutor));
-        uint256 finalPoolTestERC20Balance = testERC20.balanceOf(address(geniusPool));
+        uint256 executorTestERC20Balance = testERC20.balanceOf(address(geniusExecutor));
+        uint256 poolTestERC20Balance = testERC20.balanceOf(address(geniusPool));
 
-        assertEq(finalWavaxBalance, initialWavaxBalance - transferAmount, "Executor should have less wavax after swap");
-        assertGt(finalTestERC20Balance, initialTestERC20Balance, "Executor should have more testERC20 after swap");
-        assertGt(finalPoolTestERC20Balance, initialPoolTestERC20Balance, "Pool should have more testERC20 after deposit");
+        assertEq(executorTestERC20Balance, 0, "Executor should have 0 test tokens");
+        assertEq(poolTestERC20Balance, 5 ether, "Executor should have 5 test tokens");
+
+        uint256 totalAssets = geniusPool.totalAssets();
+        uint256 poolAvailableAssets = geniusPool.availableAssets();
+        uint256 poolStakedAssets = geniusPool.totalStakedAssets();
+
+        assertEq(totalAssets, 5 ether, "Pool should have 5 test tokens available");
+        assertEq(poolAvailableAssets, 5 ether, "Pool should have 90% of test tokens available");
+        assertEq(poolStakedAssets, 0, "Pool should have 0 test tokens staked");
     }
 }
