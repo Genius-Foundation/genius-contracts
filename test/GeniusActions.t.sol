@@ -9,33 +9,33 @@ contract GeniusActionsTest is Test {
 
     GeniusActions public geniusActions = new GeniusActions(owner);
 
-    function test_constructor() view public {
+    function testConstructor() view public {
         assertEq(geniusActions.owner(), owner);
     }
 
-    function test_action_addtion_without_owner() public {
+    function testAddActionWithoutOwner() public {
        vm.expectRevert();
        geniusActions.addAction("action1", "ipfsHash1");
     }
 
-    function test_action_addition_with_owner() public {
+    function testAddActionAsOwner() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
         assertEq(geniusActions.getAction("action1"), "ipfsHash1");
     }
 
-    function test_returns_mapped_value() public {
+    function testReturnsCorrectValue() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
         assertEq(geniusActions.getAction("action1"), "ipfsHash1");
     }
 
-    function test_no_value_for_nonexistant_action() public {
+    function testExpectRevertNonexistentAction() public {
         vm.expectRevert();
         geniusActions.getAction("action1");
     }
 
-    function test_duplicate_action() public {
+    function testExpectRevertOnDuplicateAction() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
         assertEq(geniusActions.getAction("action1"), "ipfsHash1");
@@ -44,7 +44,7 @@ contract GeniusActionsTest is Test {
         geniusActions.addAction("action1", "ipfsHash1");
     }
 
-    function test_action_removal_without_owner() public {
+    function testRemoveActionWithoutOwner() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
 
@@ -52,7 +52,7 @@ contract GeniusActionsTest is Test {
         geniusActions.removeAction("action1");
     }
 
-    function test_action_removal_with_owner() public {
+    function testRemoveActionAsOwner() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
         assertEq(geniusActions.getAction("action1"), "ipfsHash1");
@@ -63,13 +63,13 @@ contract GeniusActionsTest is Test {
         geniusActions.getAction("action1");
     }
 
-    function test_nonexistant_action_removal() public {
+    function testRemoveNonexistentAction() public {
         vm.prank(owner);
         vm.expectRevert();
         geniusActions.removeAction("action1");
     }
 
-    function test_deployer_cannot_be_owner() public {
+    function testExpectDeployerNotToBeOwner() public {
         vm.prank(address(this));
         vm.expectRevert();
         GeniusActions secondContract = new GeniusActions(address(this));
@@ -79,7 +79,7 @@ contract GeniusActionsTest is Test {
         secondContract.addAction("action1", "ipfsHash1");
     }
 
-    function test_get_action_names() public {
+    function testGetActions() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
         assertEq(geniusActions.getActiveActionName(0), "action1");
@@ -88,7 +88,7 @@ contract GeniusActionsTest is Test {
         geniusActions.getInactiveActionName(0);
     }
 
-    function test_get_inactive_action_names() public {
+    function testGetInactiveActions() public {
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");
         assertEq(geniusActions.getActiveActionName(0), "action1");
@@ -102,7 +102,7 @@ contract GeniusActionsTest is Test {
         geniusActions.getActiveActionName(0);
     }
 
-    function test_inactive_action() public {
+    function testInactiveActions() public {
         // Add the action
         vm.prank(owner);
         geniusActions.addAction("action1", "ipfsHash1");

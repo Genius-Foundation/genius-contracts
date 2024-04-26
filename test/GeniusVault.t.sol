@@ -1,135 +1,180 @@
-// // SPDX-License-Identifier: UNLICENSED
-// pragma solidity ^0.8.4;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.20;
 
-// import {Test, console} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 
-// import {GeniusVault} from "../src/GeniusVault.sol";
-// import {TestERC20} from "../src/TestERC20.sol";
-// import {Permit2} from "permit2/Permit2.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {MockUSDC} from "./mocks/mockUSDC.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {GeniusVault} from "../src/GeniusVault.sol";
+import {GeniusPool} from "../src/GeniusPool.sol";
 
-// contract GeniusVaultTest is Test {
-//     address public fakeOwner = makeAddr("owner");
-//     address public orchestrator = makeAddr("orchestrator");
-//     address public trader = makeAddr("trader");
+contract GeniusVaultTest is Test {
 
-//     uint256 public amount = 1000 ether;
+    address public immutable bridgeAddress = 0x150f94B44927F078737562f0fcF3C95c01Cc2376;
+    address public owner = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
+    address public trader;
 
-//     TestERC20 public testERC20 = new TestERC20();
-//     GeniusVault public geniusVault = new GeniusVault(address(testERC20));
-//     TestPermit public testPermit = new Permit2();
+    MockUSDC public usdc;
+    GeniusVault public geniusVault;
+    GeniusPool public geniusPool;
 
-//     function getPermit(address owner, uint256 amount, address spender) private returns (IAllowanceTransfer.PermitSingle memory, bytes memory) {
+    function setUp() public {
+        trader = makeAddr("trader");
+        usdc = new MockUSDC();
 
-//         uint256[] memory allowanceDetils = testPermit.allowance(owner, address(testERC20), address(geniusVault));
-//         uint256 nonce = allowanceDetils[0];
+        vm.prank(owner);
+        geniusVault = new GeniusVault(address(usdc));
 
-//         IAllowanceTransfer.PermitSingle memory permit = IAllowanceTransfer.PermitSingle({
-//             details: IAllowanceTransfer.PermitDetails({
-//                 token: address(testERC20),
-//                 amount: amount,
-//                 expiration: block.timestamp + 30 seconds,
-//                 nonce: nonce
-//             }),
-//             spender: spender
-//         });
+        vm.prank(owner);
+        geniusPool = new GeniusPool(
+            address(usdc),
+            bridgeAddress,
+            owner
+        );
 
-//         return permit
-//     }
+        vm.prank(owner);
+        geniusVault.initialize(address(geniusPool));
 
-//     function test_constructor() view public {
-//         assertEq(geniusVault.owner(), address(this));
-//     }
+        vm.prank(owner);
+        geniusPool.initialize(address(geniusVault));
 
-//     function test_add_orchestrator() public {
-//         geniusVault.addOrchestrator(address(orchestrator));
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 1);
-//     }
+        vm.prank(owner);
+        usdc.mint(trader, 1_000 ether);
+    }
 
-//     function test_add_orchestrator_without_owner() public {
-//         vm.prank(fakeOwner);
-//         vm.expectRevert();
-//         geniusVault.addOrchestrator(address(orchestrator));
-//     }
+    function testSelfDeposit() public {
+        uint256 initialContractUSDCBalance = usdc.balanceOf(address(this));
+        assertEq(initialContractUSDCBalance, 1_000_000 ether, "Initial balance should be 1,000 ether");
 
-//     function test_remove_orchestrator() public {
-//         geniusVault.addOrchestrator(address(orchestrator));
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 1);
+        usdc.approve(address(geniusVault), 1_000 ether);
+        geniusVault.deposit(1_000 ether, address(this));
 
-//         geniusVault.removeOrchestrator(address(orchestrator));
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 0);
-//     }
+        assertEq(usdc.balanceOf(address(this)), 1_000_000 ether - 1_000 ether, "Contract balance should be 999,000 ether");
+        assertEq(usdc.balanceOf(address(geniusVault)), 0, "GeniusVault balance should be 0");
+        assertEq(usdc.balanceOf(address(geniusPool)), 1_000 ether, "GeniusPool balance should be 1,000 ether");
 
-//     function test_remove_orchestrator_without_owner() public {
-//         geniusVault.addOrchestrator(address(orchestrator));
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 1);
+        uint256 totalAssets = geniusPool.totalAssets();
+        uint256 availableAssets = geniusPool.availableAssets();
+        uint256 totalStakedAssets = geniusPool.totalStakedAssets();
 
-//         vm.prank(fakeOwner);
-//         vm.expectRevert();
-//         geniusVault.removeOrchestrator(address(orchestrator));
-//     }
+        uint256 vaultAssets = geniusVault.totalAssets();
+        uint256 userShares = geniusVault.balanceOf(address(this));
 
-//     function test_deposit_with_trader_without_matching_msg_sender() public {
-//         vm.expectRevert();
-//         geniusVault.addLiquidity(address(trader), amount);
-//     }
+        assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
+        assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
+        assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
+        assertEq(vaultAssets, 1_000 ether, "Vault assets should be 1,000 ether");
+        assertEq(userShares, 1_000 ether, "User shares should be 1,000 ether");
+    }
 
-//     function test_deposit_with_trader_with_matching_msg_sender() public {
-//         testERC20.approve(address(geniusVault), amount);
-//         geniusVault.addLiquidity(address(this), amount);
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
-//     }
 
-//     function test_deposit_with_orchestrator() public {
-//         geniusVault.addOrchestrator(address(orchestrator));
+    function testDepositOnBehalfOf() public {
+        uint256 usdcBalance = usdc.balanceOf(trader);
+        uint256 geniusVaultBalance = usdc.balanceOf(address(geniusVault));
 
-//         assertEq(geniusVault.isOrchestrator(address(orchestrator)), 1);
+        assertEq(usdcBalance, 1_000 ether, "Trader should initially have 1,000 USDC");
+        assertEq(geniusVaultBalance, 0, "GeniusVault should initially have 0 USDC");
 
-//         testERC20.transfer(address(orchestrator), amount);
+        // Approve
+        vm.prank(trader);
+        usdc.approve(address(geniusVault), 1_000 ether);
 
-//         vm.prank(orchestrator);
-//         testERC20.approve(address(geniusVault), amount);
+        // Deposit
+        vm.prank(trader);
+        geniusVault.deposit(1_000 ether, trader);
 
-//         vm.prank(orchestrator);
-//         geniusVault.addLiquidity(address(trader), amount);
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
-//     }
+        uint256 traderUSDCBalanceAfter = usdc.balanceOf(trader);
 
-//     function test_deposit_without_orchestrator() public {
-//         testERC20.approve(address(geniusVault), amount);
-//         vm.expectRevert();
-//         geniusVault.addLiquidity(address(trader), amount);
-//     }
+        assertEq(traderUSDCBalanceAfter, 0, "Trader's USDC balance should be 0 after deposit");
+        assertEq(usdc.balanceOf(address(geniusVault)), 0, "GeniusVault's USDC balance should remain 0 after deposit if funds are redirected");
+        assertEq(usdc.balanceOf(address(geniusPool)), 1_000 ether, "GeniusPool should have 1,000 USDC after deposit");
 
-//     function test_withdraw_without_orchestrator() public {
-//         geniusVault.addOrchestrator(address(this));
-//         testERC20.approve(address(geniusVault), amount);
-//         geniusVault.addLiquidity(address(trader), amount);
+        uint256 totalAssets = geniusPool.totalAssets();
+        uint256 availableAssets = geniusPool.availableAssets();
+        uint256 totalStakedAssets = geniusPool.totalStakedAssets();
 
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
+        assertEq(totalAssets, 1_000 ether, "Total assets in GeniusPool should be 1,000 USDC");
+        assertEq(totalStakedAssets, 1_000 ether, "Total staked assets in GeniusPool should be 1,000 USDC");
+        assertEq(availableAssets, 100 ether, "Available assets in GeniusPool should be 100 USDC, reflecting rebalance threshold");
 
-//         vm.expectRevert();
-//         geniusVault.removeLiquidity(address(trader), amount);
-//     }
+        uint256 totalAssetsStaked = geniusVault.totalAssets();
+        uint256 traderShares = geniusVault.balanceOf(trader);
 
-//     function test_withdraw_with_orchestrator() public {
-//         geniusVault.addOrchestrator(address(this));
-//         testERC20.approve(address(geniusVault), amount);
-//         geniusVault.addLiquidity(address(trader), amount);
+        assertEq(totalAssetsStaked, 1_000 ether, "Total assets in GeniusVault should be 1,000 USDC after deposit");
+        assertEq(traderShares, 1_000 ether, "Trader should hold shares equivalent to the USDC deposited in GeniusVault");
+    }
 
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
+    function testSelfDepositAndWithdraw() public {
+        uint256 usdcBalance = usdc.balanceOf(address(this));
+        assertEq(usdcBalance, 1_000_000 ether, "Contract should initially have 1,000,000 USDC");
 
-//         geniusVault.removeLiquidity(address(trader), amount - 1);
-//         assertEq(testERC20.balanceOf(address(geniusVault)), 1);
-//     }
+        // Approve the GeniusVault to manage USDC on behalf of the contract
+        usdc.approve(address(geniusVault), 1_000 ether);
+        geniusVault.deposit(1_000 ether, address(this));
+        geniusVault.approve(address(this), 1_000 ether);
+        geniusVault.withdraw(1_000 ether, address(this), address(this));
 
-//     function test_withdraw_with_orchestrator_with_insufficient_balance() public {
-//         geniusVault.addOrchestrator(address(this));
-//         testERC20.approve(address(geniusVault), amount);
-//         geniusVault.addLiquidity(address(trader), amount);
+        // Check the balance after withdrawal
+        uint256 contractUSDCBalanceAfter = usdc.balanceOf(address(this));
+        uint256 totalAssets = geniusPool.totalAssets();
+        uint256 availableAssets = geniusPool.availableAssets();
+        uint256 vaultAssets = geniusVault.totalAssets();
 
-//         assertEq(testERC20.balanceOf(address(geniusVault)), amount);
+        assertEq(contractUSDCBalanceAfter, usdcBalance, "Contract's USDC should return to initial balance after withdrawal");
+        assertEq(totalAssets, 0, "Total assets in the GeniusPool should be 0 after withdrawal");
+        assertEq(availableAssets, 0, "Available assets in the GeniusPool should be 0 after withdrawal");
+        assertEq(vaultAssets, 0, "Assets in the GeniusVault should be 0 after complete withdrawal");
+    }
 
-//         vm.expectRevert();
-//         geniusVault.removeLiquidity(address(trader), amount);
-//     }
-// }
+    function testDepositAndWithdrawOnBehalfOf() public {
+
+        uint256 traderUSDCBalance = usdc.balanceOf(trader);
+        assertEq(traderUSDCBalance, 1_000 ether, "Trader should initially have 1,000 USDC");
+
+        vm.prank(trader);
+        usdc.approve(address(geniusVault), 1_000 ether);
+
+        vm.prank(trader);
+        geniusVault.deposit(1_000 ether, trader);
+        assertEq(usdc.balanceOf(trader), 0, "Trader's USDC should be 0 after deposit");
+
+        vm.prank(trader);
+        geniusVault.approve(trader, 1_000 ether);
+
+        // Withdraw the deposited USDC back to the trader
+        vm.prank(trader);
+        geniusVault.withdraw(1_000 ether, trader, trader);
+
+        // Check the balance after withdrawal
+        uint256 traderUSDCBalanceAfter = usdc.balanceOf(trader);
+        uint256 totalAssets = geniusPool.totalAssets();
+        uint256 availableAssets = geniusPool.availableAssets();
+        uint256 vaultAssets = geniusVault.totalAssets();
+
+        assertEq(traderUSDCBalanceAfter, 1_000 ether, "Trader's USDC should return to initial balance after withdrawal");
+        assertEq(totalAssets, 0, "Total assets in the GeniusPool should be 0 after withdrawal");
+        assertEq(availableAssets, 0, "Available assets in the GeniusPool should be 0 after withdrawal");
+        assertEq(vaultAssets, 0, "Assets in the GeniusVault should be 0 after complete withdrawal");
+    }
+
+    function testRevertDepositWithoutApproval() public {
+        vm.prank(trader);
+        vm.expectRevert("TRANSFER_FROM_FAILED");
+        geniusVault.deposit(1_000 ether, trader);
+    }
+
+    function testWithdrawMoreThanDeposited() public {
+        // First, approve and deposit some amount
+        vm.prank(trader);
+        usdc.approve(address(geniusVault), 500 ether);
+        vm.prank(trader);
+        geniusVault.deposit(500 ether, trader);
+
+        vm.prank(trader);
+        geniusVault.approve(trader, 1_000 ether);
+        vm.expectRevert();
+        vm.prank(trader);
+        geniusVault.withdraw(1_000 ether, trader, trader);
+    }
+}
