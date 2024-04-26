@@ -155,7 +155,6 @@ contract GeniusPool is Orchestrable {
     ) Ownable(_owner) {
         require(_stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
         require(_owner != address(0), "GeniusVault: Owner address is the zero address");
-        require(_owner == address(msg.sender), "GeniusVault: Owner address is not the deployer");
 
         STABLECOIN = IERC20(_stablecoin);
         STARGATE_ROUTER = IStargateRouter(_bridgeRouter);
@@ -225,7 +224,7 @@ contract GeniusPool is Orchestrable {
 
         (,
         IStargateRouter.lzTxObj memory lzTxParams
-        ) = layerZeroFee(_dstChainId);
+        ) = layerZeroFee(_dstChainId, tx.origin);
 
         STABLECOIN.approve(address(STARGATE_ROUTER), _amountIn);
 
@@ -237,7 +236,7 @@ contract GeniusPool is Orchestrable {
             _amountIn,
             _minAmountOut,
             lzTxParams,
-            abi.encode(tx.origin),
+            abi.encodePacked(tx.origin),
             bytes("") 
         );
 
@@ -416,21 +415,22 @@ contract GeniusPool is Orchestrable {
      * @return lzTxParams The layer zero transaction parameters.
      */
     function layerZeroFee(
-        uint16 _chainId
+        uint16 _chainId,
+        address _trader
     ) public view returns (uint256 fee, IStargateRouter.lzTxObj memory lzTxParams) {
 
         IStargateRouter.lzTxObj memory _lzTxParams = IStargateRouter.lzTxObj({
             dstGasForCall: 0,
             dstNativeAmount: 0,
-            dstNativeAddr: abi.encode(tx.origin)
+            dstNativeAddr: abi.encodePacked(_trader)
         });
 
-        bytes memory transferAndCallPayload = abi.encode(_lzTxParams); 
+        bytes memory transferAndCallPayload = abi.encodePacked(_lzTxParams); 
 
         (, uint256 _fee) = STARGATE_ROUTER.quoteLayerZeroFee(
             _chainId,
             1,
-            abi.encode(tx.origin),
+            abi.encodePacked(_trader),
             transferAndCallPayload,
             _lzTxParams
         );

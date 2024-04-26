@@ -61,6 +61,14 @@ contract GeniusPoolTest is Test {
         deal(address(usdc), orchestrator, 1_000 ether);
     }
 
+    function testGetLayerZeroFee() public {
+        (uint256 layerZeroFee,) = geniusPool.layerZeroFee(101, 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
+
+        console.log("Layer Zero Fee: ", layerZeroFee);
+
+        assertEq(layerZeroFee, 0, "Layer Zero Fee should be 0");
+    }
+
     function testRevertWhenAlreadyInitialized() public {
         vm.startPrank(owner);
         vm.expectRevert();

@@ -5,11 +5,11 @@ import {Script, console} from "forge-std/Script.sol";
 import {GeniusPool} from "../src/GeniusPool.sol";
 
 /**
- * @title DeployGeniusVault
+ * @title DeployGeniusPool
  * @dev A contract for deploying the GeniusVault contract.
         Deployment command: 
-        AVALANCHE: forge script script/DeployGeniusVault.s.sol:DeployGeniusVault --rpc-url $AVALANCHE_RPC_URL --broadcast --verify -vvvv --via-ir
-        BASE: forge script script/DeployGeniusVault.s.sol:DeployGeniusVault --rpc-url $BASE_RPC_URL --broadcast --verify -vvvv --via-ir
+        AVALANCHE: forge script script/DeployGeniusPool.s.sol:DeployGeniusPool --rpc-url $AVALANCHE_RPC_URL --broadcast --verify -vvvv --via-ir
+        BASE: forge script script/DeployGeniusPool.s.sol:DeployGeniusPool --rpc-url $BASE_RPC_URL --broadcast --verify -vvvv --via-ir
  */
 contract DeployGeniusPool is Script {
 
@@ -19,14 +19,17 @@ contract DeployGeniusPool is Script {
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        vm.broadcast(deployerPrivateKey);
+        vm.startBroadcast(deployerPrivateKey);
 
         GeniusPool geniusPool = new GeniusPool(
             0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E,
-            0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909,
+            0x45A01E4e04F14f7A4a6702c74187c5F6222033cd,
             0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909
         );
 
         console.log("GeniusPool deployed at: ", address(geniusPool));
+
+        // Initialize the GeniusPool contract
+        geniusPool.initialize(0x11Fc9cba7055eEe21FCAeA973F46E26F09f0A289);
     }
 }
