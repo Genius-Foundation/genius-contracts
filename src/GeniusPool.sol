@@ -425,7 +425,7 @@ contract GeniusPool is Orchestrable {
             dstNativeAddr: abi.encodePacked(_trader)
         });
 
-        bytes memory transferAndCallPayload = abi.encodePacked(_lzTxParams); 
+        bytes memory transferAndCallPayload = abi.encode(_lzTxParams); 
 
         (, uint256 _fee) = STARGATE_ROUTER.quoteLayerZeroFee(
             _chainId,

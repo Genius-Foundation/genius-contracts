@@ -3,20 +3,19 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 
-import {GeniusExecutor} from "../src/GeniusExecutor.sol";
-import {GeniusPool} from "../src/GeniusPool.sol";
-import {GeniusVault} from "../src/GeniusVault.sol";
-import {GeniusActions} from "../src/GeniusActions.sol";
+import {GeniusExecutor} from "../../src/GeniusExecutor.sol";
+import {GeniusPool} from "../../src/GeniusPool.sol";
+import {GeniusVault} from "../../src/GeniusVault.sol";
+import {GeniusActions} from "../../src/GeniusActions.sol";
 
 /**
- * @title DeployGeniusEcosystem.s
+ * @title DeployAvaxGeniusEcosystem
  * @dev A contract for deploying the GeniusExecutor contract.
         Deployment commands:
         `source .env` // Load environment variables
-        AVALANCHE: forge script script/DeployGeniusEcosystem.s.sol:DeployGeniusEcosystem --rpc-url $AVALANCHE_RPC_URL --broadcast --verify -vvvv --via-ir
-        BASE: forge script script/DeployGeniusEcosystem.s.sol:DeployGeniusEcosystem --rpc-url $BASE_RPC_URL --broadcast --verify -vvvv --via-ir
+        AVALANCHE: forge script script/deployment/DeployAvaxGeniusEcosystem.s.sol:DeployAvaxGeniusEcosystem --rpc-url $AVALANCHE_RPC_URL --broadcast -vvvv --via-ir
  */
-contract DeployGeniusEcosystem is Script {
+contract DeployAvaxGeniusEcosystem is Script {
     address public constant stableAddress = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
     address public constant bridgeAddress = 0x45A01E4e04F14f7A4a6702c74187c5F6222033cd;
     address public constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -37,10 +36,17 @@ contract DeployGeniusEcosystem is Script {
         geniusVault = new GeniusVault(stableAddress);
         geniusExecutor = new GeniusExecutor(permit2Address, address(geniusPool));
 
+        // Initialize the contracts
         geniusPool.initialize(address(geniusVault));
         geniusVault.initialize(address(geniusPool));
 
-        geniusPool.addOrchestrator(0xa50b4307ee0bc9b6586e3A52A75A22F199d12E57);
+        // Add orchestrators
+        geniusPool.addOrchestrator(0x17cC1e3AF40C88B235d9837990B8ad4D7C06F5cc);
+        geniusPool.addOrchestrator(0x4102b4144e9EFb8Cb0D7dc4A3fD8E65E4A8b8fD0);
+        geniusPool.addOrchestrator(0x90B29aF53D2bBb878cAe1952B773A307330393ef);
+        geniusPool.addOrchestrator(0x7e5E0712c627746a918ae2015e5bfAB51c86dA26);
+        geniusPool.addOrchestrator(0x5975fBa1186116168C479bb21Bb335f02D504CFB);
+
 
         console.log("GeniusPool deployed at: ", address(geniusPool));
         console.log("GeniusVault deployed at: ", address(geniusVault));

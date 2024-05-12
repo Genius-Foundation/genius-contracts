@@ -136,7 +136,7 @@ contract GeniusExecutor {
         (bool success, ) = target.call{value: value}(data);
         if(!success) revert ExternalCallFailed(target, 0);
 
-        uint256 amountToDeposit = initialStablecoinValue - STABLECOIN.balanceOf(address(this));
+        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
         if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         POOL.addLiquiditySwap(owner, amountToDeposit);
@@ -205,16 +205,21 @@ contract GeniusExecutor {
     ) external payable {
         require(target != address(0), "Invalid target address");
 
+        uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
+
         (bool success, ) = target.call{value: value}(data);
 
         if (!success) revert ExternalCallFailed(target, 0);
 
-        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this));
+        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
         if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         POOL.addLiquiditySwap(trader, amountToDeposit);
     }
-
+    
+    // =============================================================
+    //                      EXTERNAL FUNCTIONS
+    // =============================================================
 
     /**
      * @dev Internal function to permit and transfer tokens from the caller's address.
@@ -249,10 +254,6 @@ contract GeniusExecutor {
         PERMIT2.transferFrom(transferDetails);
     }
 
-
-    // =============================================================
-    //                      INTERNAL FUNCTIONS
-    // =============================================================
 
     /**
      * @dev Executes a batch of external function calls.
