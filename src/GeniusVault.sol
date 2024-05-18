@@ -113,7 +113,7 @@ contract GeniusVault is ERC4626, Ownable {
         if (!initialized) revert NotInitialized();
         if (assets == 0 || shares == 0) revert InvalidAmount(assets, shares);
 
-        uint256 vaultDeposits = geniusPool.totalAssets();
+        uint256 vaultDeposits = geniusPool.totalStakedAssets();
 
         if (assets > vaultDeposits) revert InvalidAmount(assets, shares);
 

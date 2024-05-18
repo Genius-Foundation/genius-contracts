@@ -35,7 +35,6 @@ contract GeniusPool is Orchestrable {
     uint256 public rebalanceThreshold = 10; // The maximum % of deviation from totalStakedAssets before blocking trades
 
     address public geniusVault;
-    mapping(address => uint256) public stakedDeposits;
 
     // =============================================================
     //                            ERRORS
@@ -281,7 +280,10 @@ contract GeniusPool is Orchestrable {
      * @param _trader The address of the trader to use for 
      * @param _amount The amount of tokens to withdraw
      */
-    function removeLiquiditySwap(address _trader, uint256 _amount) external onlyOrchestrator {
+    function removeLiquiditySwap(
+        address _trader,
+        uint256 _amount
+    ) external onlyOrchestrator {
         if (!initialized) revert NotInitialized();
         if (_amount == 0) revert InvalidAmount();
         if (_amount > totalAssets) revert InvalidAmount();
@@ -342,7 +344,6 @@ contract GeniusPool is Orchestrable {
         IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
         _updateBalance();
 
-        stakedDeposits[_trader] += _amount;
         totalStakedAssets += _amount;
 
         _updateAvailableAssets();
@@ -350,7 +351,7 @@ contract GeniusPool is Orchestrable {
         emit Stake(
             _trader,
             _amount,
-            stakedDeposits[_trader] + _amount
+            _amount
         );
     }
 
@@ -368,16 +369,11 @@ contract GeniusPool is Orchestrable {
         if (_trader == address(0)) revert InvalidTrader();
         if (_amount == 0) revert InvalidAmount();
         if (_amount > totalAssets) revert InvalidAmount();
-        if (_amount > stakedDeposits[_trader]) revert InvalidAmount();
-        if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
         if (!_isBalanceWithinThreshold(totalAssets - _amount, _amount)) revert NeedsRebalance(totalAssets, availableAssets);
 
         IERC20(STABLECOIN).transfer(msg.sender, _amount);
         _updateBalance();
 
-        uint256 originalStakedBalance = stakedDeposits[_trader];
-
-        stakedDeposits[_trader] -= _amount;
         totalStakedAssets -= _amount;
 
         _updateAvailableAssets();
@@ -386,7 +382,7 @@ contract GeniusPool is Orchestrable {
         emit Unstake(
             _trader,
             _amount,
-            originalStakedBalance - _amount
+            _amount
         );
     }
 

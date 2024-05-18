@@ -75,6 +75,9 @@ contract GeniusExecutor {
      * @param targets An array of addresses to call.
      * @param data    An array of calldata to forward to the targets.
      * @param values  How much ETH to forward to each target.
+     * @param permitBatch The permit information for batch transfer.
+     * @param signature The signature for the permit.
+     * @param owner The address of the trader/owner to aggregate calls for.
      */
     function aggregateWithPermit2(
         address[] calldata targets, // routers
