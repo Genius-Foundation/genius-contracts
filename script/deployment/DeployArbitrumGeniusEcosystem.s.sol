@@ -32,30 +32,41 @@ contract DeployArbitrumGeniusEcosystem is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         // geniusActions = new GeniusActions(admin);
-        // geniusPool = new GeniusPool(stableAddress, bridgeAddress, owner);
         // geniusVault = new GeniusVault(stableAddress);
-        // geniusExecutor = new GeniusExecutor(permit2Address, address(geniusPool));
+
+
+        // geniusPool = new GeniusPool(
+        //     stableAddress,
+        //     bridgeAddress,
+        //     owner
+        // );
+
+        // geniusExecutor = new GeniusExecutor(
+        //     permit2Address,
+        //     0x92Ca25e45a0Dcb2C5df1EC17B687A0A009Cb3E04,
+        //     0x237008a4052209e97753e1c9a0a148a0796Ce632
+        // );
 
 
         // Get an instance of the GeniusPool contract at 0xf79C2054Dcd781b19da5f58BB2F901db9c2bfAbC
-        geniusPool = GeniusPool(0xf79C2054Dcd781b19da5f58BB2F901db9c2bfAbC);
-        geniusVault = GeniusVault(0x78e3c1bCD9c68a9CE42fc5b0bF50e78B2727a622);
-        geniusExecutor = GeniusExecutor(0xa2fBbd8ecc245F49BBE26a4AE00860613C2D0316);
+        geniusPool = GeniusPool(0x92Ca25e45a0Dcb2C5df1EC17B687A0A009Cb3E04);
+        geniusVault = GeniusVault(0x237008a4052209e97753e1c9a0a148a0796Ce632);
+        geniusExecutor = GeniusExecutor(0x3A12188Cb2e96b41dFB1D48Cf3fdE6cECa7DcFC1);
 
         // Initialize the contracts
         // geniusPool.initialize(address(geniusVault));
         // geniusVault.initialize(address(geniusPool));
 
-        // Add orchestrators
-        geniusPool.addOrchestrator(0x17cC1e3AF40C88B235d9837990B8ad4D7C06F5cc);
-        geniusPool.addOrchestrator(0x4102b4144e9EFb8Cb0D7dc4A3fD8E65E4A8b8fD0);
-        geniusPool.addOrchestrator(0x90B29aF53D2bBb878cAe1952B773A307330393ef);
-        geniusPool.addOrchestrator(0x7e5E0712c627746a918ae2015e5bfAB51c86dA26);
+        // // Add orchestrators
+        // geniusPool.addOrchestrator(0x17cC1e3AF40C88B235d9837990B8ad4D7C06F5cc);
+        // geniusPool.addOrchestrator(0x4102b4144e9EFb8Cb0D7dc4A3fD8E65E4A8b8fD0);
+        // geniusPool.addOrchestrator(0x90B29aF53D2bBb878cAe1952B773A307330393ef);
+        // geniusPool.addOrchestrator(0x7e5E0712c627746a918ae2015e5bfAB51c86dA26);
         geniusPool.addOrchestrator(0x5975fBa1186116168C479bb21Bb335f02D504CFB);
 
 
-        console.log("GeniusPool deployed at: ", address(geniusPool));
-        console.log("GeniusVault deployed at: ", address(geniusVault));
-        console.log("GeniusExecutor deployed at: ", address(geniusExecutor));
+        // console.log("GeniusPool deployed at: ", address(geniusPool));
+        // console.log("GeniusVault deployed at: ", address(geniusVault));
+        // console.log("GeniusExecutor deployed at: ", address(geniusExecutor));
     }
 }

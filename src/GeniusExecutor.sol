@@ -5,6 +5,7 @@ pragma solidity ^0.8.20;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 import { GeniusPool } from "./GeniusPool.sol";
+import { GeniusVault } from "./GeniusVault.sol";
 
 /**
  * @title GeniusExecutor
@@ -23,8 +24,10 @@ contract GeniusExecutor {
     // =============================================================
 
     IAllowanceTransfer public immutable PERMIT2;
-    GeniusPool public immutable POOL;
     IERC20 public immutable STABLECOIN;
+
+    GeniusPool public immutable POOL;
+    GeniusVault public immutable VAULT;
 
     // =============================================================
     //                            ERRORS
@@ -55,9 +58,15 @@ contract GeniusExecutor {
      */
     error InsufficientNativeBalance(uint256 expectedAmount, uint256 actualAmount);
 
-    constructor(address _permit2, address _pool) payable {
+    /**
+     * @dev Error thrown when there is a residual STABLECOIN balance after a transfer.
+     */
+    error ResidualBalance(uint256 amount);
+
+    constructor(address _permit2, address _pool, address _vault) payable {
 
         PERMIT2 = IAllowanceTransfer(_permit2);
+        VAULT = GeniusVault(_vault);
         POOL = GeniusPool(_pool);
         STABLECOIN = IERC20(POOL.STABLECOIN());
 
@@ -219,9 +228,45 @@ contract GeniusExecutor {
 
         POOL.addLiquiditySwap(trader, amountToDeposit);
     }
+
+    function depositToVault(
+        uint256 amount,
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata signature,
+        address owner
+    ) external {
+        _permitAndBatchTransfer(permitBatch, signature, owner);
+        _approveVault(amount);
+        _depositToVault(owner, amount);
+    }
+
+    /**
+     * @dev Deposits a specified amount of STABLECOIN tokens to the GeniusVault contract.
+     * @param amount The amount of STABLECOIN tokens to be deposited.
+     * @param permitBatch The permit information for batch transfer.
+     * @param signature The signature for the permit.
+     * @param owner The address of the trader to deposit for.
+     */
+    function withdrawFromVault(
+        uint256 amount,
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata signature,
+        address owner
+    ) external {
+
+        uint256 initialStablecoinBalance = STABLECOIN.balanceOf(address(this));
+
+        _permitAndBatchTransfer(permitBatch, signature, owner);
+        _approveVault(amount);
+        _withdrawFromVault(owner, amount);
+
+        uint256 residualBalance = STABLECOIN.balanceOf(address(this)) - initialStablecoinBalance;
+
+        if (residualBalance > 0) revert ResidualBalance(residualBalance);
+    }
     
     // =============================================================
-    //                      EXTERNAL FUNCTIONS
+    //                      INTERNAL FUNCTIONS
     // =============================================================
 
     /**
@@ -294,5 +339,31 @@ contract GeniusExecutor {
 
             unchecked { i++; }
         }
+    }
+
+    /**
+     * @dev Approves the transfer of a specified amount of STABLECOIN tokens to the VAULT contract.
+     * @param amount The amount of STABLECOIN tokens to be approved for transfer.
+     */
+    function _approveVault(uint256 amount) private {
+        if (!STABLECOIN.approve(address(VAULT), amount)) revert ApprovalFailure(address(STABLECOIN), amount);
+    }
+
+    /**
+     * @dev Deposits the specified amount to the vault for the given receiver.
+     * @param receiver The address of the receiver.
+     * @param amount The amount to be deposited.
+     */
+    function _depositToVault(address receiver, uint256 amount) private {
+        VAULT.deposit(amount, receiver);
+    }
+
+    /**
+     * @dev Withdraws a specified amount from the vault and transfers it to the specified receiver.
+     * @param receiver The address of the receiver of the withdrawn amount.
+     * @param amount The amount to be withdrawn from the vault.
+     */
+    function _withdrawFromVault(address receiver, uint256 amount) private {
+        VAULT.withdraw(amount, receiver, address(this));
     }
 }

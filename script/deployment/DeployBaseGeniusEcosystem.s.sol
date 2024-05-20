@@ -32,9 +32,19 @@ contract DeployBaseGeniusEcosystem is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         // geniusActions = new GeniusActions(admin);
-        geniusPool = new GeniusPool(stableAddress, bridgeAddress, owner);
         geniusVault = new GeniusVault(stableAddress);
-        geniusExecutor = new GeniusExecutor(permit2Address, address(geniusPool));
+
+        geniusPool = new GeniusPool(
+            stableAddress,
+            bridgeAddress,
+            owner
+        );
+
+        geniusExecutor = new GeniusExecutor(
+            permit2Address,
+            address(geniusPool),
+            address(geniusVault)
+        );
 
         // Initialize the contracts
         geniusPool.initialize(address(geniusVault));
