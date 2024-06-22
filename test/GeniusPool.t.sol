@@ -64,7 +64,6 @@ contract GeniusPoolTest is Test {
     function testGetLayerZeroFee() public view {
         (
             uint256 layerZeroFee,
-            IStargateRouter.lzTxObj memory lzTxParams
         ) = geniusPool.layerZeroFee(101, 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
 
         console.log("Layer Zero Fee: ", layerZeroFee);
@@ -185,12 +184,10 @@ contract GeniusPoolTest is Test {
         uint256 totalAssets = geniusPool.totalAssets();
         uint256 availableAssets = geniusPool.availableAssets();
         uint256 totalStakedAssets = geniusPool.totalStakedAssets();
-        uint256 traderStakedBalance = geniusPool.stakedDeposits(trader);
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
         assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
-        assertEq(traderStakedBalance, 1_000 ether, "Trader staked balance should be 1,000 ether");
     }
 
     function testRemoveStakedLiquidity() public {
@@ -211,13 +208,11 @@ contract GeniusPoolTest is Test {
         uint256 totalAssets = geniusPool.totalAssets();
         uint256 availableAssets = geniusPool.availableAssets();
         uint256 totalStakedAssets = geniusPool.totalStakedAssets();
-        uint256 traderStakedBalance = geniusPool.stakedDeposits(trader);
         uint256 traderBalance = usdc.balanceOf(trader);
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
         assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
-        assertEq(traderStakedBalance, 1_000 ether, "Trader staked balance should be 1,000 ether");
         assertEq(traderBalance, 0, "Trader balance should be 0 ether");
 
         // Remove staked liquidity
@@ -227,13 +222,11 @@ contract GeniusPoolTest is Test {
         totalAssets = geniusPool.totalAssets();
         availableAssets = geniusPool.availableAssets();
         totalStakedAssets = geniusPool.totalStakedAssets();
-        traderStakedBalance = geniusPool.stakedDeposits(trader);
         traderBalance = usdc.balanceOf(trader);
 
         assertEq(totalAssets, 0, "Total assets should be 0 ether");
         assertEq(totalStakedAssets, 0, "Total staked assets should be 0 ether");
         assertEq(availableAssets, 0, "Available assets should be 0 ether");
-        assertEq(traderStakedBalance, 0, "Trader staked balance should be 0 ether");
         assertEq(traderBalance, 1_000 ether, "Trader balance should be 1,000 ether");
     }
 
@@ -250,13 +243,11 @@ contract GeniusPoolTest is Test {
         uint256 totalAssets = geniusPool.totalAssets();
         uint256 availableAssets = geniusPool.availableAssets();
         uint256 totalStakedAssets = geniusPool.totalStakedAssets();
-        uint256 traderStakedBalance = geniusPool.stakedDeposits(trader);
         uint256 traderBalance = usdc.balanceOf(trader);
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
         assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
-        assertEq(traderStakedBalance, 1_000 ether, "Trader staked balance should be 1,000 ether");
         assertEq(traderBalance, 0, "Trader balance should be 0 ether");
 
         deal(address(usdc), trader, 1_000 ether);
@@ -266,13 +257,11 @@ contract GeniusPoolTest is Test {
         totalAssets = geniusPool.totalAssets();
         availableAssets = geniusPool.availableAssets();
         totalStakedAssets = geniusPool.totalStakedAssets();
-        traderStakedBalance = geniusPool.stakedDeposits(trader);
         traderBalance = usdc.balanceOf(trader);
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,500 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
         assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
-        assertEq(traderStakedBalance, 1_000 ether, "Trader staked balance should be 1,000 ether");
         assertEq(traderBalance, 500 ether, "Trader balance should be 500 ether");
 
         vm.startPrank(trader);
@@ -282,13 +271,11 @@ contract GeniusPoolTest is Test {
         totalAssets = geniusPool.totalAssets();
         availableAssets = geniusPool.availableAssets();
         totalStakedAssets = geniusPool.totalStakedAssets();
-        traderStakedBalance = geniusPool.stakedDeposits(trader);
         traderBalance = usdc.balanceOf(trader);
 
         assertEq(totalAssets, 2000 ether, "Total assets should be 2,000 ether");
         assertEq(totalStakedAssets, 1_500 ether, "Total staked assets should be 1,500 ether");
         assertEq(availableAssets, 650 ether, "Available assets should be 650 ether");
-        assertEq(traderStakedBalance, 1_500 ether, "Trader staked balance should be 1,500 ether");
         assertEq(traderBalance, 0, "Trader balance should be 0 ether");
     }
 

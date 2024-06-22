@@ -28,7 +28,6 @@ contract StakeInitialLiquidity is Script {
         vm.startBroadcast(stakerPrivateKey);
 
         GeniusVault geniusVault = GeniusVault(0xDCF998011dcAab9B8C1Ea5B34f1b6c7bAF59d4C0);
-        GeniusPool geniusPool = GeniusPool(0xBD1B1e1f33f89D4beCd0E5c6D3E88bd447992134);
 
         // Add orchestrator
         IERC20 stablecoin = IERC20(0x28a92dde19D9989F39A49905d7C9C2FAc7799bDf);
