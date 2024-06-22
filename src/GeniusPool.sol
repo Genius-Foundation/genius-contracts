@@ -398,6 +398,7 @@ contract GeniusPool is Orchestrable {
      */
     function setRebalanceThreshold(uint256 _threshold) external onlyOwner {
         rebalanceThreshold = _threshold;
+        _updateAvailableAssets();
     }
 
     // =============================================================
@@ -432,6 +433,14 @@ contract GeniusPool is Orchestrable {
         );
 
         return (_fee, _lzTxParams);
+    }
+
+    function assets() public view returns ( uint256, uint256, uint256 ) {
+        return (
+            totalAssets,
+            availableAssets,
+            totalStakedAssets
+        );
     }
 
     // =============================================================
