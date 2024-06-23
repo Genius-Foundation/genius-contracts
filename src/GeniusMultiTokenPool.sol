@@ -288,7 +288,7 @@ contract GeniusMultiTokenPool is Orchestrable {
             if (isSupportedToken[_token] == 0) revert InvalidToken(_token);
             IERC20(_token).transferFrom(msg.sender, address(this), _amount);
 
-            tokenBalances[_token] += _amount;
+            _updateTokenBalance(_token);
         }
 
         emit SwapDeposit(
@@ -408,10 +408,9 @@ contract GeniusMultiTokenPool is Orchestrable {
         if (_amount == 0) revert InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
+
         _updateBalance();
-
-        totalStakedStables += _amount;
-
+        _updateStakedBalance(_amount, true);
         _updateAvailableAssets();
 
         emit Stake(
@@ -435,20 +434,19 @@ contract GeniusMultiTokenPool is Orchestrable {
         if (_trader == address(0)) revert InvalidTrader();
         if (_amount == 0) revert InvalidAmount();
         if (_amount > totalStables) revert InvalidAmount();
+        if (_amount > totalStakedStables) revert InvalidAmount();
         if (!_isBalanceWithinThreshold(totalStables - _amount, _amount)) revert NeedsRebalance(totalStables, availStableBalance);
 
         IERC20(STABLECOIN).transfer(msg.sender, _amount);
+
         _updateBalance();
-
-        totalStakedStables -= _amount;
-
+        _updateStakedBalance(_amount, false);
         _updateAvailableAssets();
-
 
         emit Unstake(
             _trader,
             _amount,
-            _amount
+            totalStakedStables
         );
     }
 
@@ -464,6 +462,8 @@ contract GeniusMultiTokenPool is Orchestrable {
      */
     function setRebalanceThreshold(uint256 _threshold) external onlyOwner {
         stableRebalanceThreshold = _threshold;
+
+        _updateBalance();
         _updateAvailableAssets();
     }
 
@@ -572,6 +572,14 @@ contract GeniusMultiTokenPool is Orchestrable {
      */
     function _updateBalance() internal {
         totalStables = STABLECOIN.balanceOf(address(this));
+    }
+
+    function _updateStakedBalance(uint256 _amount, bool _add) internal {
+        if (_add) {
+            totalStakedStables += _amount;
+        } else {
+            totalStakedStables -= _amount;
+        }
     }
 
     /**
