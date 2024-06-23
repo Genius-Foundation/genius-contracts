@@ -71,10 +71,18 @@ library GeniusErrors {
     /**
      * @dev Error thrown when there is insufficient STABLECOIN balance.
      */
-    error InsufficentBalance(uint256 amount, uint256 balance);
+    error InsufficentBalance(address token, uint256 amount, uint256 balance);
 
     /**
      * @dev Error thrown when there is insufficient LP token balance.
      */
     error InvalidToken(address token);
+
+    /**
+     * @dev Error thrown when attempting to set a threshold balance that would exceed a certain limit.
+     * @param threshBal The threshold balance being attempted to set.
+     * @param attemptedThreshBal The balance that would be exceeded if the threshold is set.
+     */
+    error ThresholdWouldExceed(uint256 threshBal, uint256 attemptedThreshBal);
+
 }
