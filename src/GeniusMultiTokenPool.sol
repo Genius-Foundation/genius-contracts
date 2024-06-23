@@ -345,6 +345,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         uint256 _preSwapBalance = totalStables;
 
         _executeSwap(token, target, data, amount);
+
         _updateStableBalance();
         _updateAvailableAssets();
         _updateTokenBalance(token);
@@ -514,6 +515,10 @@ contract GeniusMultiTokenPool is Orchestrable {
         );
     }
 
+    /**
+     * @dev Retrieves the balances of supported tokens.
+     * @return array of TokenBalance structs containing the token address and balance.
+     */
     function supportedTokenBalances() public view returns (TokenBalance[] memory) {
         TokenBalance[] memory _supportedTokenBalances = new TokenBalance[](supportedTokens.length);
 
