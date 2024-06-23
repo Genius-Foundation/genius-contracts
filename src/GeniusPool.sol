@@ -319,9 +319,7 @@ contract GeniusPool is Orchestrable {
         _transferERC20From(address(STABLECOIN), msg.sender, address(this), _amount);
 
         _updateBalance();
-
-        totalStakedAssets += _amount;
-
+        _updateStakedBalance(_amount, 1);
         _updateAvailableAssets();
 
         emit Stake(
@@ -351,9 +349,7 @@ contract GeniusPool is Orchestrable {
         _transferERC20(address(STABLECOIN), msg.sender, _amount);
 
         _updateBalance();
-
-        totalStakedAssets -= _amount;
-
+        _updateStakedBalance(_amount, 0);
         _updateAvailableAssets();
 
 
@@ -480,6 +476,19 @@ contract GeniusPool is Orchestrable {
      */
     function _updateBalance() internal {
         totalAssets = STABLECOIN.balanceOf(address(this));
+    }
+
+    /**
+     * @dev Updates the staked balance of the contract.
+     * @param amount The amount to update the staked balance by.
+     * @param add 0 to subtract, 1 to add.
+     */
+    function _updateStakedBalance(uint256 amount, uint256 add) internal {
+        if (add == 1) {
+            totalStakedAssets += amount;
+        } else {
+            totalStakedAssets -= amount;
+        }
     }
 
     /**

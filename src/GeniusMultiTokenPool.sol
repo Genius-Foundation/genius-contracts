@@ -386,7 +386,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
 
         _updateStableBalance();
-        _updateStakedBalance(amount, true);
+        _updateStakedBalance(amount, 1);
         _updateAvailableAssets();
 
         emit Stake(
@@ -414,7 +414,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         _updateStableBalance();
-        _updateStakedBalance(amount, false);
+        _updateStakedBalance(amount, 0);
         _updateAvailableAssets();
 
         emit Unstake(
@@ -636,10 +636,10 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
      * @dev Updates the staked balance of the contract.
      * @param amount The amount to update the staked balance by.
-     * @param add A boolean indicating whether to add or subtract the amount from the staked balance.
+     * @param add 0 to subtract, 1 to add.
      */
-    function _updateStakedBalance(uint256 amount, bool add) internal {
-        if (add) {
+    function _updateStakedBalance(uint256 amount, uint256 add) internal {
+        if (add == 1) {
             totalStakedStables += amount;
         } else {
             totalStakedStables -= amount;
