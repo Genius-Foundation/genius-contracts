@@ -5,6 +5,7 @@ import {ERC4626, ERC20} from "@solmate/tokens/ERC4626.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {GeniusPool} from "./GeniusPool.sol";
+import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 
 /**
@@ -24,25 +25,6 @@ contract GeniusVault is ERC4626, Ownable {
     // =============================================================
 
     bool initialized;
-
-    // =============================================================
-    //                            ERRORS
-    // =============================================================
-
-    /**
-     * @dev Error thrown when a function is called on an uninitialized contract.
-     */
-    error NotInitialized();
-
-    /**
-     * @dev Error thrown when the contract is already initialized.
-     */
-    error Initialized();
-
-    /**
-     * @dev Error thrown when an invalid amount is passed to a function.
-     */
-    error InvalidAmount(uint256 assets, uint256 shares);
 
     // =============================================================
     //                          CONSTRUCTOR
@@ -72,7 +54,7 @@ contract GeniusVault is ERC4626, Ownable {
      * @notice This function can only be called once to initialize the contract.
      */
     function initialize(address _geniusPool) external onlyOwner {
-        if (initialized) revert Initialized();
+        if (initialized) revert GeniusErrors.Initialized();
         geniusPool = GeniusPool(_geniusPool);
         initialized = true;
     }
@@ -86,11 +68,11 @@ contract GeniusVault is ERC4626, Ownable {
      * @param shares The amount of shares being deposited.
      *
      * @dev Throws a `NotInitialized` exception if the contract is not initialized.
-     * Throws an `InvalidAmount` exception if either the assets or shares amount is zero.
+     * Throws an `InvalidAssetAmount` exception if either the assets or shares amount is zero.
      */
     function afterDeposit(uint256 assets, uint256 shares) internal override {
-        if (!initialized) revert NotInitialized();
-        if (assets == 0 || shares == 0) revert InvalidAmount(assets, shares);
+        if (!initialized) revert GeniusErrors.NotInitialized();
+        if (assets == 0 || shares == 0) revert GeniusErrors.InvalidAssetAmount(assets, shares);
 
         asset.approve(address(geniusPool), assets);
         geniusPool.stakeLiquidity(msg.sender, assets);
@@ -110,12 +92,12 @@ contract GeniusVault is ERC4626, Ownable {
      * 
      */
     function beforeWithdraw(uint256 assets, uint256 shares) internal override {
-        if (!initialized) revert NotInitialized();
-        if (assets == 0 || shares == 0) revert InvalidAmount(assets, shares);
+        if (!initialized) revert GeniusErrors.NotInitialized();
+        if (assets == 0 || shares == 0) revert GeniusErrors.InvalidAssetAmount(assets, shares);
 
         uint256 vaultDeposits = geniusPool.totalStakedAssets();
 
-        if (assets > vaultDeposits) revert InvalidAmount(assets, shares);
+        if (assets > vaultDeposits) revert GeniusErrors.InvalidAssetAmount(assets, shares);
 
         geniusPool.removeStakedLiquidity(msg.sender, assets);
     }
