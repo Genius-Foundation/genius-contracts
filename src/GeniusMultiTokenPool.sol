@@ -81,9 +81,12 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
     * @dev Error thrown when the contract needs to be rebalanced.
     */
-     error NeedsRebalance(uint256 totalStakedStables, uint256 availStableBalance);
+     error NeedsRebalance(uint256 totalStakedAssets, uint256 availableAssets);
 
-     error InvalidToken(address invalidToken);
+    /**
+     * @dev Error thrown when an invalid token address is encountered.
+     */
+    error InvalidToken(address invalidToken);
 
     // =============================================================
     //                          EVENTS
@@ -116,6 +119,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
      * @dev An event emitted when a swap deposit is made.
      * @param trader The address of the trader who made the deposit.
+     * @param token The address of the token deposited.
      * @param amountDeposited The amount of tokens deposited.
      */
     event SwapDeposit(
@@ -159,29 +163,30 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
 
     constructor(
-        address _stablecoin,
-        address _bridgeRouter,
-        address _owner,
-        address[] memory _supportedTokens
-    ) Ownable(_owner) {
-        require(_stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
-        require(_owner != address(0), "GeniusVault: Owner address is the zero address");
+        address stablecoin,
+        address bridgeRouter,
+        address owner,
+        address[] memory supportedTokenAddresses
+    ) Ownable(owner) {
+        require(stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
+        require(owner != address(0), "GeniusVault: Owner address is the zero address");
 
-        STABLECOIN = IERC20(_stablecoin);
-        STARGATE_ROUTER = IStargateRouter(_bridgeRouter);
+        STABLECOIN = IERC20(stablecoin);
+        STARGATE_ROUTER = IStargateRouter(bridgeRouter);
 
-        supportedTokens = _supportedTokens;
+        supportedTokens = supportedTokenAddresses;
         initialized = 0;
     }
 
     /**
-     * @dev Initializes the GeniusVault contract.
-     * @param _geniusVault The address of the GeniusPool contract.
-     * @notice This function can only be called once to initialize the contract.
+     * @dev Initializes the GeniusMultiTokenPool contract.
+     * @param vaultAddress The address of the GeniusVault contract.
+     * @notice This function can only be called once by the contract owner.
+     * @notice Once initialized, the `geniusVault` address cannot be changed.
      */
-    function initialize(address _geniusVault) external onlyOwner {
+    function initialize(address vaultAddress) external onlyOwner {
         if (initialized == 1) revert Initialized();
-        geniusVault = _geniusVault;
+        geniusVault = vaultAddress;
 
         initialized = 1;
     }
@@ -191,73 +196,74 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
 
     /**
-     * @dev Adds liquidity to the bridge pool.
-     * @param _amount The amount of stablecoin to add as liquidity.
-     * @param _chainId The chain ID of the bridge.
-     * @notice Only the orchestrator can call this function.
-     * @notice The `_amount` must be greater than 0.
-     * @notice Transfers the specified amount of stablecoin from the caller to the contract.
-     * @notice Updates the balance and available assets of the bridge pool.
+     * @dev Adds liquidity to the bridge.
+     * @param amount The amount of tokens to add as liquidity.
+     * @param chainId The ID of the chain where the liquidity is being added.
+     * @notice This function can only be called by the orchestrator.
+     * @notice The contract must be initialized before calling this function.
+     * @notice The amount must be greater than zero.
+     * @notice The tokens are transferred from the caller to the contract.
+     * @notice The balance and available assets are updated after adding liquidity.
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
-    function addBridgeLiquidity(uint256 _amount, uint16 _chainId) public onlyOrchestrator {
+    function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator {
         if (initialized == 0) revert NotInitialized();
-        if (_amount == 0) revert InvalidAmount();
+        if (amount == 0) revert InvalidAmount();
 
-        IERC20(STABLECOIN).transferFrom(tx.origin, address(this), _amount);
-        _updateBalance();
+        IERC20(STABLECOIN).transferFrom(tx.origin, address(this), amount);
+        _updateStableBalance();
         _updateAvailableAssets();
 
         emit ReceiveBridgeFunds(
-            _amount,
-            _chainId
+            amount,
+            chainId
         );
     }
 
     /**
-     * @dev Removes liquidity from a bridge pool and swaps it to the destination chain.
-     * @param _amountIn The amount of tokens to remove from the bridge pool.
-     * @param _minAmountOut The minimum amount of tokens expected to receive after the swap.
-     * @param _dstChainId The chain ID of the destination chain.
-     * @param _srcPoolId The ID of the source pool on the bridge.
-     * @param _dstPoolId The ID of the destination pool on the bridge.
+     * @dev Removes liquidity from the bridge.
+     * @param amountIn The amount of tokens to remove.
+     * @param minAmountOut The minimum amount of tokens to receive.
+     * @param dstChainId The destination chain ID.
+     * @param srcPoolId The source pool ID.
+     * @param dstPoolId The destination pool ID.
      */
     function removeBridgeLiquidity(
-        uint256 _amountIn, // = _amountLD
-        uint256 _minAmountOut, // = _minAmountLD
-        uint16 _dstChainId,
-        uint256 _srcPoolId,
-        uint256 _dstPoolId
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint16 dstChainId,
+        uint256 srcPoolId,
+        uint256 dstPoolId
     ) public onlyOrchestrator payable {
         if (initialized == 0) revert NotInitialized();
-        if (_amountIn == 0) revert InvalidAmount();
-        if (_amountIn > STABLECOIN.balanceOf(address(this))) revert InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalStables - _amountIn)) revert NeedsRebalance(totalStables, availStableBalance);
+        if (amountIn == 0) revert InvalidAmount();
+        if (amountIn > STABLECOIN.balanceOf(address(this))) revert InvalidAmount();
+        if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert NeedsRebalance(totalStables, availStableBalance);
 
         (,
-        IStargateRouter.lzTxObj memory lzTxParams
-        ) = layerZeroFee(_dstChainId, tx.origin);
+        IStargateRouter.lzTxObj memory _lzTxParams
+        ) = layerZeroFee(dstChainId, tx.origin);
 
-        STABLECOIN.approve(address(STARGATE_ROUTER), _amountIn);
+        STABLECOIN.approve(address(STARGATE_ROUTER), amountIn);
 
         STARGATE_ROUTER.swap{value:msg.value}(
-            _dstChainId,
-            _srcPoolId,
-            _dstPoolId,
+            dstChainId,
+            srcPoolId,
+            dstPoolId,
             payable(tx.origin),
-            _amountIn,
-            _minAmountOut,
-            lzTxParams,
+            amountIn,
+            minAmountOut,
+            _lzTxParams,
             abi.encodePacked(tx.origin),
             bytes("") 
         );
 
-        _updateBalance();
+        _updateStableBalance();
         _updateAvailableAssets();
 
         emit BridgeFunds(
-            _amountIn,
-            _dstChainId
+            amountIn,
+            dstChainId
         );
     }
 
@@ -266,60 +272,70 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
 
     /**
-     * @notice Deposits tokens into the vault
-     * @param _trader The address of the trader that tokens are being deposited for
-     * @param _amount The amount of tokens to deposit
+     * @dev Adds liquidity to the GeniusMultiTokenPool contract by swapping tokens.
+     * @param trader The address of the trader who is adding liquidity.
+     * @param token The address of the token being swapped.
+     * @param amount The amount of tokens being swapped.
+     * Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
      */
     function addLiquiditySwap(
-        address _trader,
-        address _token,
-        uint256 _amount
+        address trader,
+        address token,
+        uint256 amount
     ) external {
         if (initialized == 0) revert NotInitialized();
-        if (_trader == address(0)) revert InvalidTrader();
-        if (_amount == 0) revert InvalidAmount();
+        if (trader == address(0)) revert InvalidTrader();
+        if (amount == 0) revert InvalidAmount();
 
-        if (_token == address(STABLECOIN)) {
-            IERC20(_token).transferFrom(msg.sender, address(this), _amount);
+        if (token == address(STABLECOIN)) {
+            IERC20(token).transferFrom(msg.sender, address(this), amount);
 
-            _updateBalance();
+            _updateStableBalance();
             _updateAvailableAssets();
         } else {
-            if (isSupportedToken[_token] == 0) revert InvalidToken(_token);
-            IERC20(_token).transferFrom(msg.sender, address(this), _amount);
+            if (isSupportedToken[token] == 0) revert InvalidToken(token);
+            IERC20(token).transferFrom(msg.sender, address(this), amount);
 
-            _updateTokenBalance(_token);
+            _updateTokenBalance(token);
         }
 
         emit SwapDeposit(
-            _trader,
-            _token,
-            _amount
+            trader,
+            token,
+            amount
         );
     }
 
     /**
-     * @notice Withdraws tokens from the vault
-     * @param _trader The address of the trader to use for 
-     * @param _amount The amount of tokens to withdraw
+     * @dev Removes liquidity from the GeniusMultiTokenPool contract by swapping stablecoins for the specified amount.
+     * Only the orchestrator can call this function.
+     * 
+     * Requirements:
+     * - The contract must be initialized.
+     * - The amount must be greater than zero and not exceed the total amount of stables.
+     * - The trader address must be valid.
+     * - The contract must have sufficient balance of the stablecoin.
+     * - The balance of stables after removing liquidity must be within the threshold.
+     * 
+     * @param trader The address of the trader who wants to remove liquidity.
+     * @param amount The amount of stablecoins to be swapped and transferred to the caller.
      */
     function removeLiquiditySwap(
-        address _trader,
-        uint256 _amount
+        address trader,
+        uint256 amount
     ) external onlyOrchestrator {
         if (initialized == 0) revert NotInitialized();
-        if (_amount == 0) revert InvalidAmount();
-        if (_amount > totalStables) revert InvalidAmount();
-        if (_trader == address(0)) revert InvalidTrader();
-        if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalStables - _amount)) revert NeedsRebalance(totalStables, availStableBalance);
+        if (amount == 0) revert InvalidAmount();
+        if (amount > totalStables) revert InvalidAmount();
+        if (trader == address(0)) revert InvalidTrader();
+        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert NeedsRebalance(totalStables, availStableBalance);
 
-
-        IERC20(STABLECOIN).transfer(msg.sender, _amount);
-        _updateBalance();
+        IERC20(STABLECOIN).transfer(msg.sender, amount);
+        _updateStableBalance();
         _updateAvailableAssets();
         
-        emit SwapWithdrawal(_trader, _amount);
+        emit SwapWithdrawal(trader, amount);
     }
 
     // =============================================================
@@ -327,24 +343,22 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
 
     /**
-     * @dev Removes reward liquidity from the GeniusPool contract.
-     * @param _amount The amount of reward liquidity to remove.
-     * @notice Only the orchestrator can call this function.
-     * @notice The `_amount` must be greater than 0, less than or equal to the total assets in the contract,
-     * and less than or equal to the balance of the STABLECOIN token held by the contract.
-     * @notice The total assets in the contract must remain within a certain threshold after removing the reward liquidity.
-     * @notice This function transfers the specified amount of STABLECOIN tokens to the caller's address.
-     * @notice It also updates the balance and available assets in the contract.
+     * @notice Removes reward liquidity from the GeniusMultiTokenPool contract.
+     * @dev Only the orchestrator can call this function.
+     * @param amount The amount of reward liquidity to remove.
+     * @dev Throws a NotInitialized exception if the contract is not initialized.
+     * @dev Throws an InvalidAmount exception if the amount is zero, exceeds the total stables, or exceeds the balance of the STABLECOIN token in the contract.
+     * @dev Throws an InvalidAmount exception if the remaining balance after removing the amount is not within the threshold.
      */
-    function removeRewardLiquidity(uint256 _amount) external onlyOrchestrator {
+    function removeRewardLiquidity(uint256 amount) external onlyOrchestrator {
         if (initialized == 0) revert NotInitialized();
-        if (_amount == 0) revert InvalidAmount();
-        if (_amount > totalStables) revert InvalidAmount();
-        if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalStables - _amount)) revert InvalidAmount();
+        if (amount == 0) revert InvalidAmount();
+        if (amount > totalStables) revert InvalidAmount();
+        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert InvalidAmount();
 
-        IERC20(STABLECOIN).transfer(msg.sender, _amount);
-        _updateBalance();
+        IERC20(STABLECOIN).transfer(msg.sender, amount);
+        _updateStableBalance();
         _updateAvailableAssets();
     }
 
@@ -353,99 +367,91 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
 
     /**
-     * @dev Swaps tokens to STABLECOIN.
-     * @param _token The token to swap.
-     * @param _tokenAmount The amount of tokens to swap.
-     * @param _target The target address for the swap.
-     * @param _calldata The calldata for the swap.
-     * @param _nativeAmount The value for the swap, to allow for native swaps.
-     * @notice Only an orchestrator can call this function.
+     * @dev Swaps a specified amount of tokens or native currency to stablecoins.
+     * Can only be called by the orchestrator.
+     * @param token The address of the token to be swapped. Pass 0x0 for native currency.
+     * @param tokenAmount The amount of tokens to be swapped. Pass 0 if swapping native currency.
+     * @param target The address of the target contract to execute the swap.
+     * @param data The calldata to be used when executing the swap on the target contract.
+     * @param nativeAmount The amount of native currency to be swapped. Pass 0 if swapping tokens.
      */
+    function swapToStables(
+        address token,
+        uint256 tokenAmount,
+        address target,
+        bytes calldata data,
+        uint256 nativeAmount
+    ) external onlyOrchestrator {
+        if (initialized == 0) revert NotInitialized();
 
-     function swapToStables(
-         address _token,
-         uint256 _tokenAmount,
-         address _target,
-         bytes calldata _calldata,
-         uint256 _nativeAmount
-     ) external onlyOrchestrator {
-            if (initialized == 0) revert NotInitialized();
+        if (tokenAmount > 0) {
+            if (tokenAmount > IERC20(token).balanceOf(address(this))) revert InvalidAmount();
+        } else if (nativeAmount > 0) {
+            if (nativeAmount > address(this).balance) revert InvalidAmount();
+        }
 
-            if (_tokenAmount > 0) {
-                if (_tokenAmount > IERC20(_token).balanceOf(address(this))) revert InvalidAmount();
-            } else if (_nativeAmount > 0) {
-                if (_nativeAmount > address(this).balance) revert InvalidAmount();
-            }
+        uint256 _initialStablecoinBalance = totalStables;
 
-            uint256 _initialStablecoinBalance = totalStables;
+        _executeSwap(target, data, nativeAmount);
+        _updateStableBalance();
+        _updateAvailableAssets();
+        _updateTokenBalance(token);
 
-            _executeSwap(_target, _calldata, _nativeAmount);
-            _updateBalance();
-            _updateAvailableAssets();
-            _updateTokenBalance(_token);
+        uint256 _finalStablecoinBalance = totalStables;
 
-            uint256 _finalStablecoinBalance = totalStables;
-
-            require(_finalStablecoinBalance > _initialStablecoinBalance, "Swap must increase stablecoin balance");
-     }
-
-
+        require(_finalStablecoinBalance > _initialStablecoinBalance, "Swap must increase stablecoin balance");
+    }
 
     // =============================================================
     //                     STAKING LIQUIDITY
     // =============================================================
 
     /**
-     * @dev Allows a user to stake liquidity tokens.
-     * @param _amount The amount of liquidity tokens to stake.
-     * @notice The `_amount` parameter must be greater than 0.
-     * @notice The function transfers the specified amount of liquidity tokens from the caller to the contract.
-     * @notice After the transfer, the function updates the `totalStables` variable with the balance of liquidity tokens held by the contract.
+     * @dev Stakes liquidity into the GeniusMultiTokenPool.
+     * @param trader The address of the trader staking the liquidity.
+     * @param amount The amount of liquidity to be staked.
      */
-    function stakeLiquidity(address _trader, uint256 _amount) external {
+    function stakeLiquidity(address trader, uint256 amount) external {
         if (initialized == 0) revert NotInitialized();
         if (msg.sender != geniusVault) revert IsNotVault();
-        if (_amount == 0) revert InvalidAmount();
+        if (amount == 0) revert InvalidAmount();
 
-        IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
+        IERC20(STABLECOIN).transferFrom(msg.sender, address(this), amount);
 
-        _updateBalance();
-        _updateStakedBalance(_amount, true);
+        _updateStableBalance();
+        _updateStakedBalance(amount, true);
         _updateAvailableAssets();
 
         emit Stake(
-            _trader,
-            _amount,
-            _amount
+            trader,
+            amount,
+            amount
         );
     }
 
     /**
-     * @dev Removes staked liquidity from the GeniusPool contract.
-     * @param _amount The amount of liquidity to be removed.
-     * @notice The `_amount` must be greater than zero, less than or equal to the current deposits, and less than or equal to the balance of the STABLECOIN token in the contract.
-     * @notice Transfers the specified `_amount` of STABLECOIN tokens to the caller's address.
-     * @notice Updates the current deposits by getting the updated balance of the STABLECOIN token in the contract.
-     * @notice Throws an exception if any of the conditions are not met.
+     * @dev Removes staked liquidity from the GeniusMultiTokenPool contract.
+     * @param trader The address of the trader who wants to remove liquidity.
+     * @param amount The amount of liquidity to be removed.
      */
-    function removeStakedLiquidity(address _trader, uint256 _amount) external {
+    function removeStakedLiquidity(address trader, uint256 amount) external {
         if (initialized == 0) revert NotInitialized();
         if (msg.sender != geniusVault) revert IsNotVault();
-        if (_trader == address(0)) revert InvalidTrader();
-        if (_amount == 0) revert InvalidAmount();
-        if (_amount > totalStables) revert InvalidAmount();
-        if (_amount > totalStakedStables) revert InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalStables - _amount, _amount)) revert NeedsRebalance(totalStables, availStableBalance);
+        if (trader == address(0)) revert InvalidTrader();
+        if (amount == 0) revert InvalidAmount();
+        if (amount > totalStables) revert InvalidAmount();
+        if (amount > totalStakedStables) revert InvalidAmount();
+        if (!_isStakingBalanceWithinThreshold(totalStables - amount, amount)) revert NeedsRebalance(totalStables, availStableBalance);
 
-        IERC20(STABLECOIN).transfer(msg.sender, _amount);
+        IERC20(STABLECOIN).transfer(msg.sender, amount);
 
-        _updateBalance();
-        _updateStakedBalance(_amount, false);
+        _updateStableBalance();
+        _updateStakedBalance(amount, false);
         _updateAvailableAssets();
 
         emit Unstake(
-            _trader,
-            _amount,
+            trader,
+            amount,
             totalStakedStables
         );
     }
@@ -455,15 +461,15 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
 
     /**
-     * @dev Sets the rebalance threshold for the GeniusPool contract.
-     * @param _threshold The new rebalance threshold to be set.
-     * Requirements:
-     * - Only the contract owner can call this function.
+     * @dev Sets the rebalance threshold for the GeniusMultiTokenPool contract.
+     * Only the contract owner can call this function.
+     * 
+     * @param threshold The new rebalance threshold to be set.
      */
-    function setRebalanceThreshold(uint256 _threshold) external onlyOwner {
-        stableRebalanceThreshold = _threshold;
+    function setRebalanceThreshold(uint256 threshold) external onlyOwner {
+        stableRebalanceThreshold = threshold;
 
-        _updateBalance();
+        _updateStableBalance();
         _updateAvailableAssets();
     }
 
@@ -473,31 +479,29 @@ contract GeniusMultiTokenPool is Orchestrable {
 
     /**
      * @dev Adds a new token to the list of supported tokens.
-     * @param _token The address of the token to be added.
+     * @param token The address of the token to be added.
      * @notice This function can only be called by the contract owner.
      * @notice The token must not already be supported.
      */
-    function addToken(address _token) external {
-        require(isSupportedToken[_token] == 1, "Token is already supported");
-        supportedTokens.push(_token);
-        isSupportedToken[_token] = 1;
+    function addToken(address token) external {
+        require(isSupportedToken[token] == 1, "Token is already supported");
+        supportedTokens.push(token);
+        isSupportedToken[token] = 1;
     }
 
-
     /**
-     * @dev Removes a token from the supportedTokens array.
-     * @param _token The address of the token to be removed.
+     * @dev Removes a token from the list of supported tokens.
+     * @param token The address of the token to be removed.
      * @notice This function can only be called by the contract owner.
-     * @notice The token must be a supported token.
-     * @notice If the token is found in the array, it will be removed by swapping it with the last element and then popping the array.
+     * @notice The token must be currently supported by the contract.
+     * @notice If the token is successfully removed, it will no longer be supported by the contract.
      */
-    function removeToken(address _token) external {
-        require(isSupportedToken[_token] == 1, "Token is not supported");
-        isSupportedToken[_token] = 1;
+    function removeToken(address token) external {
+        require(isSupportedToken[token] == 1, "Token is not supported");
+        isSupportedToken[token] = 1;
 
-        // Find the token in the array and remove it
         for (uint256 i = 0; i < supportedTokens.length; i++) {
-            if (supportedTokens[i] == _token) {
+            if (supportedTokens[i] == token) {
                 supportedTokens[i] = supportedTokens[supportedTokens.length - 1];
                 supportedTokens.pop();
                 break;
@@ -510,40 +514,47 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
 
     /**
-     * @dev Returns the fee and layer zero transaction parameters for a given chain ID.
-     * @param _chainId The chain ID for which to retrieve the fee and transaction parameters.
-     * @return fee The fee amount for the layer zero transaction.
+     * @dev Calculates the layer zero fee and returns the fee amount along with the layer zero transaction parameters.
+     * @param chainId The chain ID.
+     * @param trader The address of the trader.
+     * @return fee The calculated fee amount.
      * @return lzTxParams The layer zero transaction parameters.
      */
     function layerZeroFee(
-        uint16 _chainId,
-        address _trader
+        uint16 chainId,
+        address trader
     ) public view returns (uint256 fee, IStargateRouter.lzTxObj memory lzTxParams) {
 
         IStargateRouter.lzTxObj memory _lzTxParams = IStargateRouter.lzTxObj({
             dstGasForCall: 0,
             dstNativeAmount: 0,
-            dstNativeAddr: abi.encodePacked(_trader)
+            dstNativeAddr: abi.encodePacked(trader)
         });
 
-        bytes memory transferAndCallPayload = abi.encode(_lzTxParams); 
+        bytes memory _transferAndCallPayload = abi.encode(_lzTxParams); 
 
         (, uint256 _fee) = STARGATE_ROUTER.quoteLayerZeroFee(
-            _chainId,
+            chainId,
             1,
-            abi.encodePacked(_trader),
-            transferAndCallPayload,
+            abi.encodePacked(trader),
+            _transferAndCallPayload,
             _lzTxParams
         );
 
         return (_fee, _lzTxParams);
     }
 
+    /**
+     * @dev Returns the balances of the stablecoins in the GeniusMultiTokenPool contract.
+     * @return currentStableBalance The total balance of stablecoins in the pool.
+     * @return currentAvailableStableBalance The available balance of stablecoins in the pool.
+     * @return currentStakedStableBalance The total balance of staked stablecoins in the pool.
+     */
     function stablecoinBalances() public view returns (
-        uint256,
-        uint256,
-        uint256
-        ) {
+        uint256 currentStableBalance,
+        uint256 currentAvailableStableBalance,
+        uint256 currentStakedStableBalance
+    ) {
         return (
             totalStables,
             availStableBalance,
@@ -558,62 +569,60 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
      * @dev Checks if the given balance is within the threshold limit.
      * @param balance The balance to be checked.
-     * @return A boolean value indicating whether the balance is within the threshold limit.
+     * @return boolean indicating whether the balance is within the threshold limit.
      */
     function _isBalanceWithinThreshold(uint256 balance) public view returns (bool) {
-        uint256 lowerBound = (totalStakedStables * stableRebalanceThreshold) / 100;
+        uint256 _lowerBound = (totalStakedStables * stableRebalanceThreshold) / 100;
 
-        return balance >= lowerBound;
+        return balance >= _lowerBound;
     }
 
     /**
-     * @dev Checks if the balance is within the threshold after unstaking a certain amount.
-     * @param balance The current balance of the account.
+     * @dev Checks if the balance is within the specified threshold after unstaking a certain amount.
+     * @param balance The current balance of the token.
      * @param amountToUnstake The amount to be unstaked.
-     * @return boolean indicating whether the balance is within the threshold.
+     * @return A boolean indicating whether the balance is within the threshold.
      */
-    function _isBalanceWithinThreshold(uint256 balance, uint256 amountToUnstake) internal view returns (bool) {
-        uint256 lowerBound = ((totalStakedStables - amountToUnstake) * stableRebalanceThreshold) / 100;
+    function _isStakingBalanceWithinThreshold(uint256 balance, uint256 amountToUnstake) internal view returns (bool) {
+        uint256 _lowerBound = ((totalStakedStables - amountToUnstake) * stableRebalanceThreshold) / 100;
 
-        return balance >= lowerBound;
+        return balance >= _lowerBound;
     }
 
     /**
-     * @dev Updates the balance of the contract by fetching the total assets of the STABLECOIN token.
+     * @dev Updates the balance of the contract by retrieving the total balance of the STABLECOIN token.
      * This function is internal and can only be called from within the contract.
      */
-    function _updateBalance() internal {
+    function _updateStableBalance() internal {
         totalStables = STABLECOIN.balanceOf(address(this));
     }
 
     /**
-     * @dev Updates the total staked balance of stables.
-     * @param _amount The amount to be added or subtracted from the total staked balance.
-     * @param _add A boolean indicating whether to add or subtract the amount from the total staked balance.
+     * @dev Updates the staked balance of the contract.
+     * @param amount The amount to update the staked balance by.
+     * @param add A boolean indicating whether to add or subtract the amount from the staked balance.
      */
-    function _updateStakedBalance(uint256 _amount, bool _add) internal {
-        if (_add) {
-            totalStakedStables += _amount;
+    function _updateStakedBalance(uint256 amount, bool add) internal {
+        if (add) {
+            totalStakedStables += amount;
         } else {
-            totalStakedStables -= _amount;
+            totalStakedStables -= amount;
         }
     }
 
     /**
-     * @dev Updates the available assets by calculating the liquidity needed based on the staked assets and the rebalance threshold.
-     * If the total assets exceed the needed liquidity, the available assets are updated accordingly.
+     * @dev Updates the available assets by calculating the available stable balance.
+     * The available stable balance is calculated by subtracting the reduction amount from the total staked stables.
+     * If the total stables is greater than the needed liquidity, the available stable balance is set to the difference.
+     * Otherwise, the available stable balance is set to 0.
      */
     function _updateAvailableAssets() internal {
-        // Calculate the amount that is the threshold percentage of the staked assets
-        uint256 reduction = totalStakedStables > 0 ? (totalStakedStables * stableRebalanceThreshold) / 100 : 0;
+        uint256 _reduction = totalStakedStables > 0 ? (totalStakedStables * stableRebalanceThreshold) / 100 : 0;
 
-        // Calculate the liquidity needed as the staked assets minus the reduction
-        // Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
-        uint256 neededLiquidity = totalStakedStables > reduction ? totalStakedStables - reduction : 0;
+        uint256 _neededLiquidity = totalStakedStables > _reduction ? totalStakedStables - _reduction : 0;
         
-        // Ensure we do not underflow when calculating available assets
-        if (totalStables > neededLiquidity) {
-            availStableBalance = totalStables - neededLiquidity;
+        if (totalStables > _neededLiquidity) {
+            availStableBalance = totalStables - _neededLiquidity;
         } else {
             availStableBalance = 0;
         }
@@ -621,15 +630,15 @@ contract GeniusMultiTokenPool is Orchestrable {
 
     /**
      * @dev Updates the balance of a token held by the contract.
-     * @param _token The address of the token to update the balance for.
+     * @param token The address of the token to update the balance for.
      * @notice If the token is the native currency (ETH), the balance is updated with the contract's ETH balance.
      * Otherwise, the balance is updated with the contract's token balance using the IERC20 interface.
      */
-    function _updateTokenBalance(address _token) internal {
-        if (_token == NATIVE) {
-            tokenBalances[_token] = address(this).balance;
+    function _updateTokenBalance(address token) internal {
+        if (token == NATIVE) {
+            tokenBalances[token] = address(this).balance;
         } else {
-            tokenBalances[_token] = IERC20(_token).balanceOf(address(this));
+            tokenBalances[token] = IERC20(token).balanceOf(address(this));
         }
     }
 
