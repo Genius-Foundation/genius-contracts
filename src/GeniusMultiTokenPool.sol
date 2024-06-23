@@ -663,6 +663,4 @@ contract GeniusMultiTokenPool is Orchestrable {
         (bool swapSuccess, ) = target.call{value: value}(data);
         require(swapSuccess, "Swap failed");
     }
-
-    receive() external payable {}
 }
