@@ -392,7 +392,7 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         uint256 _initialStablecoinBalance = totalStables;
 
-        _executeSwap(target, data, nativeAmount);
+        _executeSwap(token, target, data, nativeAmount);
         _updateStableBalance();
         _updateAvailableAssets();
         _updateTokenBalance(token);
@@ -649,12 +649,19 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param value The array of values to send along with the function calls.
      */
     function _executeSwap(
+        address token,
         address target,
         bytes calldata data,
         uint256 value
     ) internal {
-        (bool success, ) = target.call{value: value}(data);
-        require(success, "External call failed");
+
+        if (token != NATIVE) {
+            (bool approvalSuccess) = IERC20(token).approve(target, value);
+            require(approvalSuccess, "Approval failed");
+        }
+
+        (bool swapSuccess, ) = target.call{value: value}(data);
+        require(swapSuccess, "Swap failed");
     }
 
     receive() external payable {}
