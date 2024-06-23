@@ -158,7 +158,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         supportedTokens = tokens;
 
         initialized = 1;
-        paused = 0;
+        isPaused = 0;
     }
 
     // =============================================================
@@ -478,21 +478,24 @@ contract GeniusMultiTokenPool is Orchestrable {
         }
     }
 
+    // =============================================================
+    //                           EMERGENCY
+    // =============================================================
+
     /**
      * @dev Pauses the contract and locks all functionality in case of an emergency.
-     * Can only be called by the contract owner.
-     * This function sets the `paused` state to 1, preventing all contract operations.
+     * This function sets the `isPaused` state to 1, preventing all contract operations.
      */
     function emergencyLock() external onlyOwner {
-        paused = 1;
+        isPaused = 1;
     }
 
     /**
      * @dev Allows the owner to emergency unlock the contract.
-     * This function sets the `paused` state to 0, allowing normal contract operations to resume.
+     * This function sets the `isPaused` state to 0, allowing normal contract operations to resume.
      */
     function emergencyUnlock() external onlyOwner {
-        paused = 0;
+        isPaused = 0;
     }
 
     // =============================================================
@@ -568,7 +571,6 @@ contract GeniusMultiTokenPool is Orchestrable {
 
     /**
      * @dev Checks if the pool is ready for use.
-     * @return True if the pool is ready, otherwise reverts with an error.
      */
     function _isPoolReady() internal view {
         if (isPaused == 1) revert GeniusErrors.Paused();

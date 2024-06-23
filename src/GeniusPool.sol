@@ -31,7 +31,9 @@ contract GeniusPool is Orchestrable {
     //                          VARIABLES
     // =============================================================
 
-    bool public initialized;
+    uint256 public initialized;
+    uint256 public isPaused;
+
     uint256 public totalAssets; // The total amount of stablecoin assets in the contract
     uint256 public availableAssets; // totalAssets - (totalStakedAssets * (1 + rebalanceThreshold) (in percentage)
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
@@ -120,7 +122,8 @@ contract GeniusPool is Orchestrable {
         STABLECOIN = IERC20(_stablecoin);
         STARGATE_ROUTER = IStargateRouter(_bridgeRouter);
 
-        initialized = false;
+        initialized = 0;
+        isPaused = 1;
     }
 
     /**
@@ -129,10 +132,11 @@ contract GeniusPool is Orchestrable {
      * @notice This function can only be called once to initialize the contract.
      */
     function initialize(address _geniusVault) external onlyOwner {
-        if (initialized) revert GeniusErrors.Initialized();
+        if (initialized == 1) revert GeniusErrors.Initialized();
         VAULT = _geniusVault;
 
-        initialized = true;
+        initialized = 1;
+        isPaused = 0;
     }
 
     // =============================================================
@@ -150,7 +154,8 @@ contract GeniusPool is Orchestrable {
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
     function addBridgeLiquidity(uint256 _amount, uint16 _chainId) public onlyOrchestrator {
-        if (!initialized) revert GeniusErrors.NotInitialized();
+        _isPoolReady();
+
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(tx.origin, address(this), _amount);
@@ -178,7 +183,8 @@ contract GeniusPool is Orchestrable {
         uint256 _srcPoolId,
         uint256 _dstPoolId
     ) public onlyOrchestrator payable {
-        if (!initialized) revert GeniusErrors.NotInitialized();
+        _isPoolReady();
+
         if (_amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (_amountIn > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InvalidAmount();
         if (!_isBalanceWithinThreshold(totalAssets - _amountIn)) revert GeniusErrors.NeedsRebalance(totalAssets, availableAssets);
@@ -223,7 +229,8 @@ contract GeniusPool is Orchestrable {
         address _trader,
         uint256 _amount
     ) external {
-        if (!initialized) revert GeniusErrors.NotInitialized();
+        _isPoolReady();
+
         if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
 
@@ -246,7 +253,8 @@ contract GeniusPool is Orchestrable {
         address _trader,
         uint256 _amount
     ) external onlyOrchestrator {
-        if (!initialized) revert GeniusErrors.NotInitialized();
+        _isPoolReady();
+
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
         if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
         if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
@@ -276,7 +284,8 @@ contract GeniusPool is Orchestrable {
      * @notice It also updates the balance and available assets in the contract.
      */
     function removeRewardLiquidity(uint256 _amount) external onlyOrchestrator {
-        if (!initialized) revert GeniusErrors.NotInitialized();
+        _isPoolReady();
+
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
         if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
         if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InvalidAmount();
@@ -299,7 +308,8 @@ contract GeniusPool is Orchestrable {
      * @notice After the transfer, the function updates the `totalAssets` variable with the balance of liquidity tokens held by the contract.
      */
     function stakeLiquidity(address _trader, uint256 _amount) external {
-        if (!initialized) revert GeniusErrors.NotInitialized();
+        _isPoolReady();
+
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
 
@@ -326,7 +336,8 @@ contract GeniusPool is Orchestrable {
      * @notice Throws an exception if any of the conditions are not met.
      */
     function removeStakedLiquidity(address _trader, uint256 _amount) external {
-        if (!initialized) revert GeniusErrors.NotInitialized();
+        _isPoolReady();
+
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
@@ -361,6 +372,24 @@ contract GeniusPool is Orchestrable {
     function setRebalanceThreshold(uint256 _threshold) external onlyOwner {
         rebalanceThreshold = _threshold;
         _updateAvailableAssets();
+    }
+
+
+
+    /**
+     * @dev Pauses the contract and locks all functionality in case of an emergency.
+     * This function sets the `isPaused` state to 1, preventing all contract operations.
+     */
+    function emergencyLock() external onlyOwner {
+        isPaused = 1;
+    }
+
+    /**
+     * @dev Allows the owner to emergency unlock the contract.
+     * This function sets the `isPaused` state to 0, allowing normal contract operations to resume.
+     */
+    function emergencyUnlock() external onlyOwner {
+        isPaused = 0;
     }
 
     // =============================================================
@@ -408,6 +437,14 @@ contract GeniusPool is Orchestrable {
     // =============================================================
     //                     INTERNAL FUNCTIONS
     // =============================================================
+
+    /**
+     * @dev Checks if the pool is ready for use.
+     */
+    function _isPoolReady() internal view {
+        if (isPaused == 1) revert GeniusErrors.Paused();
+        if (initialized == 0) revert GeniusErrors.NotInitialized();
+    }
 
     /**
      * @dev Checks if the given balance is within the threshold limit.
