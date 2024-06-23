@@ -7,14 +7,14 @@ import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
 import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
+import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 /**
- * @title GeniusPool
+ * @title GeniusMultiTokenPool
  * @author altloot
  * 
- * @notice Contract allows for Genius Orchestrators to credit and debit
- *         trader STABLECOIN balances for cross-chain swaps,
- *         and other Genius related activities.
+ * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
+ *         liquidity management and swaps.
  */
 
 contract GeniusMultiTokenPool is Orchestrable {
@@ -25,68 +25,26 @@ contract GeniusMultiTokenPool is Orchestrable {
     
     IERC20 public immutable STABLECOIN;
     IStargateRouter public immutable STARGATE_ROUTER;
+
     address public immutable NATIVE = address(0);
+    address public  VAULT;
 
     // =============================================================
     //                          VARIABLES
     // =============================================================
 
     uint256 public initialized;
+    uint256 public isPaused;
+
     uint256 public totalStables; // The total amount of stablecoin assets in the contract
+    uint256 public minStableBalance; // The minimum amount of stablecoin assets needed to maintain liquidity
     uint256 public availStableBalance; // totalStables - (totalStakedStables * (1 + stableRebalanceThreshold) (in percentage)
     uint256 public totalStakedStables; // The total amount of stablecoin assets made available to the pool through user deposits
     uint256 public stableRebalanceThreshold = 75; // The maximum % of deviation from totalStakedStables before blocking trades
 
-    address public geniusVault;
     address[] public supportedTokens;
-
     mapping(address token => uint256 isSupported) public isSupportedToken;
     mapping(address token => uint256 balance) public tokenBalances;
-
-
-    // =============================================================
-    //                            ERRORS
-    // =============================================================
-
-    /**
-     * @dev Error thrown when an invalid spender is encountered.
-     */
-    error InvalidSpender();
-
-    /**
-     * @dev Error thrown when an invalid trader is encountered.
-     */
-    error InvalidTrader();
-
-    /**
-     * @dev Error thrown when the contract is already initialized.
-     */
-    error IsNotVault();
-
-    /**
-     * @dev Error thrown when the contract is already initialized.
-     */
-    error Initialized();
-
-    /**
-     * @dev Error thrown when the contract is not initialized.
-     */
-    error NotInitialized();
-
-    /**
-     * @dev Error thrown when an invalid amount is encountered.
-     */
-    error InvalidAmount();
-
-    /**
-    * @dev Error thrown when the contract needs to be rebalanced.
-    */
-     error NeedsRebalance(uint256 totalStakedAssets, uint256 availableAssets);
-
-    /**
-     * @dev Error thrown when an invalid token address is encountered.
-     */
-    error InvalidToken(address invalidToken);
 
     // =============================================================
     //                          EVENTS
@@ -159,14 +117,22 @@ contract GeniusMultiTokenPool is Orchestrable {
     );
 
     // =============================================================
+    //                            STRUCTS
+    // =============================================================
+
+    struct TokenBalance {
+        address token;
+        uint256 balance;
+    }
+
+    // =============================================================
     //                          CONSTRUCTOR
     // =============================================================
 
     constructor(
         address stablecoin,
         address bridgeRouter,
-        address owner,
-        address[] memory supportedTokenAddresses
+        address owner
     ) Ownable(owner) {
         require(stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
         require(owner != address(0), "GeniusVault: Owner address is the zero address");
@@ -174,21 +140,25 @@ contract GeniusMultiTokenPool is Orchestrable {
         STABLECOIN = IERC20(stablecoin);
         STARGATE_ROUTER = IStargateRouter(bridgeRouter);
 
-        supportedTokens = supportedTokenAddresses;
         initialized = 0;
+        isPaused = 1;
     }
 
     /**
      * @dev Initializes the GeniusMultiTokenPool contract.
      * @param vaultAddress The address of the GeniusVault contract.
+     * @param tokens The array of token addresses to be supported by the contract.
      * @notice This function can only be called once by the contract owner.
-     * @notice Once initialized, the `geniusVault` address cannot be changed.
+     * @notice Once initialized, the `VAULT` address cannot be changed.
      */
-    function initialize(address vaultAddress) external onlyOwner {
-        if (initialized == 1) revert Initialized();
-        geniusVault = vaultAddress;
+    function initialize(address vaultAddress, address[] memory tokens) external onlyOwner {
+        if (initialized == 1) revert GeniusErrors.Initialized();
+
+        VAULT = vaultAddress;
+        supportedTokens = tokens;
 
         initialized = 1;
+        paused = 0;
     }
 
     // =============================================================
@@ -199,18 +169,16 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @dev Adds liquidity to the bridge.
      * @param amount The amount of tokens to add as liquidity.
      * @param chainId The ID of the chain where the liquidity is being added.
-     * @notice This function can only be called by the orchestrator.
-     * @notice The contract must be initialized before calling this function.
-     * @notice The amount must be greater than zero.
-     * @notice The tokens are transferred from the caller to the contract.
-     * @notice The balance and available assets are updated after adding liquidity.
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
     function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator {
-        if (initialized == 0) revert NotInitialized();
-        if (amount == 0) revert InvalidAmount();
+       
+        _isPoolReady();
 
-        IERC20(STABLECOIN).transferFrom(tx.origin, address(this), amount);
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+
+        _transferERC20From(address(STABLECOIN), tx.origin, address(this), amount);
+
         _updateStableBalance();
         _updateAvailableAssets();
 
@@ -235,16 +203,18 @@ contract GeniusMultiTokenPool is Orchestrable {
         uint256 srcPoolId,
         uint256 dstPoolId
     ) public onlyOrchestrator payable {
-        if (initialized == 0) revert NotInitialized();
-        if (amountIn == 0) revert InvalidAmount();
-        if (amountIn > STABLECOIN.balanceOf(address(this))) revert InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert NeedsRebalance(totalStables, availStableBalance);
+
+        _isPoolReady();
+
+        if (amountIn == 0) revert GeniusErrors.InvalidAmount();
+        if (amountIn > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amountIn, STABLECOIN.balanceOf(address(this)));
+        if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amountIn);
 
         (,
         IStargateRouter.lzTxObj memory _lzTxParams
         ) = layerZeroFee(dstChainId, tx.origin);
 
-        STABLECOIN.approve(address(STARGATE_ROUTER), amountIn);
+        _approveERC20(address(STABLECOIN), address(STARGATE_ROUTER), amountIn);
 
         STARGATE_ROUTER.swap{value:msg.value}(
             dstChainId,
@@ -282,21 +252,27 @@ contract GeniusMultiTokenPool is Orchestrable {
         address trader,
         address token,
         uint256 amount
-    ) external {
-        if (initialized == 0) revert NotInitialized();
-        if (trader == address(0)) revert InvalidTrader();
-        if (amount == 0) revert InvalidAmount();
+    ) external payable {
+        _isPoolReady();
+
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         if (token == address(STABLECOIN)) {
-            IERC20(token).transferFrom(msg.sender, address(this), amount);
+            _transferERC20From(token, msg.sender, address(this), amount);
 
             _updateStableBalance();
             _updateAvailableAssets();
-        } else {
-            if (isSupportedToken[token] == 0) revert InvalidToken(token);
-            IERC20(token).transferFrom(msg.sender, address(this), amount);
+        } else if (isSupportedToken[token] == 1) {
+
+            if (token == NATIVE) {
+                require(msg.value == amount, "Invalid amount of ETH sent");
+            } else {
+                _transferERC20From(token, msg.sender, address(this), amount);
+            }
 
             _updateTokenBalance(token);
+        } else {
+            revert GeniusErrors.InvalidToken(token);
         }
 
         emit SwapDeposit(
@@ -309,14 +285,6 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
      * @dev Removes liquidity from the GeniusMultiTokenPool contract by swapping stablecoins for the specified amount.
      * Only the orchestrator can call this function.
-     * 
-     * Requirements:
-     * - The contract must be initialized.
-     * - The amount must be greater than zero and not exceed the total amount of stables.
-     * - The trader address must be valid.
-     * - The contract must have sufficient balance of the stablecoin.
-     * - The balance of stables after removing liquidity must be within the threshold.
-     * 
      * @param trader The address of the trader who wants to remove liquidity.
      * @param amount The amount of stablecoins to be swapped and transferred to the caller.
      */
@@ -324,14 +292,15 @@ contract GeniusMultiTokenPool is Orchestrable {
         address trader,
         uint256 amount
     ) external onlyOrchestrator {
-        if (initialized == 0) revert NotInitialized();
-        if (amount == 0) revert InvalidAmount();
-        if (amount > totalStables) revert InvalidAmount();
-        if (trader == address(0)) revert InvalidTrader();
-        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalStables - amount)) revert NeedsRebalance(totalStables, availStableBalance);
 
-        IERC20(STABLECOIN).transfer(msg.sender, amount);
+        _isPoolReady();
+
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
+
         _updateStableBalance();
         _updateAvailableAssets();
         
@@ -346,18 +315,18 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice Removes reward liquidity from the GeniusMultiTokenPool contract.
      * @dev Only the orchestrator can call this function.
      * @param amount The amount of reward liquidity to remove.
-     * @dev Throws a NotInitialized exception if the contract is not initialized.
-     * @dev Throws an InvalidAmount exception if the amount is zero, exceeds the total stables, or exceeds the balance of the STABLECOIN token in the contract.
-     * @dev Throws an InvalidAmount exception if the remaining balance after removing the amount is not within the threshold.
      */
     function removeRewardLiquidity(uint256 amount) external onlyOrchestrator {
-        if (initialized == 0) revert NotInitialized();
-        if (amount == 0) revert InvalidAmount();
-        if (amount > totalStables) revert InvalidAmount();
-        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalStables - amount)) revert InvalidAmount();
+        
+        _isPoolReady();
 
-        IERC20(STABLECOIN).transfer(msg.sender, amount);
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (amount > totalStables) revert GeniusErrors.InvalidAmount();
+        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
+
         _updateStableBalance();
         _updateAvailableAssets();
     }
@@ -370,36 +339,33 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @dev Swaps a specified amount of tokens or native currency to stablecoins.
      * Can only be called by the orchestrator.
      * @param token The address of the token to be swapped. Pass 0x0 for native currency.
-     * @param tokenAmount The amount of tokens to be swapped. Pass 0 if swapping native currency.
+     * @param amount The amount of tokens to be swapped. Pass 0 if swapping native currency.
      * @param target The address of the target contract to execute the swap.
      * @param data The calldata to be used when executing the swap on the target contract.
-     * @param nativeAmount The amount of native currency to be swapped. Pass 0 if swapping tokens.
      */
     function swapToStables(
         address token,
-        uint256 tokenAmount,
+        uint256 amount,
         address target,
-        bytes calldata data,
-        uint256 nativeAmount
+        bytes calldata data
     ) external onlyOrchestrator {
-        if (initialized == 0) revert NotInitialized();
 
-        if (tokenAmount > 0) {
-            if (tokenAmount > IERC20(token).balanceOf(address(this))) revert InvalidAmount();
-        } else if (nativeAmount > 0) {
-            if (nativeAmount > address(this).balance) revert InvalidAmount();
-        }
+        _isPoolReady();
 
-        uint256 _initialStablecoinBalance = totalStables;
+        (bool isSufficient, TokenBalance memory tokenBalance) = _isBalanceSufficient(token, amount);
+        if (!isSufficient) revert GeniusErrors.InsufficientBalance(token, amount, tokenBalance.balance);
 
-        _executeSwap(token, target, data, nativeAmount);
+        uint256 _preSwapBalance = totalStables;
+
+        _executeSwap(token, target, data, amount);
+
         _updateStableBalance();
         _updateAvailableAssets();
         _updateTokenBalance(token);
 
-        uint256 _finalStablecoinBalance = totalStables;
+        uint256 _postSwapBalance = totalStables;
 
-        require(_finalStablecoinBalance > _initialStablecoinBalance, "Swap must increase stablecoin balance");
+        require(_preSwapBalance > _postSwapBalance, "Swap must increase stablecoin balance");
     }
 
     // =============================================================
@@ -412,11 +378,12 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amount The amount of liquidity to be staked.
      */
     function stakeLiquidity(address trader, uint256 amount) external {
-        if (initialized == 0) revert NotInitialized();
-        if (msg.sender != geniusVault) revert IsNotVault();
-        if (amount == 0) revert InvalidAmount();
+        _isPoolReady();
 
-        IERC20(STABLECOIN).transferFrom(msg.sender, address(this), amount);
+        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
 
         _updateStableBalance();
         _updateStakedBalance(amount, true);
@@ -435,15 +402,16 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amount The amount of liquidity to be removed.
      */
     function removeStakedLiquidity(address trader, uint256 amount) external {
-        if (initialized == 0) revert NotInitialized();
-        if (msg.sender != geniusVault) revert IsNotVault();
-        if (trader == address(0)) revert InvalidTrader();
-        if (amount == 0) revert InvalidAmount();
-        if (amount > totalStables) revert InvalidAmount();
-        if (amount > totalStakedStables) revert InvalidAmount();
-        if (!_isStakingBalanceWithinThreshold(totalStables - amount, amount)) revert NeedsRebalance(totalStables, availStableBalance);
+        
+        _isPoolReady();
 
-        IERC20(STABLECOIN).transfer(msg.sender, amount);
+        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (amount > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
+        if (amount > totalStakedStables) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, totalStakedStables);
+        if (!_isStakingBalanceWithinThreshold(totalStables - amount, amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         _updateStableBalance();
         _updateStakedBalance(amount, false);
@@ -463,7 +431,6 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
      * @dev Sets the rebalance threshold for the GeniusMultiTokenPool contract.
      * Only the contract owner can call this function.
-     * 
      * @param threshold The new rebalance threshold to be set.
      */
     function setRebalanceThreshold(uint256 threshold) external onlyOwner {
@@ -474,7 +441,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     }
 
     // =============================================================
-    //             ADDING AND REMOVING SUPPORTED TOKENS
+    //                        TOKEN MANAGEMENT
     // =============================================================
 
     /**
@@ -483,7 +450,7 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice This function can only be called by the contract owner.
      * @notice The token must not already be supported.
      */
-    function addToken(address token) external {
+    function addToken(address token) external onlyOwner {
         require(isSupportedToken[token] == 1, "Token is already supported");
         supportedTokens.push(token);
         isSupportedToken[token] = 1;
@@ -496,9 +463,11 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice The token must be currently supported by the contract.
      * @notice If the token is successfully removed, it will no longer be supported by the contract.
      */
-    function removeToken(address token) external {
-        require(isSupportedToken[token] == 1, "Token is not supported");
-        isSupportedToken[token] = 1;
+    function removeToken(address token) external onlyOwner {
+        require(isSupportedToken[token] == 0, "Token is not supported");
+        require(IERC20(token).balanceOf(address(this)) == 0, "Token balance must be 0");
+
+        isSupportedToken[token] = 0;
 
         for (uint256 i = 0; i < supportedTokens.length; i++) {
             if (supportedTokens[i] == token) {
@@ -507,6 +476,23 @@ contract GeniusMultiTokenPool is Orchestrable {
                 break;
             }
         }
+    }
+
+    /**
+     * @dev Pauses the contract and locks all functionality in case of an emergency.
+     * Can only be called by the contract owner.
+     * This function sets the `paused` state to 1, preventing all contract operations.
+     */
+    function emergencyLock() external onlyOwner {
+        paused = 1;
+    }
+
+    /**
+     * @dev Allows the owner to emergency unlock the contract.
+     * This function sets the `paused` state to 0, allowing normal contract operations to resume.
+     */
+    function emergencyUnlock() external onlyOwner {
+        paused = 0;
     }
 
     // =============================================================
@@ -546,14 +532,14 @@ contract GeniusMultiTokenPool is Orchestrable {
 
     /**
      * @dev Returns the balances of the stablecoins in the GeniusMultiTokenPool contract.
-     * @return currentStableBalance The total balance of stablecoins in the pool.
-     * @return currentAvailableStableBalance The available balance of stablecoins in the pool.
-     * @return currentStakedStableBalance The total balance of staked stablecoins in the pool.
+     * @return currentStables The current total balance of stablecoins in the pool.
+     * @return availStables The available balance of stablecoins in the pool.
+     * @return stakedStables The total balance of staked stablecoins in the pool.
      */
     function stablecoinBalances() public view returns (
-        uint256 currentStableBalance,
-        uint256 currentAvailableStableBalance,
-        uint256 currentStakedStableBalance
+        uint256 currentStables,
+        uint256 availStables,
+        uint256 stakedStables
     ) {
         return (
             totalStables,
@@ -562,9 +548,32 @@ contract GeniusMultiTokenPool is Orchestrable {
         );
     }
 
+    /**
+     * @dev Retrieves the balances of supported tokens.
+     * @return array of TokenBalance structs containing the token address and balance.
+     */
+    function supportedTokenBalances() public view returns (TokenBalance[] memory) {
+        TokenBalance[] memory _supportedTokenBalances = new TokenBalance[](supportedTokens.length);
+
+        for (uint256 i = 0; i < supportedTokens.length; i++) {
+            _supportedTokenBalances[i] = TokenBalance(supportedTokens[i], tokenBalances[supportedTokens[i]]);
+        }
+
+        return _supportedTokenBalances;
+    }
+
     // =============================================================
     //                     INTERNAL FUNCTIONS
     // =============================================================
+
+    /**
+     * @dev Checks if the pool is ready for use.
+     * @return True if the pool is ready, otherwise reverts with an error.
+     */
+    function _isPoolReady() internal view {
+        if (isPaused == 1) revert GeniusErrors.Paused();
+        if (initialized == 0) revert GeniusErrors.NotInitialized();
+    }
 
     /**
      * @dev Checks if the given balance is within the threshold limit.
@@ -583,10 +592,35 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amountToUnstake The amount to be unstaked.
      * @return A boolean indicating whether the balance is within the threshold.
      */
-    function _isStakingBalanceWithinThreshold(uint256 balance, uint256 amountToUnstake) internal view returns (bool) {
+    function _isStakingBalanceWithinThreshold(
+        uint256 balance,
+        uint256 amountToUnstake
+    ) internal view returns (bool) {
         uint256 _lowerBound = ((totalStakedStables - amountToUnstake) * stableRebalanceThreshold) / 100;
 
         return balance >= _lowerBound;
+    }
+
+    /**
+     * @dev Checks if the balance of a specific token is sufficient.
+     * @param token The address of the token to check the balance for.
+     * @param amount The amount to compare against the total balance.
+     * @return isSufficient boolean indicating whether the balance is sufficient or not.
+     * @return balanceInfo TokenBalance struct The balance of the token.
+     */
+    function _isBalanceSufficient(address token, uint256 amount) internal view returns (
+        bool isSufficient,
+        TokenBalance memory balanceInfo
+    ) {
+        uint256 tokenBalance = 0;
+
+        if (token == NATIVE) {
+            tokenBalance = address(this).balance;
+        } else {
+            tokenBalance = IERC20(token).balanceOf(address(this));
+        }
+
+        return (amount <= tokenBalance, TokenBalance(token, tokenBalance));
     }
 
     /**
@@ -626,6 +660,8 @@ contract GeniusMultiTokenPool is Orchestrable {
         } else {
             availStableBalance = 0;
         }
+
+        minStableBalance = _neededLiquidity;
     }
 
     /**
@@ -643,6 +679,50 @@ contract GeniusMultiTokenPool is Orchestrable {
     }
 
     /**
+     * @dev Internal function to approve an ERC20 token for a spender.
+     * @param token The address of the ERC20 token.
+     * @param spender The address of the spender.
+     * @param amount The amount to be approved.
+     */
+    function _approveERC20(address token, address spender, uint256 amount) internal {
+        (bool approvalSuccess) = IERC20(token).approve(spender, amount);
+
+        if (!approvalSuccess) {
+            revert GeniusErrors.ApprovalFailure(token, amount);
+        }
+    }
+
+    /**
+     * @dev Function to transfer ERC20 tokens.
+     * @param token The address of the ERC20 token.
+     * @param to The address to transfer the tokens to.
+     * @param amount The amount of tokens to transfer.
+     */
+    function _transferERC20(
+        address token,
+        address to,
+        uint256 amount
+    ) internal {
+        IERC20(token).transfer(to, amount);
+    }
+
+    /**
+     * @dev Internal function to transfer ERC20 tokens from one address to another.
+     * @param token The address of the ERC20 token contract.
+     * @param from The address from which the tokens will be transferred.
+     * @param to The address to which the tokens will be transferred.
+     * @param amount The amount of tokens to be transferred.
+     */
+    function _transferERC20From(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    ) internal {
+        IERC20(token).transferFrom(from, to, amount);
+    }
+
+    /**
      * @dev Executes a batch of external function calls.
      * @param target The array of target addresses to call.
      * @param data The array of function call data.
@@ -656,8 +736,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     ) internal {
 
         if (token != NATIVE) {
-            (bool approvalSuccess) = IERC20(token).approve(target, value);
-            require(approvalSuccess, "Approval failed");
+            _approveERC20(token, target, value);
         }
 
         (bool swapSuccess, ) = target.call{value: value}(data);

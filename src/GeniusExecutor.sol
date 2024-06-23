@@ -4,8 +4,10 @@ pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
+
 import { GeniusPool } from "./GeniusPool.sol";
 import { GeniusVault } from "./GeniusVault.sol";
+import { GeniusErrors } from "./libs/GeniusErrors.sol";
 
 /**
  * @title GeniusExecutor
@@ -20,48 +22,13 @@ import { GeniusVault } from "./GeniusVault.sol";
 contract GeniusExecutor {
 
     // =============================================================
-    //                          INTERFACES
+    //                          IMMUTABLES
     // =============================================================
 
     IAllowanceTransfer public immutable PERMIT2;
     IERC20 public immutable STABLECOIN;
-
     GeniusPool public immutable POOL;
     GeniusVault public immutable VAULT;
-
-    // =============================================================
-    //                            ERRORS
-    // =============================================================
-
-    /**
-    * @dev Error thrown when the array lengths do not match.
-    */
-    error ArrayLengthsMismatch();
-
-    /**
-     * @dev Error thrown when an invalid spender is encountered.
-     */
-    error InvalidSpender(address invalidSpender);
-
-    /**
-     * @dev Error thrown when an approval fails.
-     */
-    error ApprovalFailure(address token, uint256 amount);
-
-    /**
-     * @dev Error thrown when an external call fails.
-     */
-    error ExternalCallFailed(address target, uint256 index);
-
-    /**
-     * @dev Error thrown when there is insufficient native balance.
-     */
-    error InsufficientNativeBalance(uint256 expectedAmount, uint256 actualAmount);
-
-    /**
-     * @dev Error thrown when there is a residual STABLECOIN balance after a transfer.
-     */
-    error ResidualBalance(uint256 amount);
 
     constructor(address _permit2, address _pool, address _vault) payable {
 
@@ -141,15 +108,15 @@ contract GeniusExecutor {
 
         uint256 amountToSwap = tokenToSwap.balanceOf(address(this));
 
-        if (!tokenToSwap.approve(target, amountToSwap)) revert ApprovalFailure(tokenToSwapAddress, amountToSwap);
+        if (!tokenToSwap.approve(target, amountToSwap)) revert GeniusErrors.ApprovalFailure(tokenToSwapAddress, amountToSwap);
 
         uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
 
         (bool success, ) = target.call{value: value}(data);
-        if(!success) revert ExternalCallFailed(target, 0);
+        if(!success) revert GeniusErrors.ExternalCallFailed(target, 0);
 
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
-        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
+        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         POOL.addLiquiditySwap(owner, amountToDeposit);
     }
@@ -180,13 +147,13 @@ contract GeniusExecutor {
             targets.length != data.length ||
             data.length != values.length ||
             routers.length != permitBatch.details.length
-        ) revert ArrayLengthsMismatch();
+        ) revert GeniusErrors.ArrayLengthsMismatch();
 
         uint256 totalRequiredValue = 0;
         for (uint i = 0; i < values.length; i++) {
             totalRequiredValue += values[i];
         }
-        if (totalRequiredValue > address(this).balance) revert InsufficientNativeBalance(totalRequiredValue, address(this).balance);
+        if (totalRequiredValue > address(this).balance) revert GeniusErrors.InsufficientNativeBalance(totalRequiredValue, address(this).balance);
         
         uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
 
@@ -196,7 +163,7 @@ contract GeniusExecutor {
 
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
 
-        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
+        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         POOL.addLiquiditySwap(owner, amountToDeposit);
     }
@@ -221,10 +188,10 @@ contract GeniusExecutor {
 
         (bool success, ) = target.call{value: value}(data);
 
-        if (!success) revert ExternalCallFailed(target, 0);
+        if (!success) revert GeniusErrors.ExternalCallFailed(target, 0);
 
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
-        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert ApprovalFailure(address(STABLECOIN), amountToDeposit);
+        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
         POOL.addLiquiditySwap(trader, amountToDeposit);
     }
@@ -262,7 +229,7 @@ contract GeniusExecutor {
 
         uint256 residualBalance = STABLECOIN.balanceOf(address(this)) - initialStablecoinBalance;
 
-        if (residualBalance > 0) revert ResidualBalance(residualBalance);
+        if (residualBalance > 0) revert GeniusErrors.ResidualBalance(residualBalance);
     }
     
     // =============================================================
@@ -281,7 +248,7 @@ contract GeniusExecutor {
         address owner
     ) private {
         if (permitBatch.spender != address(this)) {
-            revert InvalidSpender(permitBatch.spender);
+            revert GeniusErrors.InvalidSpender();
         }
         PERMIT2.permit(owner, permitBatch, signature);
 
@@ -335,7 +302,7 @@ contract GeniusExecutor {
             IERC20 tokenToApprove = IERC20(permitBatch.details[i].token);
             uint256 amountToApprove = permitBatch.details[i].amount;
 
-            if (!tokenToApprove.approve(routers[i], amountToApprove)) revert ApprovalFailure(permitBatch.details[i].token, amountToApprove);
+            if (!tokenToApprove.approve(routers[i], amountToApprove)) revert GeniusErrors.ApprovalFailure(permitBatch.details[i].token, amountToApprove);
 
             unchecked { i++; }
         }
@@ -346,7 +313,7 @@ contract GeniusExecutor {
      * @param amount The amount of STABLECOIN tokens to be approved for transfer.
      */
     function _approveVault(uint256 amount) private {
-        if (!STABLECOIN.approve(address(VAULT), amount)) revert ApprovalFailure(address(STABLECOIN), amount);
+        if (!STABLECOIN.approve(address(VAULT), amount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amount);
     }
 
     /**
