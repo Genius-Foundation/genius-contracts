@@ -207,7 +207,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         _isPoolReady();
 
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
-        if (amountIn > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficentBalance(address(STABLECOIN), amountIn, STABLECOIN.balanceOf(address(this)));
+        if (amountIn > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amountIn, STABLECOIN.balanceOf(address(this)));
         if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amountIn);
 
         (,
@@ -296,7 +296,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         _isPoolReady();
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficentBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
+        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
         if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
@@ -322,7 +322,7 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (amount > totalStables) revert GeniusErrors.InvalidAmount();
-        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficentBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
+        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
         if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
@@ -353,7 +353,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         _isPoolReady();
 
         (bool isSufficient, TokenBalance memory tokenBalance) = _isBalanceSufficient(token, amount);
-        if (!isSufficient) revert GeniusErrors.InsufficentBalance(token, amount, tokenBalance.balance);
+        if (!isSufficient) revert GeniusErrors.InsufficientBalance(token, amount, tokenBalance.balance);
 
         uint256 _preSwapBalance = totalStables;
 
@@ -407,8 +407,8 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficentBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
-        if (amount > totalStakedStables) revert GeniusErrors.InsufficentBalance(address(STABLECOIN), amount, totalStakedStables);
+        if (amount > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
+        if (amount > totalStakedStables) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, totalStakedStables);
         if (!_isStakingBalanceWithinThreshold(totalStables - amount, amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);

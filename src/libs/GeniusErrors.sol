@@ -90,7 +90,7 @@ library GeniusErrors {
      * @param amount The amount that is required.
      * @param balance The balance that is available.
      */
-    error InsufficentBalance(address token, uint256 amount, uint256 balance);
+    error InsufficientBalance(address token, uint256 amount, uint256 balance);
 
     /**
      * @dev Thrown when a token address is invalid.
