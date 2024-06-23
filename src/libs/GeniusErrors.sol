@@ -33,53 +33,68 @@ library GeniusErrors {
      */
     error InvalidAmount();
 
-        /**
+    /**
     * @dev Error thrown when the array lengths do not match.
     */
     error ArrayLengthsMismatch();
 
     /**
      * @dev Error thrown when an invalid amount is passed to a function.
+     * @param assets The amount that was passed.
+     * @param shares The amount that was expected.
      */
     error InvalidAssetAmount(uint256 assets, uint256 shares);
 
     /**
     * @dev Error thrown when the contract needs to be rebalanced.
+    * @param totalStakedAssets The total amount of assets staked in the contract.
+    * @param availableAssets The amount of assets available to be rebalanced.
     */
      error NeedsRebalance(uint256 totalStakedAssets, uint256 availableAssets);
 
     /**
      * @dev Error thrown when an approval fails.
+     * @param token The address of the token that is required.
+     * @param amount The amount that is required.
      */
     error ApprovalFailure(address token, uint256 amount);
 
     /**
      * @dev Error thrown when an external call fails.
+     * @param target The address of the target contract.
+     * @param index The index of the function that was called.
      */
     error ExternalCallFailed(address target, uint256 index);
 
     /**
      * @dev Error thrown when there is insufficient native balance.
+     * @param expectedAmount The amount that is required.
+     * @param actualAmount The amount that is available.
      */
     error InsufficientNativeBalance(uint256 expectedAmount, uint256 actualAmount);
 
     /**
-     * @dev Error thrown when there is a residual STABLECOIN balance after a transfer.
+     * @dev Error thrown when there is a residual STABLECOIN balance after an external call.
+     * @param amount The amount that of STABLECOIN that would be left in the contract.
      */
     error ResidualBalance(uint256 amount);
 
     /**
-     * @dev Error thrown when there is insufficient STABLECOIN balance.
+     * @dev Error thrown when there is insufficient token balance.
+     * @param token The address of the token.
+     * @param amount The amount that is required.
+     * @param balance The balance that is available.
      */
     error InsufficentBalance(address token, uint256 amount, uint256 balance);
 
     /**
-     * @dev Error thrown when there is insufficient LP token balance.
+     * @dev Thrown when a token address is invalid.
+     * @param token The adddress of the invalid token.
      */
     error InvalidToken(address token);
 
     /**
-     * @dev Error thrown when attempting to set a threshold balance that would exceed a certain limit.
+     * @dev Thrown when attempting to set a threshold balance that would exceed the minimum STABLECOIN balance needed.
      * @param threshBal The threshold balance being attempted to set.
      * @param attemptedThreshBal The balance that would be exceeded if the threshold is set.
      */
