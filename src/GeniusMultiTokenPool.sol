@@ -582,7 +582,7 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param balance The balance to be checked.
      * @return boolean indicating whether the balance is within the threshold limit.
      */
-    function _isBalanceWithinThreshold(uint256 balance) public view returns (bool) {
+    function _isBalanceWithinThreshold(uint256 balance) internal view returns (bool) {
         uint256 _lowerBound = (totalStakedStables * stableRebalanceThreshold) / 100;
 
         return balance >= _lowerBound;
