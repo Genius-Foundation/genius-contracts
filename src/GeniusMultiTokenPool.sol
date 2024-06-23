@@ -131,8 +131,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     constructor(
         address stablecoin,
         address bridgeRouter,
-        address owner,
-        address[] memory supportedTokenAddresses
+        address owner
     ) Ownable(owner) {
         require(stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
         require(owner != address(0), "GeniusVault: Owner address is the zero address");
@@ -140,20 +139,21 @@ contract GeniusMultiTokenPool is Orchestrable {
         STABLECOIN = IERC20(stablecoin);
         STARGATE_ROUTER = IStargateRouter(bridgeRouter);
 
-        supportedTokens = supportedTokenAddresses;
         initialized = 0;
     }
 
     /**
      * @dev Initializes the GeniusMultiTokenPool contract.
      * @param vaultAddress The address of the GeniusVault contract.
+     * @param tokens The array of token addresses to be supported by the contract.
      * @notice This function can only be called once by the contract owner.
      * @notice Once initialized, the `VAULT` address cannot be changed.
      */
-    function initialize(address vaultAddress) external onlyOwner {
+    function initialize(address vaultAddress, address[] tokens) external onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
 
         VAULT = vaultAddress;
+        supportedTokens = tokens;
 
         initialized = 1;
     }
@@ -166,11 +166,6 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @dev Adds liquidity to the bridge.
      * @param amount The amount of tokens to add as liquidity.
      * @param chainId The ID of the chain where the liquidity is being added.
-     * @notice This function can only be called by the orchestrator.
-     * @notice The contract must be initialized before calling this function.
-     * @notice The amount must be greater than zero.
-     * @notice The tokens are transferred from the caller to the contract.
-     * @notice The balance and available assets are updated after adding liquidity.
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
     function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator {
@@ -656,7 +651,9 @@ contract GeniusMultiTokenPool is Orchestrable {
     function _approveERC20(address token, address spender, uint256 amount) internal {
         (bool approvalSuccess) = IERC20(token).approve(spender, amount);
 
-        require(approvalSuccess, "Approval failed");
+        if (!approvalSuccess) {
+            revert GeniusErrors.ApprovalFailure(token, amount);
+        }
     }
 
     /**
