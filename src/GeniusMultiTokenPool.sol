@@ -407,7 +407,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (amount > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
         if (amount > totalStakedStables) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, totalStakedStables);
-        if (!_isStakingBalanceWithinThreshold(totalStables - amount, amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
@@ -582,21 +582,6 @@ contract GeniusMultiTokenPool is Orchestrable {
      */
     function _isBalanceWithinThreshold(uint256 balance) internal view returns (bool) {
         uint256 _lowerBound = (totalStakedStables * stableRebalanceThreshold) / 100;
-
-        return balance >= _lowerBound;
-    }
-
-    /**
-     * @dev Checks if the balance is within the specified threshold after unstaking a certain amount.
-     * @param balance The current balance of the token.
-     * @param amountToUnstake The amount to be unstaked.
-     * @return A boolean indicating whether the balance is within the threshold.
-     */
-    function _isStakingBalanceWithinThreshold(
-        uint256 balance,
-        uint256 amountToUnstake
-    ) internal view returns (bool) {
-        uint256 _lowerBound = ((totalStakedStables - amountToUnstake) * stableRebalanceThreshold) / 100;
 
         return balance >= _lowerBound;
     }

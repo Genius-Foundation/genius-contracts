@@ -337,7 +337,7 @@ contract GeniusPool is Orchestrable {
         if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
         if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
-        if (!_isStakingBalanceWithinThreshold(totalAssets - _amount, _amount)) revert GeniusErrors.NeedsRebalance(totalAssets, availableAssets);
+        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.NeedsRebalance(totalAssets, availableAssets);
 
         _transferERC20(address(STABLECOIN), msg.sender, _amount);
 
@@ -458,18 +458,6 @@ contract GeniusPool is Orchestrable {
      */
     function _isBalanceWithinThreshold(uint256 balance) internal view returns (bool) {
         uint256 lowerBound = (totalStakedAssets * rebalanceThreshold) / 100;
-
-        return balance >= lowerBound;
-    }
-
-    /**
-     * @dev Checks if the balance is within the threshold after unstaking a certain amount.
-     * @param balance The current balance of the account.
-     * @param amountToUnstake The amount to be unstaked.
-     * @return boolean indicating whether the balance is within the threshold.
-     */
-    function _isStakingBalanceWithinThreshold(uint256 balance, uint256 amountToUnstake) internal view returns (bool) {
-        uint256 lowerBound = ((totalStakedAssets - amountToUnstake) * rebalanceThreshold) / 100;
 
         return balance >= lowerBound;
     }
