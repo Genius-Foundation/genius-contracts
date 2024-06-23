@@ -25,6 +25,7 @@ contract GeniusPool is Orchestrable {
 
     IERC20 public immutable STABLECOIN;
     IStargateRouter public immutable STARGATE_ROUTER;
+    address public VAULT;
 
     // =============================================================
     //                          VARIABLES
@@ -35,7 +36,6 @@ contract GeniusPool is Orchestrable {
     uint256 public availableAssets; // totalAssets - (totalStakedAssets * (1 + rebalanceThreshold) (in percentage)
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
     uint256 public rebalanceThreshold = 10; // The maximum % of deviation from totalStakedAssets before blocking trades
-    address public geniusVault;
 
     // =============================================================
     //                          EVENTS
@@ -130,7 +130,7 @@ contract GeniusPool is Orchestrable {
      */
     function initialize(address _geniusVault) external onlyOwner {
         if (initialized) revert GeniusErrors.Initialized();
-        geniusVault = _geniusVault;
+        VAULT = _geniusVault;
 
         initialized = true;
     }
@@ -300,7 +300,7 @@ contract GeniusPool is Orchestrable {
      */
     function stakeLiquidity(address _trader, uint256 _amount) external {
         if (!initialized) revert GeniusErrors.NotInitialized();
-        if (msg.sender != geniusVault) revert GeniusErrors.IsNotVault();
+        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
 
         IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
@@ -327,7 +327,7 @@ contract GeniusPool is Orchestrable {
      */
     function removeStakedLiquidity(address _trader, uint256 _amount) external {
         if (!initialized) revert GeniusErrors.NotInitialized();
-        if (msg.sender != geniusVault) revert GeniusErrors.IsNotVault();
+        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
         if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
