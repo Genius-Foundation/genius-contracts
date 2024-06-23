@@ -69,7 +69,12 @@ library GeniusErrors {
     error ResidualBalance(uint256 amount);
 
     /**
-     * @dev This library contains custom error definitions for the Genius contract.
+     * @dev Error thrown when there is insufficient STABLECOIN balance.
+     */
+    error InsufficentBalance(uint256 amount, uint256 balance);
+
+    /**
+     * @dev Error thrown when there is insufficient LP token balance.
      */
     error InvalidToken(address token);
 }

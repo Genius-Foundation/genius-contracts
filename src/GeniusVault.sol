@@ -15,7 +15,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
 contract GeniusVault is ERC4626, Ownable {
 
     // =============================================================
-    //                          INTERFACES
+    //                          IMMUTABLES
     // =============================================================
 
     GeniusPool public geniusPool;
@@ -27,7 +27,7 @@ contract GeniusVault is ERC4626, Ownable {
     bool initialized;
 
     // =============================================================
-    //                          CONSTRUCTOR
+    //                         CONSTRUCTOR
     // =============================================================
 
     constructor(
