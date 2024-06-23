@@ -10,12 +10,11 @@ import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 /**
- * @title GeniusPool
+ * @title GeniusMultiTokenPool
  * @author altloot
  * 
- * @notice Contract allows for Genius Orchestrators to credit and debit
- *         trader STABLECOIN balances for cross-chain swaps,
- *         and other Genius related activities.
+ * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
+    * liquidity management and swaps.
  */
 
 contract GeniusMultiTokenPool is Orchestrable {
@@ -149,7 +148,7 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice This function can only be called once by the contract owner.
      * @notice Once initialized, the `VAULT` address cannot be changed.
      */
-    function initialize(address vaultAddress, address[] tokens) external onlyOwner {
+    function initialize(address vaultAddress, address[] memory tokens) external onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
 
         VAULT = vaultAddress;
@@ -425,7 +424,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     }
 
     // =============================================================
-    //             ADDING AND REMOVING SUPPORTED TOKENS
+    //                        TOKEN MANAGEMENT
     // =============================================================
 
     /**
@@ -434,7 +433,7 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice This function can only be called by the contract owner.
      * @notice The token must not already be supported.
      */
-    function addToken(address token) external {
+    function addToken(address token) external onlyOwner {
         require(isSupportedToken[token] == 1, "Token is already supported");
         supportedTokens.push(token);
         isSupportedToken[token] = 1;
@@ -447,9 +446,11 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice The token must be currently supported by the contract.
      * @notice If the token is successfully removed, it will no longer be supported by the contract.
      */
-    function removeToken(address token) external {
-        require(isSupportedToken[token] == 1, "Token is not supported");
-        isSupportedToken[token] = 1;
+    function removeToken(address token) external onlyOwner {
+        require(isSupportedToken[token] == 0, "Token is not supported");
+        require(IERC20(token).balanceOf(address(this)) == 0, "Token balance must be 0");
+
+        isSupportedToken[token] = 0;
 
         for (uint256 i = 0; i < supportedTokens.length; i++) {
             if (supportedTokens[i] == token) {
