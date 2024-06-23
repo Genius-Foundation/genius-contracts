@@ -20,7 +20,7 @@ import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
 contract GeniusMultiTokenPool is Orchestrable {
 
     // =============================================================
-    //                          INTERFACES
+    //                          IMMUTABLES
     // =============================================================
     
     IERC20 public immutable STABLECOIN;
