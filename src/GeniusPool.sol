@@ -327,7 +327,7 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @dev Removes staked liquidity from the GeniusPool contract.
-     * @param trader The address of the trader who wants to remove liquidity.
+     * @param _trader The address of the trader who wants to remove liquidity.
      * @param _amount The amount of liquidity to be removed.
      */
     function removeStakedLiquidity(address _trader, uint256 _amount) external {

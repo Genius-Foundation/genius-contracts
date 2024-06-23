@@ -253,7 +253,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     ) external payable {
         _isPoolReady();
 
-        if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         if (token == address(STABLECOIN)) {
@@ -403,7 +403,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         _isPoolReady();
 
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
-        if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (amount > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
         if (amount > totalStakedStables) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, totalStakedStables);
