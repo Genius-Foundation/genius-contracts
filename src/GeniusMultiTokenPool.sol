@@ -277,14 +277,6 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
      * @dev Removes liquidity from the GeniusMultiTokenPool contract by swapping stablecoins for the specified amount.
      * Only the orchestrator can call this function.
-     * 
-     * Requirements:
-     * - The contract must be initialized.
-     * - The amount must be greater than zero and not exceed the total amount of stables.
-     * - The trader address must be valid.
-     * - The contract must have sufficient balance of the stablecoin.
-     * - The balance of stables after removing liquidity must be within the threshold.
-     * 
      * @param trader The address of the trader who wants to remove liquidity.
      * @param amount The amount of stablecoins to be swapped and transferred to the caller.
      */
@@ -313,9 +305,6 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice Removes reward liquidity from the GeniusMultiTokenPool contract.
      * @dev Only the orchestrator can call this function.
      * @param amount The amount of reward liquidity to remove.
-     * @dev Throws a NotInitialized exception if the contract is not initialized.
-     * @dev Throws an InvalidAmount exception if the amount is zero, exceeds the total stables, or exceeds the balance of the STABLECOIN token in the contract.
-     * @dev Throws an InvalidAmount exception if the remaining balance after removing the amount is not within the threshold.
      */
     function removeRewardLiquidity(uint256 amount) external onlyOrchestrator {
         if (initialized == 0) revert GeniusErrors.NotInitialized();
@@ -426,7 +415,6 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
      * @dev Sets the rebalance threshold for the GeniusMultiTokenPool contract.
      * Only the contract owner can call this function.
-     * 
      * @param threshold The new rebalance threshold to be set.
      */
     function setRebalanceThreshold(uint256 threshold) external onlyOwner {
