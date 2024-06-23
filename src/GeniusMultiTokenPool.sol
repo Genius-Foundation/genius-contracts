@@ -33,8 +33,8 @@ contract GeniusMultiTokenPool is Orchestrable {
     //                          VARIABLES
     // =============================================================
 
-    uint256 public initialized;
-    uint256 public isPaused;
+    uint256 public initialized; // Flag to check if the contract has been initialized
+    uint256 public isPaused; // Flag to check if the contract is paused
 
     uint256 public totalStables; // The total amount of stablecoin assets in the contract
     uint256 public minStableBalance; // The minimum amount of stablecoin assets needed to maintain liquidity
@@ -172,7 +172,6 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
     function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator {
-       
         _isPoolReady();
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
@@ -203,7 +202,6 @@ contract GeniusMultiTokenPool is Orchestrable {
         uint256 srcPoolId,
         uint256 dstPoolId
     ) public onlyOrchestrator payable {
-
         _isPoolReady();
 
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
@@ -246,7 +244,7 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param trader The address of the trader who is adding liquidity.
      * @param token The address of the token being swapped.
      * @param amount The amount of tokens being swapped.
-     * Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
+     * @notice Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
      */
     function addLiquiditySwap(
         address trader,
@@ -255,6 +253,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     ) external payable {
         _isPoolReady();
 
+        if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         if (token == address(STABLECOIN)) {
@@ -284,7 +283,7 @@ contract GeniusMultiTokenPool is Orchestrable {
 
     /**
      * @dev Removes liquidity from the GeniusMultiTokenPool contract by swapping stablecoins for the specified amount.
-     * Only the orchestrator can call this function.
+     *      Only the orchestrator can call this function.
      * @param trader The address of the trader who wants to remove liquidity.
      * @param amount The amount of stablecoins to be swapped and transferred to the caller.
      */
@@ -292,10 +291,10 @@ contract GeniusMultiTokenPool is Orchestrable {
         address trader,
         uint256 amount
     ) external onlyOrchestrator {
-
         _isPoolReady();
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
         if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
 
@@ -317,7 +316,6 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amount The amount of reward liquidity to remove.
      */
     function removeRewardLiquidity(uint256 amount) external onlyOrchestrator {
-        
         _isPoolReady();
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
@@ -402,10 +400,10 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amount The amount of liquidity to be removed.
      */
     function removeStakedLiquidity(address trader, uint256 amount) external {
-        
         _isPoolReady();
 
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+        if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (amount > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
         if (amount > totalStakedStables) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, totalStakedStables);

@@ -20,24 +20,25 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
 contract GeniusPool is Orchestrable {
 
     // =============================================================
-    //                          INTERFACES
+    //                          IMMUTABLES
     // =============================================================
 
     IERC20 public immutable STABLECOIN;
     IStargateRouter public immutable STARGATE_ROUTER;
+
     address public VAULT;
 
     // =============================================================
     //                          VARIABLES
     // =============================================================
 
-    uint256 public initialized;
-    uint256 public isPaused;
+    uint256 public initialized; // Flag to check if the contract has been initialized
+    uint256 public isPaused; // Flag to check if the contract is paused
 
     uint256 public totalAssets; // The total amount of stablecoin assets in the contract
     uint256 public availableAssets; // totalAssets - (totalStakedAssets * (1 + rebalanceThreshold) (in percentage)
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
-    uint256 public rebalanceThreshold = 10; // The maximum % of deviation from totalStakedAssets before blocking trades
+    uint256 public rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
 
     // =============================================================
     //                          EVENTS
@@ -147,10 +148,6 @@ contract GeniusPool is Orchestrable {
      * @dev Adds liquidity to the bridge pool.
      * @param _amount The amount of stablecoin to add as liquidity.
      * @param _chainId The chain ID of the bridge.
-     * @notice Only the orchestrator can call this function.
-     * @notice The `_amount` must be greater than 0.
-     * @notice Transfers the specified amount of stablecoin from the caller to the contract.
-     * @notice Updates the balance and available assets of the bridge pool.
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
     function addBridgeLiquidity(uint256 _amount, uint16 _chainId) public onlyOrchestrator {
@@ -225,6 +222,7 @@ contract GeniusPool is Orchestrable {
      * @notice Deposits tokens into the vault
      * @param _trader The address of the trader that tokens are being deposited for
      * @param _amount The amount of tokens to deposit
+     * @notice Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
      */
     function addLiquiditySwap(
         address _trader,
@@ -247,7 +245,8 @@ contract GeniusPool is Orchestrable {
     }
 
     /**
-     * @notice Withdraws tokens from the vault
+     * @dev Removes liquidity from the GeniusPool contract by swapping stablecoins for the specified amount.
+     *      Only the orchestrator can call this function.
      * @param _trader The address of the trader to use for 
      * @param _amount The amount of tokens to withdraw
      */
@@ -258,7 +257,6 @@ contract GeniusPool is Orchestrable {
         _isPoolReady();
 
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
-        if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
         if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InvalidAmount();
         if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.NeedsRebalance(totalAssets, availableAssets);
@@ -305,10 +303,8 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @dev Allows a user to stake liquidity tokens.
+     * @param _trader The address of the trader who is staking the liquidity tokens.
      * @param _amount The amount of liquidity tokens to stake.
-     * @notice The `_amount` parameter must be greater than 0.
-     * @notice The function transfers the specified amount of liquidity tokens from the caller to the contract.
-     * @notice After the transfer, the function updates the `totalAssets` variable with the balance of liquidity tokens held by the contract.
      */
     function stakeLiquidity(address _trader, uint256 _amount) external {
         _isPoolReady();
@@ -331,11 +327,8 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @dev Removes staked liquidity from the GeniusPool contract.
+     * @param trader The address of the trader who wants to remove liquidity.
      * @param _amount The amount of liquidity to be removed.
-     * @notice The `_amount` must be greater than zero, less than or equal to the current deposits, and less than or equal to the balance of the STABLECOIN token in the contract.
-     * @notice Transfers the specified `_amount` of STABLECOIN tokens to the caller's address.
-     * @notice Updates the current deposits by getting the updated balance of the STABLECOIN token in the contract.
-     * @notice Throws an exception if any of the conditions are not met.
      */
     function removeStakedLiquidity(address _trader, uint256 _amount) external {
         _isPoolReady();
@@ -372,10 +365,14 @@ contract GeniusPool is Orchestrable {
      */
     function setRebalanceThreshold(uint256 _threshold) external onlyOwner {
         rebalanceThreshold = _threshold;
+
+        _updateBalance();   
         _updateAvailableAssets();
     }
 
-
+    // =============================================================
+    //                           EMERGENCY
+    // =============================================================
 
     /**
      * @dev Pauses the contract and locks all functionality in case of an emergency.
@@ -400,6 +397,7 @@ contract GeniusPool is Orchestrable {
     /**
      * @dev Returns the fee and layer zero transaction parameters for a given chain ID.
      * @param _chainId The chain ID for which to retrieve the fee and transaction parameters.
+     * @param _trader The address of the trader.
      * @return fee The fee amount for the layer zero transaction.
      * @return lzTxParams The layer zero transaction parameters.
      */
@@ -427,7 +425,13 @@ contract GeniusPool is Orchestrable {
         return (_fee, _lzTxParams);
     }
 
-    function assets() public view returns ( uint256, uint256, uint256 ) {
+    /**
+     * @dev Returns the current state of the assets in the GeniusPool contract.
+     * @return totalAssets The total number of assets in the pool.
+     * @return availableAssets The number of assets available for use.
+     * @return totalStakedAssets The total number of assets currently staked in the pool.
+     */
+    function assets() public view returns (uint256, uint256, uint256) {
         return (
             totalAssets,
             availableAssets,
