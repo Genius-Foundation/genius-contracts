@@ -158,7 +158,8 @@ contract GeniusPool is Orchestrable {
 
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
 
-        IERC20(STABLECOIN).transferFrom(tx.origin, address(this), _amount);
+        _transferERC20From(address(STABLECOIN), tx.origin, address(this), _amount);
+
         _updateBalance();
         _updateAvailableAssets();
 
@@ -234,7 +235,8 @@ contract GeniusPool is Orchestrable {
         if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
 
-        IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
+        _transferERC20From(address(STABLECOIN), msg.sender,  address(this), _amount);
+
         _updateBalance();
         _updateAvailableAssets();
 
@@ -261,8 +263,8 @@ contract GeniusPool is Orchestrable {
         if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InvalidAmount();
         if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.NeedsRebalance(totalAssets, availableAssets);
 
+        _transferERC20(address(STABLECOIN), msg.sender, _amount);
 
-        IERC20(STABLECOIN).transfer(msg.sender, _amount);
         _updateBalance();
         _updateAvailableAssets();
         
@@ -291,7 +293,8 @@ contract GeniusPool is Orchestrable {
         if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InvalidAmount();
         if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.InvalidAmount();
 
-        IERC20(STABLECOIN).transfer(msg.sender, _amount);
+        _transferERC20(address(STABLECOIN), msg.sender, _amount);
+
         _updateBalance();
         _updateAvailableAssets();
     }
@@ -313,7 +316,8 @@ contract GeniusPool is Orchestrable {
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
 
-        IERC20(STABLECOIN).transferFrom(msg.sender, address(this), _amount);
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), _amount);
+
         _updateBalance();
 
         totalStakedAssets += _amount;
@@ -344,7 +348,8 @@ contract GeniusPool is Orchestrable {
         if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
         if (!_isBalanceWithinThreshold(totalAssets - _amount, _amount)) revert GeniusErrors.NeedsRebalance(totalAssets, availableAssets);
 
-        IERC20(STABLECOIN).transfer(msg.sender, _amount);
+        _transferERC20(address(STABLECOIN), msg.sender, _amount);
+
         _updateBalance();
 
         totalStakedAssets -= _amount;
@@ -495,6 +500,36 @@ contract GeniusPool is Orchestrable {
         } else {
             availableAssets = 0;
         }
+    }
+
+    /**
+     * @dev Function to transfer ERC20 tokens.
+     * @param token The address of the ERC20 token.
+     * @param to The address to transfer the tokens to.
+     * @param amount The amount of tokens to transfer.
+     */
+    function _transferERC20(
+        address token,
+        address to,
+        uint256 amount
+    ) internal {
+        IERC20(token).transfer(to, amount);
+    }
+
+    /**
+     * @dev Internal function to transfer ERC20 tokens from one address to another.
+     * @param token The address of the ERC20 token contract.
+     * @param from The address from which the tokens will be transferred.
+     * @param to The address to which the tokens will be transferred.
+     * @param amount The amount of tokens to be transferred.
+     */
+    function _transferERC20From(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    ) internal {
+        IERC20(token).transferFrom(from, to, amount);
     }
 
 }
