@@ -471,7 +471,12 @@ contract GeniusMultiTokenPool is Orchestrable {
     //             ADDING AND REMOVING SUPPORTED TOKENS
     // =============================================================
 
-    // Add a new token to the supported tokens list
+    /**
+     * @dev Adds a new token to the list of supported tokens.
+     * @param _token The address of the token to be added.
+     * @notice This function can only be called by the contract owner.
+     * @notice The token must not already be supported.
+     */
     function addToken(address _token) external {
         require(isSupportedToken[_token] == 1, "Token is already supported");
         supportedTokens.push(_token);
@@ -479,6 +484,13 @@ contract GeniusMultiTokenPool is Orchestrable {
     }
 
 
+    /**
+     * @dev Removes a token from the supportedTokens array.
+     * @param _token The address of the token to be removed.
+     * @notice This function can only be called by the contract owner.
+     * @notice The token must be a supported token.
+     * @notice If the token is found in the array, it will be removed by swapping it with the last element and then popping the array.
+     */
     function removeToken(address _token) external {
         require(isSupportedToken[_token] == 1, "Token is not supported");
         isSupportedToken[_token] = 1;
@@ -574,6 +586,11 @@ contract GeniusMultiTokenPool is Orchestrable {
         totalStables = STABLECOIN.balanceOf(address(this));
     }
 
+    /**
+     * @dev Updates the total staked balance of stables.
+     * @param _amount The amount to be added or subtracted from the total staked balance.
+     * @param _add A boolean indicating whether to add or subtract the amount from the total staked balance.
+     */
     function _updateStakedBalance(uint256 _amount, bool _add) internal {
         if (_add) {
             totalStakedStables += _amount;
@@ -602,6 +619,12 @@ contract GeniusMultiTokenPool is Orchestrable {
         }
     }
 
+    /**
+     * @dev Updates the balance of a token held by the contract.
+     * @param _token The address of the token to update the balance for.
+     * @notice If the token is the native currency (ETH), the balance is updated with the contract's ETH balance.
+     * Otherwise, the balance is updated with the contract's token balance using the IERC20 interface.
+     */
     function _updateTokenBalance(address _token) internal {
         if (_token == NATIVE) {
             tokenBalances[_token] = address(this).balance;
