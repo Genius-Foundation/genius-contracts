@@ -657,4 +657,5 @@ contract GeniusMultiTokenPool is Orchestrable {
         require(success, "External call failed");
     }
 
+    receive() external payable {}
 }
