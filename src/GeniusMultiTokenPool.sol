@@ -14,7 +14,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
  * @author altloot
  * 
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
-    * liquidity management and swaps.
+ *         liquidity management and swaps.
  */
 
 contract GeniusMultiTokenPool is Orchestrable {
@@ -34,6 +34,8 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
 
     uint256 public initialized;
+    uint256 public isPaused;
+
     uint256 public totalStables; // The total amount of stablecoin assets in the contract
     uint256 public minStableBalance; // The minimum amount of stablecoin assets needed to maintain liquidity
     uint256 public availStableBalance; // totalStables - (totalStakedStables * (1 + stableRebalanceThreshold) (in percentage)
@@ -139,6 +141,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         STARGATE_ROUTER = IStargateRouter(bridgeRouter);
 
         initialized = 0;
+        isPaused = 1;
     }
 
     /**
@@ -155,6 +158,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         supportedTokens = tokens;
 
         initialized = 1;
+        paused = 0;
     }
 
     // =============================================================
@@ -168,7 +172,9 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
     function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator {
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
+       
+        _isPoolReady();
+
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         _transferERC20From(address(STABLECOIN), tx.origin, address(this), amount);
@@ -197,7 +203,9 @@ contract GeniusMultiTokenPool is Orchestrable {
         uint256 srcPoolId,
         uint256 dstPoolId
     ) public onlyOrchestrator payable {
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
+
+        _isPoolReady();
+
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (amountIn > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficentBalance(address(STABLECOIN), amountIn, STABLECOIN.balanceOf(address(this)));
         if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amountIn);
@@ -245,7 +253,8 @@ contract GeniusMultiTokenPool is Orchestrable {
         address token,
         uint256 amount
     ) external payable {
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
+        _isPoolReady();
+
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         if (token == address(STABLECOIN)) {
@@ -283,7 +292,9 @@ contract GeniusMultiTokenPool is Orchestrable {
         address trader,
         uint256 amount
     ) external onlyOrchestrator {
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
+
+        _isPoolReady();
+
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficentBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
         if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
@@ -306,7 +317,9 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amount The amount of reward liquidity to remove.
      */
     function removeRewardLiquidity(uint256 amount) external onlyOrchestrator {
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
+        
+        _isPoolReady();
+
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (amount > totalStables) revert GeniusErrors.InvalidAmount();
         if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficentBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
@@ -336,10 +349,10 @@ contract GeniusMultiTokenPool is Orchestrable {
         address target,
         bytes calldata data
     ) external onlyOrchestrator {
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
+
+        _isPoolReady();
 
         (bool isSufficient, TokenBalance memory tokenBalance) = _isBalanceSufficient(token, amount);
-
         if (!isSufficient) revert GeniusErrors.InsufficentBalance(token, amount, tokenBalance.balance);
 
         uint256 _preSwapBalance = totalStables;
@@ -365,7 +378,8 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amount The amount of liquidity to be staked.
      */
     function stakeLiquidity(address trader, uint256 amount) external {
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
+        _isPoolReady();
+
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
@@ -388,7 +402,9 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amount The amount of liquidity to be removed.
      */
     function removeStakedLiquidity(address trader, uint256 amount) external {
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
+        
+        _isPoolReady();
+
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (amount > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficentBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
@@ -462,6 +478,23 @@ contract GeniusMultiTokenPool is Orchestrable {
         }
     }
 
+    /**
+     * @dev Pauses the contract and locks all functionality in case of an emergency.
+     * Can only be called by the contract owner.
+     * This function sets the `paused` state to 1, preventing all contract operations.
+     */
+    function emergencyLock() external onlyOwner {
+        paused = 1;
+    }
+
+    /**
+     * @dev Allows the owner to emergency unlock the contract.
+     * This function sets the `paused` state to 0, allowing normal contract operations to resume.
+     */
+    function emergencyUnlock() external onlyOwner {
+        paused = 0;
+    }
+
     // =============================================================
     //                        READ FUNCTIONS
     // =============================================================
@@ -532,6 +565,15 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
     //                     INTERNAL FUNCTIONS
     // =============================================================
+
+    /**
+     * @dev Checks if the pool is ready for use.
+     * @return True if the pool is ready, otherwise reverts with an error.
+     */
+    function _isPoolReady() internal view {
+        if (isPaused == 1) revert GeniusErrors.Paused();
+        if (initialized == 0) revert GeniusErrors.NotInitialized();
+    }
 
     /**
      * @dev Checks if the given balance is within the threshold limit.

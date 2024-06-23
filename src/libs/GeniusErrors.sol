@@ -19,6 +19,11 @@ library GeniusErrors {
     error IsNotVault();
 
     /**
+     * @dev This library contains custom error definitions for the Genius contract.
+     */
+    error Paused();
+
+    /**
      * @dev Error thrown when the contract is already initialized.
      */
     error Initialized();
