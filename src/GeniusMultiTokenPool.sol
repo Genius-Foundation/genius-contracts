@@ -2,11 +2,10 @@
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
-import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 /**
@@ -203,10 +202,12 @@ contract GeniusMultiTokenPool is Orchestrable {
         uint256 dstPoolId
     ) public onlyOrchestrator payable {
         _isPoolReady();
+        _isAmountValid(amountIn);
 
-        if (amountIn == 0) revert GeniusErrors.InvalidAmount();
-        if (amountIn > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amountIn, STABLECOIN.balanceOf(address(this)));
-        if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amountIn);
+        if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
+            minStableBalance,
+            totalStables - amountIn
+        );
 
         (,
         IStargateRouter.lzTxObj memory _lzTxParams
@@ -292,11 +293,13 @@ contract GeniusMultiTokenPool is Orchestrable {
         uint256 amount
     ) external onlyOrchestrator {
         _isPoolReady();
-
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
+        _isAmountValid(amount);
+        
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
-        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(
+            minStableBalance,
+            totalStables - amount
+        );
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
@@ -317,11 +320,12 @@ contract GeniusMultiTokenPool is Orchestrable {
      */
     function removeRewardLiquidity(uint256 amount) external onlyOrchestrator {
         _isPoolReady();
+        _isAmountValid(amount);
 
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > totalStables) revert GeniusErrors.InvalidAmount();
-        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
-        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(
+            minStableBalance,
+            totalStables - amount
+        );
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
@@ -404,10 +408,18 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
+
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
-        if (amount > totalStakedStables) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, totalStakedStables);
-        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+        if (amount > totalStables) revert GeniusErrors.InvalidAmount();
+        if (amount > totalStakedStables) revert GeniusErrors.InsufficientBalance(
+            address(STABLECOIN),
+            amount,
+            totalStakedStables
+        );
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(
+            minStableBalance,
+            totalStables - amount
+        );
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
@@ -573,6 +585,25 @@ contract GeniusMultiTokenPool is Orchestrable {
     function _isPoolReady() internal view {
         if (isPaused == 1) revert GeniusErrors.Paused();
         if (initialized == 0) revert GeniusErrors.NotInitialized();
+    }
+
+    /**
+     * @dev Checks if the given amount is valid for a transaction.
+     * @param amount The amount to be checked.
+     */
+    function _isAmountValid(uint256 amount) internal view {
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+
+        if (amount > totalStables) revert GeniusErrors.InsufficientBalance(
+            address(STABLECOIN),
+            amount,
+            totalAssets
+        );
+
+        if (amount > availStableBalance) revert GeniusErrors.InsufficientLiquidity(
+            availableAssets,
+            amount
+        );
     }
 
     /**

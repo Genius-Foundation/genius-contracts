@@ -10,7 +10,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 /**
  * @title GeniusPool
- * @author altloot
+ * @author looter
  * 
  * @notice Contract allows for Genius Orchestrators to credit and debit
  *         trader STABLECOIN balances for cross-chain swaps,
@@ -36,6 +36,7 @@ contract GeniusPool is Orchestrable {
     uint256 public isPaused; // Flag to check if the contract is paused
 
     uint256 public totalAssets; // The total amount of stablecoin assets in the contract
+    uint256 public minAssetBalance; // The minimum amount of assets that must be in the contract
     uint256 public availableAssets; // totalAssets - (totalStakedAssets * (1 + rebalanceThreshold) (in percentage)
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
     uint256 public rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
@@ -175,17 +176,19 @@ contract GeniusPool is Orchestrable {
      * @param _dstPoolId The ID of the destination pool on the bridge.
      */
     function removeBridgeLiquidity(
-        uint256 _amountIn, // = _amountLD
-        uint256 _minAmountOut, // = _minAmountLD
+        uint256 _amountIn,
+        uint256 _minAmountOut,
         uint16 _dstChainId,
         uint256 _srcPoolId,
         uint256 _dstPoolId
     ) public onlyOrchestrator payable {
         _isPoolReady();
+        _isAmountValid(_amountIn);
 
-        if (_amountIn == 0) revert GeniusErrors.InvalidAmount();
-        if (_amountIn > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalAssets - _amountIn)) revert GeniusErrors.NeedsRebalance(totalAssets, availableAssets);
+        if (!_isBalanceWithinThreshold(totalAssets - _amountIn)) revert GeniusErrors.ThresholdWouldExceed(
+            minAssetBalance,
+            totalAssets - _amountIn
+        );
 
         (,
         IStargateRouter.lzTxObj memory lzTxParams
@@ -255,11 +258,13 @@ contract GeniusPool is Orchestrable {
         uint256 _amount
     ) external onlyOrchestrator {
         _isPoolReady();
+        _isAmountValid(_amount);
 
-        if (_amount == 0) revert GeniusErrors.InvalidAmount();
         if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.NeedsRebalance(totalAssets, availableAssets);
+        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.ThresholdWouldExceed(
+            minAssetBalance,
+            totalAssets - _amount
+        );
 
         _transferERC20(address(STABLECOIN), msg.sender, _amount);
 
@@ -285,11 +290,12 @@ contract GeniusPool is Orchestrable {
      */
     function removeRewardLiquidity(uint256 _amount) external onlyOrchestrator {
         _isPoolReady();
+        _isAmountValid(_amount);
 
-        if (_amount == 0) revert GeniusErrors.InvalidAmount();
-        if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
-        if (_amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.InvalidAmount();
+        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.ThresholdWouldExceed(
+            minAssetBalance,
+            totalAssets - _amount
+        );
 
         _transferERC20(address(STABLECOIN), msg.sender, _amount);
 
@@ -335,9 +341,18 @@ contract GeniusPool is Orchestrable {
 
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
+
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
         if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
-        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.NeedsRebalance(totalAssets, availableAssets);
+        if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
+            address(STABLECOIN),
+            amount,
+            totalStakedAssets
+        );
+        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.ThresholdWouldExceed(
+            minAssetBalance,
+            totalAssets - _amount
+        );
 
         _transferERC20(address(STABLECOIN), msg.sender, _amount);
 
@@ -449,6 +464,25 @@ contract GeniusPool is Orchestrable {
     function _isPoolReady() internal view {
         if (isPaused == 1) revert GeniusErrors.Paused();
         if (initialized == 0) revert GeniusErrors.NotInitialized();
+    }
+
+    /**
+     * @dev Checks if the given amount is valid for a transaction.
+     * @param amount The amount to be checked.
+     */
+    function _isAmountValid(uint256 amount) internal view {
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+
+        if (amount > totalAssets) revert GeniusErrors.InsufficientBalance(
+            address(STABLECOIN),
+            amount,
+            totalAssets
+        );
+
+        if (amount > availableAssets) revert GeniusErrors.InsufficientLiquidity(
+            availableAssets,
+            amount
+        );
     }
 
     /**
