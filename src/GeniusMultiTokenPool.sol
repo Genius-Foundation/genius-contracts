@@ -74,7 +74,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     );
 
     /**
-     * @dev An event emitted when a swap deposit is made.
+     * @dev Emitted when a swap deposit is made.
      * @param trader The address of the trader who made the deposit.
      * @param token The address of the token deposited.
      * @param amountDeposited The amount of tokens deposited.
@@ -86,7 +86,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     );
 
     /**
-     * @dev An event emitted when a swap withdrawal occurs.
+     * @dev Emitted when a swap withdrawal occurs.
      * @param trader The address of the trader who made the withdrawal.
      * @param amountWithdrawn The amount that was withdrawn.
      */
@@ -96,7 +96,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     );
 
     /**
-     * @dev Event triggered when funds are bridged to another chain.
+     * @dev Emitted when funds are bridged to another chain.
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
      */
