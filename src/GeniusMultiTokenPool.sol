@@ -37,9 +37,9 @@ contract GeniusMultiTokenPool is Orchestrable {
 
     uint256 public totalStables; // The total amount of stablecoin assets in the contract
     uint256 public minStableBalance; // The minimum amount of stablecoin assets needed to maintain liquidity
-    uint256 public availStableBalance; // totalStables - (totalStakedStables * (1 + stableRebalanceThreshold) (in percentage)
-    uint256 public totalStakedStables; // The total amount of stablecoin assets made available to the pool through user deposits
-    uint256 public stableRebalanceThreshold = 75; // The maximum % of deviation from totalStakedStables before blocking trades
+    uint256 public availStableBalance; // totalStables - (totalStakedAssets * (1 + stableRebalanceThreshold) (in percentage)
+    uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
+    uint256 public stableRebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
 
     address[] public supportedTokens;
     mapping(address token => uint256 isSupported) public isSupportedToken;
@@ -155,6 +155,10 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         VAULT = vaultAddress;
         supportedTokens = tokens;
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            isSupportedToken[tokens[i]] = 1;
+        }
 
         initialized = 1;
         isPaused = 0;
@@ -367,7 +371,7 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         uint256 _postSwapBalance = totalStables;
 
-        require(_preSwapBalance > _postSwapBalance, "Swap must increase stablecoin balance");
+        require(_preSwapBalance < _postSwapBalance, "Swap must increase stablecoin balance");
     }
 
     // =============================================================
@@ -411,10 +415,10 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (amount > totalStables) revert GeniusErrors.InvalidAmount();
-        if (amount > totalStakedStables) revert GeniusErrors.InsufficientBalance(
+        if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
             address(STABLECOIN),
             amount,
-            totalStakedStables
+            totalStakedAssets
         );
         if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(
             minStableBalance,
@@ -430,7 +434,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         emit Unstake(
             trader,
             amount,
-            totalStakedStables
+            totalStakedAssets
         );
     }
 
@@ -512,6 +516,10 @@ contract GeniusMultiTokenPool is Orchestrable {
     //                        READ FUNCTIONS
     // =============================================================
 
+    function isTokenSupported(address token) public view returns (bool) {
+        return isSupportedToken[token] == 1;
+    }
+
     /**
      * @dev Calculates the layer zero fee and returns the fee amount along with the layer zero transaction parameters.
      * @param chainId The chain ID.
@@ -557,7 +565,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         return (
             totalStables,
             availStableBalance,
-            totalStakedStables
+            totalStakedAssets
         );
     }
 
@@ -612,7 +620,7 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @return boolean indicating whether the balance is within the threshold limit.
      */
     function _isBalanceWithinThreshold(uint256 balance) internal view returns (bool) {
-        uint256 _lowerBound = (totalStakedStables * stableRebalanceThreshold) / 100;
+        uint256 _lowerBound = (totalStakedAssets * stableRebalanceThreshold) / 100;
 
         return balance >= _lowerBound;
     }
@@ -654,9 +662,9 @@ contract GeniusMultiTokenPool is Orchestrable {
      */
     function _updateStakedBalance(uint256 amount, uint256 add) internal {
         if (add == 1) {
-            totalStakedStables += amount;
+            totalStakedAssets += amount;
         } else {
-            totalStakedStables -= amount;
+            totalStakedAssets -= amount;
         }
     }
 
@@ -667,9 +675,9 @@ contract GeniusMultiTokenPool is Orchestrable {
      * Otherwise, the available stable balance is set to 0.
      */
     function _updateAvailableAssets() internal {
-        uint256 _reduction = totalStakedStables > 0 ? (totalStakedStables * stableRebalanceThreshold) / 100 : 0;
+        uint256 _reduction = totalStakedAssets > 0 ? (totalStakedAssets * stableRebalanceThreshold) / 100 : 0;
 
-        uint256 _neededLiquidity = totalStakedStables > _reduction ? totalStakedStables - _reduction : 0;
+        uint256 _neededLiquidity = totalStakedAssets > _reduction ? totalStakedAssets - _reduction : 0;
         
         if (totalStables > _neededLiquidity) {
             availStableBalance = totalStables - _neededLiquidity;
@@ -755,7 +763,9 @@ contract GeniusMultiTokenPool is Orchestrable {
             _approveERC20(token, target, value);
         }
 
-        (bool swapSuccess, ) = target.call{value: value}(data);
-        require(swapSuccess, "Swap failed");
+        uint256 _nativeValue = token == NATIVE ? value : 0;
+        (bool success, ) = target.call{value: _nativeValue}(data);
+
+        require(success, "Swap failed");
     }
 }
