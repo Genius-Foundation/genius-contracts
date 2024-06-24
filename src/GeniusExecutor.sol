@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 import { GeniusPool } from "./GeniusPool.sol";
 import { GeniusVault } from "./GeniusVault.sol";
@@ -19,7 +20,7 @@ import { GeniusErrors } from "./libs/GeniusErrors.sol";
  *         and permits utilizing the Permit2 contract, as well as depositing stablecoins
  *         to a Genius Vault.
  */
-contract GeniusExecutor {
+contract GeniusExecutor is Ownable {
 
     // =============================================================
     //                          IMMUTABLES
@@ -30,7 +31,24 @@ contract GeniusExecutor {
     GeniusPool public immutable POOL;
     GeniusVault public immutable VAULT;
 
-    constructor(address _permit2, address _pool, address _vault) payable {
+    // =============================================================
+    //                           VARIABLES
+    // =============================================================
+
+    uint256 isPaused = 0;
+
+    // =============================================================
+    //                          CONSTRUCTOR
+    // =============================================================
+
+    constructor(
+        address _permit2,
+        address _pool,
+        address _vault
+        address _owner
+    ) Ownable(_owner) {
+        require(owner != address(0), "GeniusExecutor: Owner address is the zero address");
+
 
         PERMIT2 = IAllowanceTransfer(_permit2);
         VAULT = GeniusVault(_vault);
@@ -63,6 +81,7 @@ contract GeniusExecutor {
         bytes calldata signature,
         address owner
     ) external payable {
+        _checkPaused();
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
     }
@@ -78,6 +97,7 @@ contract GeniusExecutor {
         bytes[] calldata data, // calldata
         uint256[] calldata values // native 
     ) external payable {
+        _checkPaused();
         _batchExecution(targets, data, values);
     }
 
@@ -101,6 +121,8 @@ contract GeniusExecutor {
         bytes calldata signature,
         address owner
     ) external payable {
+        _checkPaused();
+
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
         address tokenToSwapAddress = permitBatch.details[0].token;
@@ -143,6 +165,8 @@ contract GeniusExecutor {
         bytes calldata signature,
         address owner
     ) external payable {
+        _checkPaused();
+
         if (
             targets.length != data.length ||
             data.length != values.length ||
@@ -182,6 +206,8 @@ contract GeniusExecutor {
         uint256 value,
         address trader
     ) external payable {
+        _checkPaused();
+
         require(target != address(0), "Invalid target address");
 
         uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
@@ -202,6 +228,7 @@ contract GeniusExecutor {
         bytes calldata signature,
         address owner
     ) external {
+        _checkPaused();
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _approveVault(amount);
         _depositToVault(owner, amount);
@@ -220,6 +247,7 @@ contract GeniusExecutor {
         bytes calldata signature,
         address owner
     ) external {
+        _checkPaused();
 
         uint256 initialStablecoinBalance = STABLECOIN.balanceOf(address(this));
 
@@ -231,10 +259,39 @@ contract GeniusExecutor {
 
         if (residualBalance > 0) revert GeniusErrors.ResidualBalance(residualBalance);
     }
+
+    // =============================================================
+    //                           EMERGENCY
+    // =============================================================
+
+
+    /**
+     * @dev Pauses the contract and locks all functionality in case of an emergency.
+     * This function sets the `isPaused` state to 1, preventing all contract operations.
+     */
+    function emergencyLock() external onlyOwner {
+        isPaused = 1;
+    }
+
+    /**
+     * @dev Allows the owner to emergency unlock the contract.
+     * This function sets the `isPaused` state to 0, allowing normal contract operations to resume.
+     */
+    function emergencyUnlock() external onlyOwner {
+        isPaused = 0;
+    }
     
     // =============================================================
     //                      INTERNAL FUNCTIONS
     // =============================================================
+
+    /**
+     * @dev Checks if the contract is currently paused.
+     * @dev Throws a `GeniusErrors.Paused` error if the contract is paused.
+     */
+    function _checkPaused() private view {
+        if (isPaused == 1) revert GeniusErrors.Paused();
+    }
 
     /**
      * @dev Internal function to permit and transfer tokens from the caller's address.
