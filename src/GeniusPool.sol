@@ -528,6 +528,9 @@ contract GeniusPool is Orchestrable {
         } else {
             availableAssets = 0;
         }
+
+        // Update the minimum asset balance
+        minAssetBalance = neededLiquidity;
     }
 
     /**
