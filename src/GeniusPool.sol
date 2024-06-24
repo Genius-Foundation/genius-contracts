@@ -114,15 +114,15 @@ contract GeniusPool is Orchestrable {
     // =============================================================
 
     constructor(
-        address _stablecoin,
-        address _bridgeRouter,
-        address _owner
-    ) Ownable(_owner) {
-        require(_stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
-        require(_owner != address(0), "GeniusVault: Owner address is the zero address");
+        address stablecoin,
+        address bridgeRouter,
+        address owner
+    ) Ownable(owner) {
+        require(stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
+        require(owner != address(0), "GeniusVault: Owner address is the zero address");
 
-        STABLECOIN = IERC20(_stablecoin);
-        STARGATE_ROUTER = IStargateRouter(_bridgeRouter);
+        STABLECOIN = IERC20(stablecoin);
+        STARGATE_ROUTER = IStargateRouter(bridgeRouter);
 
         initialized = 0;
         isPaused = 1;
@@ -130,12 +130,12 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @dev Initializes the GeniusVault contract.
-     * @param _geniusVault The address of the GeniusPool contract.
+     * @param vaultAddress The address of the GeniusPool contract.
      * @notice This function can only be called once to initialize the contract.
      */
-    function initialize(address _geniusVault) external onlyOwner {
+    function initialize(address vaultAddress) external onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
-        VAULT = _geniusVault;
+        VAULT = vaultAddress;
 
         initialized = 1;
         isPaused = 0;
@@ -147,62 +147,62 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @dev Adds liquidity to the bridge pool.
-     * @param _amount The amount of stablecoin to add as liquidity.
-     * @param _chainId The chain ID of the bridge.
+     * @param amount The amount of stablecoin to add as liquidity.
+     * @param chainId The chain ID of the bridge.
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
-    function addBridgeLiquidity(uint256 _amount, uint16 _chainId) public onlyOrchestrator {
+    function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator {
         _isPoolReady();
 
-        if (_amount == 0) revert GeniusErrors.InvalidAmount();
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        _transferERC20From(address(STABLECOIN), tx.origin, address(this), _amount);
+        _transferERC20From(address(STABLECOIN), tx.origin, address(this), amount);
 
         _updateBalance();
         _updateAvailableAssets();
 
         emit ReceiveBridgeFunds(
-            _amount,
-            _chainId
+            amount,
+            chainId
         );
     }
 
     /**
      * @dev Removes liquidity from a bridge pool and swaps it to the destination chain.
-     * @param _amountIn The amount of tokens to remove from the bridge pool.
-     * @param _minAmountOut The minimum amount of tokens expected to receive after the swap.
-     * @param _dstChainId The chain ID of the destination chain.
-     * @param _srcPoolId The ID of the source pool on the bridge.
-     * @param _dstPoolId The ID of the destination pool on the bridge.
+     * @param amountIn The amount of tokens to remove from the bridge pool.
+     * @param minAmountOut The minimum amount of tokens expected to receive after the swap.
+     * @param dstChainId The chain ID of the destination chain.
+     * @param srcPoolId The ID of the source pool on the bridge.
+     * @param dstPoolId The ID of the destination pool on the bridge.
      */
     function removeBridgeLiquidity(
-        uint256 _amountIn,
-        uint256 _minAmountOut,
-        uint16 _dstChainId,
-        uint256 _srcPoolId,
-        uint256 _dstPoolId
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint16 dstChainId,
+        uint256 srcPoolId,
+        uint256 dstPoolId
     ) public onlyOrchestrator payable {
         _isPoolReady();
-        _isAmountValid(_amountIn);
+        _isAmountValid(amountIn);
 
-        if (!_isBalanceWithinThreshold(totalAssets - _amountIn)) revert GeniusErrors.ThresholdWouldExceed(
+        if (!_isBalanceWithinThreshold(totalAssets - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
             minAssetBalance,
-            totalAssets - _amountIn
+            totalAssets - amountIn
         );
 
         (,
         IStargateRouter.lzTxObj memory lzTxParams
-        ) = layerZeroFee(_dstChainId, tx.origin);
+        ) = layerZeroFee(dstChainId, tx.origin);
 
-        STABLECOIN.approve(address(STARGATE_ROUTER), _amountIn);
+        STABLECOIN.approve(address(STARGATE_ROUTER), amountIn);
 
         STARGATE_ROUTER.swap{value:msg.value}(
-            _dstChainId,
-            _srcPoolId,
-            _dstPoolId,
+            dstChainId,
+            srcPoolId,
+            dstPoolId,
             payable(tx.origin),
-            _amountIn,
-            _minAmountOut,
+            amountIn,
+            minAmountOut,
             lzTxParams,
             abi.encodePacked(tx.origin),
             bytes("") 
@@ -212,8 +212,8 @@ contract GeniusPool is Orchestrable {
         _updateAvailableAssets();
 
         emit BridgeFunds(
-            _amountIn,
-            _dstChainId
+    amountIn,
+    dstChainId
         );
     }
 
@@ -223,55 +223,54 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @notice Deposits tokens into the vault
-     * @param _trader The address of the trader that tokens are being deposited for
-     * @param _amount The amount of tokens to deposit
+     * @param trader The address of the trader that tokens are being deposited for
+     * @param amount The amount of tokens to deposit
      * @notice Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
      */
     function addLiquiditySwap(
-        address _trader,
-        uint256 _amount
+        address trader,
+        uint256 amount
     ) external {
         _isPoolReady();
 
-        if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (_amount == 0) revert GeniusErrors.InvalidAmount();
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        _transferERC20From(address(STABLECOIN), msg.sender,  address(this), _amount);
+        _transferERC20From(address(STABLECOIN), msg.sender,  address(this), amount);
 
         _updateBalance();
         _updateAvailableAssets();
-
         emit SwapDeposit(
-            _trader,
-            _amount
+        trader,
+        amount
         );
     }
 
     /**
      * @dev Removes liquidity from the GeniusPool contract by swapping stablecoins for the specified amount.
      *      Only the orchestrator can call this function.
-     * @param _trader The address of the trader to use for 
-     * @param _amount The amount of tokens to withdraw
+     * @param trader The address of the trader to use for 
+     * @param amount The amount of tokens to withdraw
      */
     function removeLiquiditySwap(
-        address _trader,
-        uint256 _amount
+        address trader,
+        uint256 amount
     ) external onlyOrchestrator {
         _isPoolReady();
-        _isAmountValid(_amount);
+        _isAmountValid(amount);
 
-        if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.ThresholdWouldExceed(
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (!_isBalanceWithinThreshold(totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
             minAssetBalance,
-            totalAssets - _amount
+            totalAssets - amount
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, _amount);
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         _updateBalance();
         _updateAvailableAssets();
         
-        emit SwapWithdrawal(_trader, _amount);
+        emit SwapWithdrawal(trader, amount);
     }
 
     // =============================================================
@@ -280,24 +279,18 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @dev Removes reward liquidity from the GeniusPool contract.
-     * @param _amount The amount of reward liquidity to remove.
-     * @notice Only the orchestrator can call this function.
-     * @notice The `_amount` must be greater than 0, less than or equal to the total assets in the contract,
-     * and less than or equal to the balance of the STABLECOIN token held by the contract.
-     * @notice The total assets in the contract must remain within a certain threshold after removing the reward liquidity.
-     * @notice This function transfers the specified amount of STABLECOIN tokens to the caller's address.
-     * @notice It also updates the balance and available assets in the contract.
+     * @param amount The amount of reward liquidity to remove.
      */
-    function removeRewardLiquidity(uint256 _amount) external onlyOrchestrator {
+    function removeRewardLiquidity(uint256 amount) external onlyOrchestrator {
         _isPoolReady();
-        _isAmountValid(_amount);
+        _isAmountValid(amount);
 
-        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.ThresholdWouldExceed(
+        if (!_isBalanceWithinThreshold(totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
             minAssetBalance,
-            totalAssets - _amount
+            totalAssets - amount
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, _amount);
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         _updateBalance();
         _updateAvailableAssets();
@@ -309,62 +302,62 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @dev Allows a user to stake liquidity tokens.
-     * @param _trader The address of the trader who is staking the liquidity tokens.
-     * @param _amount The amount of liquidity tokens to stake.
+     * @param trader The address of the trader who is staking the liquidity tokens.
+     * @param amount The amount of liquidity tokens to stake.
      */
-    function stakeLiquidity(address _trader, uint256 _amount) external {
+    function stakeLiquidity(address trader, uint256 amount) external {
         _isPoolReady();
 
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
-        if (_amount == 0) revert GeniusErrors.InvalidAmount();
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        _transferERC20From(address(STABLECOIN), msg.sender, address(this), _amount);
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
 
         _updateBalance();
-        _updateStakedBalance(_amount, 1);
+        _updateStakedBalance(amount, 1);
         _updateAvailableAssets();
 
         emit Stake(
-            _trader,
-            _amount,
-            _amount
+            trader,
+            amount,
+            amount
         );
     }
 
-    /**
+/**
      * @dev Removes staked liquidity from the GeniusPool contract.
-     * @param _trader The address of the trader who wants to remove liquidity.
-     * @param _amount The amount of liquidity to be removed.
+     * @param trader The address of the trader who wants to remove liquidity.
+     * @param amount The amount of liquidity to be removed.
      */
-    function removeStakedLiquidity(address _trader, uint256 _amount) external {
+    function removeStakedLiquidity(address trader, uint256 amount) external {
         _isPoolReady();
 
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
-        if (_trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
 
-        if (_amount == 0) revert GeniusErrors.InvalidAmount();
-        if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
-        if (_amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (amount > totalAssets) revert GeniusErrors.InvalidAmount();
+        if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
             address(STABLECOIN),
-            _amount,
+            amount,
             totalStakedAssets
         );
-        if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.ThresholdWouldExceed(
+        if (!_isBalanceWithinThreshold(totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
             minAssetBalance,
-            totalAssets - _amount
+            totalAssets - amount
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, _amount);
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         _updateBalance();
-        _updateStakedBalance(_amount, 0);
+        _updateStakedBalance(amount, 0);
         _updateAvailableAssets();
 
 
         emit Unstake(
-            _trader,
-            _amount,
-            _amount
+            trader,
+            amount,
+            amount
         );
     }
 
@@ -374,12 +367,12 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @dev Sets the rebalance threshold for the GeniusPool contract.
-     * @param _threshold The new rebalance threshold to be set.
+     * @param threshold The new rebalance threshold to be set.
      * Requirements:
      * - Only the contract owner can call this function.
      */
-    function setRebalanceThreshold(uint256 _threshold) external onlyOwner {
-        rebalanceThreshold = _threshold;
+    function setRebalanceThreshold(uint256 threshold) external onlyOwner {
+        rebalanceThreshold = threshold;
 
         _updateBalance();   
         _updateAvailableAssets();
@@ -411,28 +404,28 @@ contract GeniusPool is Orchestrable {
 
     /**
      * @dev Returns the fee and layer zero transaction parameters for a given chain ID.
-     * @param _chainId The chain ID for which to retrieve the fee and transaction parameters.
-     * @param _trader The address of the trader.
+     * @param chainId The chain ID for which to retrieve the fee and transaction parameters.
+     * @param trader The address of the trader.
      * @return fee The fee amount for the layer zero transaction.
      * @return lzTxParams The layer zero transaction parameters.
      */
     function layerZeroFee(
-        uint16 _chainId,
-        address _trader
+        uint16 chainId,
+        address trader
     ) public view returns (uint256 fee, IStargateRouter.lzTxObj memory lzTxParams) {
 
         IStargateRouter.lzTxObj memory _lzTxParams = IStargateRouter.lzTxObj({
             dstGasForCall: 0,
             dstNativeAmount: 0,
-            dstNativeAddr: abi.encodePacked(_trader)
+            dstNativeAddr: abi.encodePacked(trader)
         });
 
         bytes memory transferAndCallPayload = abi.encode(_lzTxParams); 
 
         (, uint256 _fee) = STARGATE_ROUTER.quoteLayerZeroFee(
-            _chainId,
+            chainId,
             1,
-            abi.encodePacked(_trader),
+            abi.encodePacked(trader),
             transferAndCallPayload,
             _lzTxParams
         );
