@@ -597,11 +597,11 @@ contract GeniusMultiTokenPool is Orchestrable {
         if (amount > totalStables) revert GeniusErrors.InsufficientBalance(
             address(STABLECOIN),
             amount,
-            totalAssets
+            totalStables
         );
 
         if (amount > availStableBalance) revert GeniusErrors.InsufficientLiquidity(
-            availableAssets,
+            availStableBalance,
             amount
         );
     }

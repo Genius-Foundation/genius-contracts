@@ -344,9 +344,9 @@ contract GeniusPool is Orchestrable {
 
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
         if (_amount > totalAssets) revert GeniusErrors.InvalidAmount();
-        if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
+        if (_amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
             address(STABLECOIN),
-            amount,
+            _amount,
             totalStakedAssets
         );
         if (!_isBalanceWithinThreshold(totalAssets - _amount)) revert GeniusErrors.ThresholdWouldExceed(
