@@ -88,7 +88,7 @@ contract GeniusExecutorTest is Test {
         );
 
         vm.prank(owner);
-        geniusVault = new GeniusVault(address(testERC20));
+        geniusVault = new GeniusVault(address(testERC20), owner);
 
         vm.prank(owner);
         geniusPool.initialize(address(geniusVault));

@@ -44,7 +44,7 @@ contract GeniusPoolTest is Test {
 
         vm.startPrank(owner);
         geniusPool = new GeniusPool(address(usdc), address(stargateRouter), owner);
-        geniusVault = new GeniusVault(address(usdc));
+        geniusVault = new GeniusVault(address(usdc), owner);
 
         assertEq(geniusPool.owner(), owner, "Owner should be orchestrator");
 

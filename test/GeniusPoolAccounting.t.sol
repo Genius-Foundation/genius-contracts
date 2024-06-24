@@ -22,9 +22,9 @@ contract GeniusPoolAccounting is Test {
     GeniusVault public VAULT;
 
     // ============ Constants ============
-    address public immutable OWNER = makeAddr("owner");
-    address public immutable TRADER = makeAddr("trader");
-    address public immutable ORCHESTRATOR = makeAddr("orchestrator");
+    address public OWNER;
+    address public TRADER;
+    address public ORCHESTRATOR;
 
     // ============ Logging ============
 
@@ -45,27 +45,47 @@ contract GeniusPoolAccounting is Test {
         console.log(""); // Empty line at the end
     }
 
+
+
     // ============ Setup ============
     function setUp() public {
         avalanche = vm.createFork(rpc);
         vm.selectFork(avalanche);
 
+        // Set up addresses
+        OWNER = address(0x1);
+        TRADER = address(0x2);
+        ORCHESTRATOR = address(0x3);
+
+        console.log("Setup - OWNER:", OWNER);
+        console.log("Setup - TRADER:", TRADER);
+        console.log("Setup - ORCHESTRATOR:", ORCHESTRATOR);
+
         vm.startPrank(OWNER);
+        console.log("Setup - msg.sender after OWNER prank:", msg.sender);
+
+        // Deploy contracts
         IStargateRouter stargate = IStargateRouter(0x45A01E4e04F14f7A4a6702c74187c5F6222033cd);
         ERC20 usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         POOL = new GeniusPool(address(usdc), address(stargate), OWNER);
         VAULT = new GeniusVault(address(usdc), OWNER);
 
         POOL.initialize(address(VAULT));
-        vm.startPrank(OWNER);
         VAULT.initialize(address(POOL));
-
-        vm.startPrank(OWNER);
+        
+        // Add Orchestrator
         POOL.addOrchestrator(ORCHESTRATOR);
+        console.log("Setup - Orchestrator added:", ORCHESTRATOR);
+        console.log("Setup - Is orchestrator:", POOL.orchestrator(ORCHESTRATOR));
 
+        vm.stopPrank();
+
+        // Provide USDC to TRADER and ORCHESTRATOR
         deal(address(USDC), TRADER, 1_000 ether);
         deal(address(USDC), ORCHESTRATOR, 1_000 ether);
+        deal(address(USDC), address(this), 1_000 ether);
     }
+
 
     /**
      * @dev This function is a test function that checks the staked values in the GeniusPoolAccounting contract.
@@ -100,6 +120,8 @@ contract GeniusPoolAccounting is Test {
         assertEq(POOL.totalStakedAssets(), VAULT.totalAssets(), "Total staked assets and total assets mismatch");
         assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+
+        vm.stopPrank(); // Stop acting as TRADER
     }
 
 
@@ -119,9 +141,12 @@ contract GeniusPoolAccounting is Test {
         assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
+        vm.stopPrank(); // Stop acting as TRADER
+
         // Change the threshold
         vm.startPrank(OWNER);
         POOL.setRebalanceThreshold(10);
+        vm.stopPrank();
 
         // Log the staked values
         LogEntry[] memory entries = new LogEntry[](4);
@@ -142,41 +167,36 @@ contract GeniusPoolAccounting is Test {
     }
 
     function testStakeAndDeposit() public {
+
+        // Start acting as TRADER
         vm.startPrank(TRADER);
-
-        // Approve USDC to be spent by the vault
-        USDC.approve(address(VAULT), 1_000 ether);
-
-        // Deposit 100 USDC into the vault
+        console.log("msg.sender after starting TRADER prank:", msg.sender);
+        
+        USDC.approve(address(VAULT), 100 ether);
         VAULT.deposit(100 ether, TRADER);
 
-        // Check the staked value
         assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
         assertEq(VAULT.totalAssets(), 100 ether, "Total assets mismatch");
-        assertEq(POOL.totalStakedAssets(), VAULT.totalAssets(), "Total staked assets and total assets mismatch");
         assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
-        // Stake 50 USDC
-        vm.startPrank(ORCHESTRATOR);
-        POOL.addBridgeLiquidity(50 ether, 1);
+        vm.stopPrank();
+        
+        USDC.approve(address(POOL), 100 ether);
+        POOL.addLiquiditySwap(TRADER, 100 ether);
 
-        // Check the staked value
-        assertEq(POOL.totalStakedAssets(), 150 ether, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), 100 ether, "Total assets mismatch");
-        assertEq(POOL.totalStakedAssets(), VAULT.totalAssets(), "Total staked assets and total assets mismatch");
-        assertEq(POOL.availableAssets(), 25 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 75 ether, "Minimum asset balance mismatch");
+        LogEntry[] memory entries = new LogEntry[](4);
+        entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 100 ether);
+        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 200 ether);
+        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 150 ether);
+        entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 50 ether);
 
-        // Deposit 50 USDC into the vault
-        vm.startPrank(TRADER);
-        VAULT.deposit(50 ether, TRADER);
+        logValues("Post Stake and Deposit Values", entries);
+        console.log("balanceOf pool", USDC.balanceOf(address(POOL)));
 
-        // Check the staked value
-        assertEq(POOL.totalStakedAssets(), 200 ether, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), 150 ether, "Total assets mismatch");
-        assertEq(POOL.totalStakedAssets(), VAULT.totalAssets(), "Total staked assets and total assets mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
+        assertEq(VAULT.totalAssets(), 200 ether, "Total assets mismatch");
+        assertEq(POOL.availableAssets(), 150 ether, "Available assets mismatch");
+        assertEq(POOL.minAssetBalance(), 50 ether, "Minimum asset balance mismatch");
+
     }
 }

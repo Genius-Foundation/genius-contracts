@@ -24,7 +24,7 @@ contract GeniusVaultTest is Test {
         usdc = new MockUSDC();
 
         vm.prank(owner);
-        geniusVault = new GeniusVault(address(usdc));
+        geniusVault = new GeniusVault(address(usdc), owner);
 
         vm.prank(owner);
         geniusPool = new GeniusPool(
