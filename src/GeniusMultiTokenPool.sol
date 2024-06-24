@@ -13,7 +13,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
  * @author altloot
  * 
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
- *         liquidity management and swaps.
+ *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
 
 contract GeniusMultiTokenPool is Orchestrable {
