@@ -14,10 +14,10 @@ import { GeniusErrors } from "./libs/GeniusErrors.sol";
  * @author looter
  * 
  * @notice Contract that allows for efficient aggregation of multiple calls
- *         in a single transaction, while "forwarding" the `msg.sender`. Additionally,
- *         this contract also allows for the aggregation of multiple token transfers
- *         and permits utilizing the Permit2 contract, as well as depositing stablecoins
- *         to a Genius Vault.
+ *         in a single transaction. Additionally, this contract also allows
+ *         for the aggregation of multiple token transfers and permits
+ *         utilizing the Permit2 contract, as well facilitating interactions
+ *         with the GeniusVault contract and the GeniusPool contract.
  */
 contract GeniusExecutor {
 
