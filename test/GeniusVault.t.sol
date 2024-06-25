@@ -11,7 +11,6 @@ import {GeniusPool} from "../src/GeniusPool.sol";
 
 contract GeniusVaultTest is Test {
 
-    address public immutable bridgeAddress = 0x150f94B44927F078737562f0fcF3C95c01Cc2376;
     address public owner = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
     address public trader;
 
@@ -29,7 +28,6 @@ contract GeniusVaultTest is Test {
         vm.prank(owner);
         geniusPool = new GeniusPool(
             address(usdc),
-            bridgeAddress,
             owner
         );
 

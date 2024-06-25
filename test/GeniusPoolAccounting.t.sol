@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
-import {IStargateRouter} from "../src/interfaces/IStargateRouter.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import {GeniusPool} from "../src/GeniusPool.sol";
@@ -66,9 +65,8 @@ contract GeniusPoolAccounting is Test {
         vm.startPrank(OWNER);
 
         // Deploy contracts
-        IStargateRouter stargate = IStargateRouter(0x45A01E4e04F14f7A4a6702c74187c5F6222033cd);
         ERC20 usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
-        POOL = new GeniusPool(address(usdc), address(stargate), OWNER);
+        POOL = new GeniusPool(address(usdc), OWNER);
         VAULT = new GeniusVault(address(usdc), OWNER);
 
         POOL.initialize(address(VAULT));

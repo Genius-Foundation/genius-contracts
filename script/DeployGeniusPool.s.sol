@@ -23,7 +23,6 @@ contract DeployGeniusPool is Script {
 
         GeniusPool geniusPool = new GeniusPool(
             0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E,
-            0x45A01E4e04F14f7A4a6702c74187c5F6222033cd,
             0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909
         );
 

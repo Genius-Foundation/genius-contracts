@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
-import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
@@ -23,7 +22,6 @@ contract GeniusMultiTokenPool is Orchestrable {
     // =============================================================
     
     IERC20 public immutable STABLECOIN;
-    IStargateRouter public immutable STARGATE_ROUTER;
 
     address public immutable NATIVE = address(0);
     address public  VAULT;
@@ -130,14 +128,12 @@ contract GeniusMultiTokenPool is Orchestrable {
 
     constructor(
         address stablecoin,
-        address bridgeRouter,
         address owner
     ) Ownable(owner) {
-        require(stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
-        require(owner != address(0), "GeniusVault: Owner address is the zero address");
+        require(stablecoin != address(0), "GeniusMultTokenPool: STABLECOIN address is the zero address");
+        require(owner != address(0), "GeniusMultTokenPool: Owner address is the zero address");
 
         STABLECOIN = IERC20(stablecoin);
-        STARGATE_ROUTER = IStargateRouter(bridgeRouter);
 
         initialized = 0;
         isPaused = 1;
@@ -191,19 +187,19 @@ contract GeniusMultiTokenPool is Orchestrable {
     }
 
     /**
-     * @dev Removes liquidity from the bridge.
-     * @param amountIn The amount of tokens to remove.
-     * @param minAmountOut The minimum amount of tokens to receive.
-     * @param dstChainId The destination chain ID.
-     * @param srcPoolId The source pool ID.
-     * @param dstPoolId The destination pool ID.
+     * @dev Removes liquidity from a bridge pool and swaps it to the destination chain.
+     * @param amountIn The amount of tokens to remove from the bridge pool.
+     * @param dstChainId The chain ID of the destination chain.
+     * @param targets The array of target addresses to call.
+     * @param values The array of values to send along with the function calls.
+     * @param data The array of function call data.
      */
     function removeBridgeLiquidity(
         uint256 amountIn,
-        uint256 minAmountOut,
         uint16 dstChainId,
-        uint256 srcPoolId,
-        uint256 dstPoolId
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory data
     ) public onlyOrchestrator payable {
         _isPoolReady();
         _isAmountValid(amountIn);
@@ -213,32 +209,24 @@ contract GeniusMultiTokenPool is Orchestrable {
             totalStables - amountIn
         );
 
-        (,
-        IStargateRouter.lzTxObj memory _lzTxParams
-        ) = layerZeroFee(dstChainId, tx.origin);
 
-        _approveERC20(address(STABLECOIN), address(STARGATE_ROUTER), amountIn);
+        _batchExecution(targets, data, values);
 
-        STARGATE_ROUTER.swap{value:msg.value}(
-            dstChainId,
-            srcPoolId,
-            dstPoolId,
-            payable(tx.origin),
-            amountIn,
-            minAmountOut,
-            _lzTxParams,
-            abi.encodePacked(tx.origin),
-            bytes("") 
-        );
+        uint256 _initStableValue = totalStables;
 
         _updateStableBalance();
         _updateAvailableAssets();
+
+        uint256 _stableDelta = _initStableValue - totalStables;
+
+        if (_stableDelta != amountIn) revert GeniusErrors.InvalidAmount();
 
         emit BridgeFunds(
             amountIn,
             dstChainId
         );
     }
+
 
     // =============================================================
     //                      SWAP LIQUIDITY
@@ -371,7 +359,7 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         uint256 _postSwapBalance = totalStables;
 
-        require(_preSwapBalance < _postSwapBalance, "Swap must increase stablecoin balance");
+        require(_preSwapBalance < _postSwapBalance, "GeniusMultTokenPool: Swap must increase stablecoin balance");
     }
 
     // =============================================================
@@ -420,11 +408,7 @@ contract GeniusMultiTokenPool is Orchestrable {
             amount,
             totalStakedAssets
         );
-        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(
-            minStableBalance,
-            totalStables - amount
-        );
-
+        
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         _updateStableBalance();
@@ -518,39 +502,13 @@ contract GeniusMultiTokenPool is Orchestrable {
     //                        READ FUNCTIONS
     // =============================================================
 
+    /**
+     * @dev Checks if a token is supported by the GeniusMultiTokenPool contract.
+     * @param token The address of the token to check.
+     * @return boolean indicating whether the token is supported or not.
+     */
     function isTokenSupported(address token) public view returns (bool) {
         return isSupportedToken[token] == 1;
-    }
-
-    /**
-     * @dev Calculates the layer zero fee and returns the fee amount along with the layer zero transaction parameters.
-     * @param chainId The chain ID.
-     * @param trader The address of the trader.
-     * @return fee The calculated fee amount.
-     * @return lzTxParams The layer zero transaction parameters.
-     */
-    function layerZeroFee(
-        uint16 chainId,
-        address trader
-    ) public view returns (uint256 fee, IStargateRouter.lzTxObj memory lzTxParams) {
-
-        IStargateRouter.lzTxObj memory _lzTxParams = IStargateRouter.lzTxObj({
-            dstGasForCall: 0,
-            dstNativeAmount: 0,
-            dstNativeAddr: abi.encodePacked(trader)
-        });
-
-        bytes memory _transferAndCallPayload = abi.encode(_lzTxParams); 
-
-        (, uint256 _fee) = STARGATE_ROUTER.quoteLayerZeroFee(
-            chainId,
-            1,
-            abi.encodePacked(trader),
-            _transferAndCallPayload,
-            _lzTxParams
-        );
-
-        return (_fee, _lzTxParams);
     }
 
     /**
@@ -768,5 +726,24 @@ contract GeniusMultiTokenPool is Orchestrable {
         (bool success, ) = target.call{value: _nativeValue}(data);
 
         require(success, "Swap failed");
+    }
+
+    /**
+     * @dev Executes a batch of external function calls.
+     * @param targets The array of target addresses to call.
+     * @param data The array of function call data.
+     * @param values The array of values to send along with the function calls.
+     */
+    function _batchExecution(
+        address[] memory targets,
+        bytes[] memory data,
+        uint256[] memory values
+    ) private {
+        for (uint i = 0; i < targets.length;) {
+            (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
+            require(_success, "External call failed");
+
+            unchecked { i++; }
+        }
     }
 }

@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
-import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
@@ -24,7 +23,6 @@ contract GeniusPool is Orchestrable {
     // =============================================================
 
     IERC20 public immutable STABLECOIN;
-    IStargateRouter public immutable STARGATE_ROUTER;
 
     address public VAULT;
 
@@ -116,14 +114,12 @@ contract GeniusPool is Orchestrable {
 
     constructor(
         address stablecoin,
-        address bridgeRouter,
         address owner
     ) Ownable(owner) {
         require(stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
         require(owner != address(0), "GeniusVault: Owner address is the zero address");
 
         STABLECOIN = IERC20(stablecoin);
-        STARGATE_ROUTER = IStargateRouter(bridgeRouter);
 
         initialized = 0;
         isPaused = 1;
@@ -171,17 +167,17 @@ contract GeniusPool is Orchestrable {
     /**
      * @dev Removes liquidity from a bridge pool and swaps it to the destination chain.
      * @param amountIn The amount of tokens to remove from the bridge pool.
-     * @param minAmountOut The minimum amount of tokens expected to receive after the swap.
      * @param dstChainId The chain ID of the destination chain.
-     * @param srcPoolId The ID of the source pool on the bridge.
-     * @param dstPoolId The ID of the destination pool on the bridge.
+     * @param targets The array of target addresses to call.
+     * @param values The array of values to send along with the function calls.
+     * @param data The array of function call data.
      */
     function removeBridgeLiquidity(
         uint256 amountIn,
-        uint256 minAmountOut,
         uint16 dstChainId,
-        uint256 srcPoolId,
-        uint256 dstPoolId
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory data
     ) public onlyOrchestrator payable {
         _isPoolReady();
         _isAmountValid(amountIn);
@@ -191,26 +187,17 @@ contract GeniusPool is Orchestrable {
             totalAssets - amountIn
         );
 
-        (,
-        IStargateRouter.lzTxObj memory lzTxParams
-        ) = layerZeroFee(dstChainId, tx.origin);
 
-        STABLECOIN.approve(address(STARGATE_ROUTER), amountIn);
+        _batchExecution(targets, data, values);
 
-        STARGATE_ROUTER.swap{value:msg.value}(
-            dstChainId,
-            srcPoolId,
-            dstPoolId,
-            payable(tx.origin),
-            amountIn,
-            minAmountOut,
-            lzTxParams,
-            abi.encodePacked(tx.origin),
-            bytes("") 
-        );
+        uint256 _initStableValue = totalAssets;
 
         _updateBalance();
         _updateAvailableAssets();
+
+        uint256 _stableDelta = _initStableValue - totalAssets;
+
+        if (_stableDelta != amountIn) revert GeniusErrors.InvalidAmount();
 
         emit BridgeFunds(
             amountIn,
@@ -404,37 +391,6 @@ contract GeniusPool is Orchestrable {
     // =============================================================
 
     /**
-     * @dev Returns the fee and layer zero transaction parameters for a given chain ID.
-     * @param chainId The chain ID for which to retrieve the fee and transaction parameters.
-     * @param trader The address of the trader.
-     * @return fee The fee amount for the layer zero transaction.
-     * @return lzTxParams The layer zero transaction parameters.
-     */
-    function layerZeroFee(
-        uint16 chainId,
-        address trader
-    ) public view returns (uint256 fee, IStargateRouter.lzTxObj memory lzTxParams) {
-
-        IStargateRouter.lzTxObj memory _lzTxParams = IStargateRouter.lzTxObj({
-            dstGasForCall: 0,
-            dstNativeAmount: 0,
-            dstNativeAddr: abi.encodePacked(trader)
-        });
-
-        bytes memory transferAndCallPayload = abi.encode(_lzTxParams); 
-
-        (, uint256 _fee) = STARGATE_ROUTER.quoteLayerZeroFee(
-            chainId,
-            1,
-            abi.encodePacked(trader),
-            transferAndCallPayload,
-            _lzTxParams
-        );
-
-        return (_fee, _lzTxParams);
-    }
-
-    /**
      * @dev Returns the current state of the assets in the GeniusPool contract.
      * @return totalAssets The total number of assets in the pool.
      * @return availableAssets The number of assets available for use.
@@ -517,7 +473,6 @@ contract GeniusPool is Orchestrable {
      */
     function _updateAvailableAssets() internal {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-
         /**
           * Calculate the liquidity needed as the staked assets minus the reduction
           * Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
@@ -561,6 +516,25 @@ contract GeniusPool is Orchestrable {
         uint256 amount
     ) internal {
         IERC20(token).transferFrom(from, to, amount);
+    }
+
+    /**
+     * @dev Executes a batch of external function calls.
+     * @param targets The array of target addresses to call.
+     * @param data The array of function call data.
+     * @param values The array of values to send along with the function calls.
+     */
+    function _batchExecution(
+        address[] memory targets,
+        bytes[] memory data,
+        uint256[] memory values
+    ) private {
+        for (uint i = 0; i < targets.length;) {
+            (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
+            require(_success, "External call failed");
+
+            unchecked { i++; }
+        }
     }
 
 }
