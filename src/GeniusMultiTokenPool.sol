@@ -130,8 +130,8 @@ contract GeniusMultiTokenPool is Orchestrable {
         address stablecoin,
         address owner
     ) Ownable(owner) {
-        require(stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
-        require(owner != address(0), "GeniusVault: Owner address is the zero address");
+        require(stablecoin != address(0), "GeniusMultTokenPool: STABLECOIN address is the zero address");
+        require(owner != address(0), "GeniusMultTokenPool: Owner address is the zero address");
 
         STABLECOIN = IERC20(stablecoin);
 
@@ -359,7 +359,7 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         uint256 _postSwapBalance = totalStables;
 
-        require(_preSwapBalance < _postSwapBalance, "Swap must increase stablecoin balance");
+        require(_preSwapBalance < _postSwapBalance, "GeniusMultTokenPool: Swap must increase stablecoin balance");
     }
 
     // =============================================================
@@ -408,11 +408,7 @@ contract GeniusMultiTokenPool is Orchestrable {
             amount,
             totalStakedAssets
         );
-        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(
-            minStableBalance,
-            totalStables - amount
-        );
-
+        
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         _updateStableBalance();
