@@ -35,7 +35,7 @@ contract GeniusExecutorTest is Test {
     bytes32 public DOMAIN_SEPERATOR;
 
     // All of the addresses used in the tests
-    address public owner;
+    address public OWNER;
     address public trader;
     uint256 private privateKey;
     address public coinReceiver;
@@ -53,7 +53,7 @@ contract GeniusExecutorTest is Test {
     ERC20 public wavaxContract;
     ERC20 public meowContract;
 
-    MockSwapTarget public swapTarget;
+    MockSwapTarget public ROUTER;
 
     PermitSignature public sigUtils;
     IEIP712 public permit2;
@@ -68,14 +68,14 @@ contract GeniusExecutorTest is Test {
         vm.selectFork(avalanche);
         assertEq(vm.activeFork(), avalanche);
 
-        owner = makeAddr("owner");
+        OWNER = makeAddr("owner");
         (address traderAddress, uint256 traderKey) = makeAddrAndKey("trader");
         trader = traderAddress;
         privateKey = traderKey;
         coinReceiver = makeAddr("coinReceiver");
 
         USDC = new TestERC20();
-        swapTarget = new MockSwapTarget();
+        ROUTER = new MockSwapTarget();
 
         wavaxContract = ERC20(WAVAX);
         meowContract = ERC20(MEOW);
@@ -84,17 +84,18 @@ contract GeniusExecutorTest is Test {
         DOMAIN_SEPERATOR = permit2.DOMAIN_SEPARATOR();
         sigUtils = new PermitSignature();
 
-        vm.prank(owner);
+        vm.prank(OWNER);
         POOL = new GeniusPool(
             address(USDC),
-            owner
+            OWNER
         );
 
-        vm.prank(owner);
-        VAULT = new GeniusVault(address(USDC), owner);
+        vm.startPrank(OWNER);
+        VAULT = new GeniusVault(address(USDC), OWNER);
 
-        vm.prank(owner);
         POOL.initialize(address(VAULT));
+        VAULT.initialize(address(POOL));
+        vm.stopPrank();
 
         EXECUTOR = new GeniusExecutor(
             permit2Address,
@@ -111,6 +112,12 @@ contract GeniusExecutorTest is Test {
 
         vm.prank(trader);
         meowContract.approve(permit2Address, 100 ether);
+
+        vm.prank(trader);
+        USDC.approve(permit2Address, 1_000 ether);
+
+        vm.prank(trader);
+        VAULT.approve(permit2Address, 1_000 ether);
     }
 
     function testAggregateWithoutPermit2() public {
@@ -252,7 +259,7 @@ contract GeniusExecutorTest is Test {
         vm.prank(trader);
         USDC.approve(address(permit2), transferAmount);
         USDC.approve(address(EXECUTOR), transferAmount);
-        USDC.transfer(address(swapTarget), transferAmount);
+        USDC.transfer(address(ROUTER), transferAmount);
 
         bytes memory swapCalldata = abi.encodeWithSelector(
             MockSwapTarget.mockSwap.selector,
@@ -286,7 +293,7 @@ contract GeniusExecutorTest is Test {
 
         // Perform the swap and deposit via GeniusExecutor
         EXECUTOR.tokenSwapAndDeposit(
-            address(swapTarget), // Targeting the LBRouter for the swap
+            address(ROUTER), // Targeting the LBRouter for the swap
             swapCalldata,
             0, // No ETH value is sent
             permitBatch,
@@ -432,5 +439,128 @@ contract GeniusExecutorTest is Test {
         assertEq(POOL.totalStakedAssets(), 0, "Pool should have 0 test tokens staked");
     }
 
+    function testDepositToVault() public {
+        uint160 depositAmount = 10 ether;
+
+        // Set up initial balances
+        deal(address(USDC), trader, 100 ether);
+        
+        vm.startPrank(trader);
+        USDC.approve(address(permit2), 100 ether);
+        USDC.approve(address(EXECUTOR), 100 ether);
+        vm.stopPrank();
+
+        // Set up permit details for USDC
+        IAllowanceTransfer.PermitDetails[] memory permitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        permitDetails[0] = IAllowanceTransfer.PermitDetails({
+            token: address(USDC),
+            amount: depositAmount,
+            expiration: 1900000000,
+            nonce: 0
+        });
+
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer.PermitBatch({
+            details: permitDetails,
+            spender: address(EXECUTOR),
+            sigDeadline: 1900000000
+        });
+
+        bytes memory signature = sigUtils.getPermitBatchSignature(
+            permitBatch,
+            privateKey,
+            DOMAIN_SEPERATOR
+        );
+
+        // Perform the deposit via GeniusExecutor
+        vm.prank(trader);
+        EXECUTOR.depositToVault(
+            depositAmount,
+            permitBatch,
+            signature,
+            trader
+        );
+
+        // Assert the results
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 USDC");
+        assertEq(VAULT.totalAssets(), depositAmount, "Vault should have received the deposit");
+        assertEq(VAULT.balanceOf(trader), depositAmount, "Trader should have received vault shares");
+        assertEq(USDC.balanceOf(trader), 90 ether, "Trader should have 90 USDC left");
+    }
+
+    function testWithdrawFromVault() public {
+        uint160 depositAmount = 10 ether;
+        uint160 withdrawAmount = 1 ether;
+
+        // First, deposit to the vault
+        deal(address(USDC), trader, 100 ether);
+        
+        vm.startPrank(trader);
+        USDC.approve(address(permit2), 100 ether);
+        USDC.approve(address(EXECUTOR), 100 ether);
+        vm.stopPrank();
+
+        // Set up permit details for deposit
+        IAllowanceTransfer.PermitDetails[] memory depositPermitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        depositPermitDetails[0] = IAllowanceTransfer.PermitDetails({
+            token: address(USDC),
+            amount: depositAmount,
+            expiration: 1900000000,
+            nonce: 0
+        });
+
+        IAllowanceTransfer.PermitBatch memory depositPermitBatch = IAllowanceTransfer.PermitBatch({
+            details: depositPermitDetails,
+            spender: address(EXECUTOR),
+            sigDeadline: 1900000000
+        });
+
+        bytes memory depositSignature = sigUtils.getPermitBatchSignature(
+            depositPermitBatch,
+            privateKey,
+            DOMAIN_SEPERATOR
+        );
+
+        // Perform the deposit
+        vm.startPrank(trader);
+        EXECUTOR.depositToVault(depositAmount, depositPermitBatch, depositSignature, trader);
+        VAULT.approve(address(EXECUTOR), VAULT.balanceOf(trader));
+        
+        // Now set up the withdrawal
+        // Set up permit details for withdrawal (vault shares)
+        IAllowanceTransfer.PermitDetails[] memory withdrawPermitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        withdrawPermitDetails[0] = IAllowanceTransfer.PermitDetails({
+            token: address(VAULT),
+            amount: withdrawAmount,
+            expiration: 1900000000,
+            nonce: 0
+        });
+
+        IAllowanceTransfer.PermitBatch memory withdrawPermitBatch = IAllowanceTransfer.PermitBatch({
+            details: withdrawPermitDetails,
+            spender: address(EXECUTOR),
+            sigDeadline: 1900000000
+        });
+
+        bytes memory withdrawSignature = sigUtils.getPermitBatchSignature(
+            withdrawPermitBatch,
+            privateKey,
+            DOMAIN_SEPERATOR
+        );
+        vm.stopPrank();
+
+        // Perform the withdrawal via GeniusExecutor
+        EXECUTOR.withdrawFromVault(
+            withdrawAmount,
+            withdrawPermitBatch,
+            withdrawSignature,
+            trader
+        );
+
+        // Assert the results
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 USDC");
+        assertEq(USDC.balanceOf(address(POOL)), 9 ether, "Pool should have remaining USDC");
+        assertEq(VAULT.balanceOf(trader), 9 ether, "Trader should have remaining vault shares");
+        assertEq(USDC.balanceOf(trader), 91 ether, "Trader should have received withdrawn USDC");
+    }
 
 }

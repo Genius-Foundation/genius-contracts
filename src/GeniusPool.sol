@@ -473,7 +473,6 @@ contract GeniusPool is Orchestrable {
      */
     function _updateAvailableAssets() internal {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-
         /**
           * Calculate the liquidity needed as the staked assets minus the reduction
           * Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
