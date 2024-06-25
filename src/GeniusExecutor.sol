@@ -288,8 +288,8 @@ contract GeniusExecutor {
         uint256[] calldata values
     ) private {
         for (uint i = 0; i < targets.length;) {
-            (bool success, ) = targets[i].call{value: values[i]}(data[i]);
-            require(success, "External call failed");
+            (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
+            require(_success, "External call failed");
 
             unchecked { i++; }
         }
