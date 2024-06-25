@@ -103,22 +103,22 @@ contract GeniusExecutor {
     ) external payable {
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
-        address tokenToSwapAddress = permitBatch.details[0].token;
-        IERC20 tokenToSwap = IERC20(tokenToSwapAddress);
+        address _tokenAddress = permitBatch.details[0].token;
+        IERC20 tokenToSwap = IERC20(_tokenAddress);
 
-        uint256 amountToSwap = tokenToSwap.balanceOf(address(this));
+        uint256 _amountToSwap = tokenToSwap.balanceOf(address(this));
 
-        if (!tokenToSwap.approve(target, amountToSwap)) revert GeniusErrors.ApprovalFailure(tokenToSwapAddress, amountToSwap);
+        if (!tokenToSwap.approve(target, _amountToSwap)) revert GeniusErrors.ApprovalFailure(_tokenAddress, _amountToSwap);
 
-        uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
+        uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
-        (bool success, ) = target.call{value: value}(data);
-        if(!success) revert GeniusErrors.ExternalCallFailed(target, 0);
+        (bool _success, ) = target.call{value: value}(data);
+        if(!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
 
-        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
-        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amountToDeposit);
+        uint256 _depositAmount = STABLECOIN.balanceOf(address(this)) - _initStableValue;
+        if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
-        POOL.addLiquiditySwap(owner, address(STABLECOIN), amountToDeposit);
+        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
     }
 
 
@@ -149,23 +149,26 @@ contract GeniusExecutor {
             routers.length != permitBatch.details.length
         ) revert GeniusErrors.ArrayLengthsMismatch();
 
-        uint256 totalRequiredValue = 0;
+        uint256 _neededNative = 0;
         for (uint i = 0; i < values.length; i++) {
-            totalRequiredValue += values[i];
+            _neededNative += values[i];
         }
-        if (totalRequiredValue > address(this).balance) revert GeniusErrors.InsufficientNativeBalance(totalRequiredValue, address(this).balance);
+        if (_neededNative > address(this).balance) revert GeniusErrors.InsufficientNativeBalance(
+            _neededNative,
+            address(this).balance
+        );
         
-        uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
+        uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _approveRouters(routers, permitBatch);
         _batchExecution(targets, data, values);
 
-        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
+        uint256 _depositAmount = STABLECOIN.balanceOf(address(this)) - _initStableValue;
 
-        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amountToDeposit);
+        if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
-        POOL.addLiquiditySwap(owner, address(STABLECOIN), amountToDeposit);
+        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
     }
 
 
@@ -184,16 +187,19 @@ contract GeniusExecutor {
     ) external payable {
         require(target != address(0), "Invalid target address");
 
-        uint256 initialStablecoinValue = STABLECOIN.balanceOf(address(this));
+        uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
-        (bool success, ) = target.call{value: value}(data);
+        (bool _success, ) = target.call{value: value}(data);
 
-        if (!success) revert GeniusErrors.ExternalCallFailed(target, 0);
+        if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
 
-        uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
-        if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amountToDeposit);
+        uint256 _depositAmount = STABLECOIN.balanceOf(address(this)) - _initStableValue;
+        if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(
+            address(STABLECOIN),
+            _depositAmount
+        );
 
-        POOL.addLiquiditySwap(trader, address(STABLECOIN), amountToDeposit);
+        POOL.addLiquiditySwap(trader, address(STABLECOIN), _depositAmount);
     }
 
     function depositToVault(
@@ -221,15 +227,15 @@ contract GeniusExecutor {
         address owner
     ) external {
 
-        uint256 initialStablecoinBalance = STABLECOIN.balanceOf(address(this));
+        uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _approveVault(amount);
         _withdrawFromVault(owner, amount);
 
-        uint256 residualBalance = STABLECOIN.balanceOf(address(this)) - initialStablecoinBalance;
+        uint256 _residBalance = STABLECOIN.balanceOf(address(this)) - _initStableValue;
 
-        if (residualBalance > 0) revert GeniusErrors.ResidualBalance(residualBalance);
+        if (_residBalance > 0) revert GeniusErrors.ResidualBalance(_residBalance);
     }
     
     // =============================================================
