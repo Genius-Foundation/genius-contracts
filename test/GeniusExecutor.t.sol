@@ -301,8 +301,6 @@ contract GeniusExecutorTest is Test {
             trader
         );
 
-        console.log("Trader balance: ", USDC.balanceOf(trader));
-
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
         assertEq(USDC.balanceOf(address(POOL)), 5 ether, "Executor should have 5 test tokens");
         assertEq(POOL.totalAssets(), 5 ether, "Pool should have 5 test tokens available");
