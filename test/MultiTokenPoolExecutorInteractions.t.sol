@@ -99,7 +99,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
         // Deploy contracts
         MULTI_POOL = new GeniusMultiTokenPool(address(USDC), OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(address(PERMIT2), address(MULTI_POOL), OWNER);
+        EXECUTOR = new GeniusExecutor(address(PERMIT2), address(MULTI_POOL), address(VAULT));
         ROUTER = new MockSwapTarget();
 
         // Initialize pool with supported tokens
@@ -301,6 +301,148 @@ contract MultiTokenPoolExecutorInteractions is Test {
 
         // Log and assert all values
         logValues("Native Swap and Deposit Test Results", entries);
+
+        for (uint i = 0; i < entries.length; i++) {
+            assertEq(entries[i].actual, entries[i].expected, string(abi.encodePacked("Assertion failed for: ", entries[i].name)));
+        }
+    }
+
+    function testDepositToVault() public {
+        uint160 depositAmount = 10 ether;
+
+        // Set up initial balances
+        deal(address(USDC), TRADER, 100 ether);
+        
+        vm.startPrank(TRADER);
+        USDC.approve(address(PERMIT2), 100 ether);
+        USDC.approve(address(EXECUTOR), 100 ether);
+        vm.stopPrank();
+
+        // Set up permit details for USDC
+        IAllowanceTransfer.PermitDetails[] memory permitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        permitDetails[0] = IAllowanceTransfer.PermitDetails({
+            token: address(USDC),
+            amount: depositAmount,
+            expiration: 1900000000,
+            nonce: 0
+        });
+
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer.PermitBatch({
+            details: permitDetails,
+            spender: address(EXECUTOR),
+            sigDeadline: 1900000000
+        });
+
+        bytes memory signature = SIG_UTILS.getPermitBatchSignature(
+            permitBatch,
+            P_KEY,
+            DOMAIN_SEPERATOR
+        );
+
+        // Perform the deposit via GeniusExecutor
+        vm.prank(TRADER);
+        EXECUTOR.depositToVault(
+            depositAmount,
+            permitBatch,
+            signature,
+            TRADER
+        );
+
+        // Prepare log entries for assertion checks
+        LogEntry[] memory entries = new LogEntry[](4);
+        entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
+        entries[1] = LogEntry("VAULT total assets", VAULT.totalAssets(), depositAmount);
+        entries[2] = LogEntry("TRADER vault share balance", VAULT.balanceOf(TRADER), depositAmount);
+        entries[3] = LogEntry("TRADER USDC balance", USDC.balanceOf(TRADER), 90 ether);
+
+        // Log and assert all values
+        logValues("Deposit To Vault Test Results", entries);
+
+        for (uint i = 0; i < entries.length; i++) {
+            assertEq(entries[i].actual, entries[i].expected, string(abi.encodePacked("Assertion failed for: ", entries[i].name)));
+        }
+    }
+
+    function testWithdrawFromVault() public {
+        uint160 depositAmount = 10 ether;
+        uint160 withdrawAmount = 1 ether;
+        
+        vm.startPrank(TRADER);
+        USDC.approve(address(VAULT), 100 ether);
+        USDC.approve(address(PERMIT2), 100 ether);
+        USDC.approve(address(EXECUTOR), 100 ether);
+        VAULT.approve(address(PERMIT2), 100 ether);
+        vm.stopPrank();
+
+        // Set up permit details for deposit
+        IAllowanceTransfer.PermitDetails[] memory depositPermitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        depositPermitDetails[0] = IAllowanceTransfer.PermitDetails({
+            token: address(USDC),
+            amount: depositAmount,
+            expiration: 1900000000,
+            nonce: 0
+        });
+
+        IAllowanceTransfer.PermitBatch memory depositPermitBatch = IAllowanceTransfer.PermitBatch({
+            details: depositPermitDetails,
+            spender: address(EXECUTOR),
+            sigDeadline: 1900000000
+        });
+
+        bytes memory depositSignature = SIG_UTILS.getPermitBatchSignature(
+            depositPermitBatch,
+            P_KEY,
+            DOMAIN_SEPERATOR
+        );
+
+        // Perform the deposit
+        vm.startPrank(TRADER);
+        EXECUTOR.depositToVault(depositAmount, depositPermitBatch, depositSignature, TRADER);
+        VAULT.approve(address(EXECUTOR), VAULT.balanceOf(TRADER));
+        
+        // Now set up the withdrawal
+        // Set up permit details for withdrawal (vault shares)
+        IAllowanceTransfer.PermitDetails[] memory withdrawPermitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        withdrawPermitDetails[0] = IAllowanceTransfer.PermitDetails({
+            token: address(VAULT),
+            amount: withdrawAmount,
+            expiration: 1900000000,
+            nonce: 0
+        });
+
+        IAllowanceTransfer.PermitBatch memory withdrawPermitBatch = IAllowanceTransfer.PermitBatch({
+            details: withdrawPermitDetails,
+            spender: address(EXECUTOR),
+            sigDeadline: 1900000000
+        });
+
+        bytes memory withdrawSignature = SIG_UTILS.getPermitBatchSignature(
+            withdrawPermitBatch,
+            P_KEY,
+            DOMAIN_SEPERATOR
+        );
+        vm.stopPrank();
+
+
+
+        // Perform the withdrawal via GeniusExecutor
+        EXECUTOR.withdrawFromVault(
+            withdrawAmount,
+            withdrawPermitBatch,
+            withdrawSignature,
+            TRADER
+        );
+
+        // Prepare log entries for assertion checks
+        LogEntry[] memory entries = new LogEntry[](5);
+        entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
+        entries[1] = LogEntry("MULTI_POOL USDC balance", USDC.balanceOf(address(MULTI_POOL)), 9 ether);
+        entries[2] = LogEntry("VAULT total assets", VAULT.totalAssets(), 9 ether);
+        entries[3] = LogEntry("TRADER vault share balance", VAULT.balanceOf(TRADER), 9 ether);
+        entries[4] = LogEntry("TRADER USDC balance", USDC.balanceOf(TRADER), 991 ether);
+
+        // Log and assert all values
+        logValues("Withdraw From Vault Test Results", entries);
 
         for (uint i = 0; i < entries.length; i++) {
             assertEq(entries[i].actual, entries[i].expected, string(abi.encodePacked("Assertion failed for: ", entries[i].name)));
