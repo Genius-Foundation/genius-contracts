@@ -237,16 +237,17 @@ contract GeniusPool is Orchestrable {
 
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken();
+        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
 
         _transferERC20From(address(STABLECOIN), msg.sender,  address(this), amount);
 
         _updateBalance();
         _updateAvailableAssets();
+        
         emit SwapDeposit(
-        trader,
-        token,
-        amount
+            trader,
+            token,
+            amount
         );
     }
 
@@ -368,8 +369,6 @@ contract GeniusPool is Orchestrable {
     /**
      * @dev Sets the rebalance threshold for the GeniusPool contract.
      * @param threshold The new rebalance threshold to be set.
-     * Requirements:
-     * - Only the contract owner can call this function.
      */
     function setRebalanceThreshold(uint256 threshold) external onlyOwner {
         _isPoolReady();
