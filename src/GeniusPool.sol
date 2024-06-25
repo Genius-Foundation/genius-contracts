@@ -342,10 +342,6 @@ contract GeniusPool is Orchestrable {
             amount,
             totalStakedAssets
         );
-        if (!_isBalanceWithinThreshold(totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
-            minAssetBalance,
-            totalAssets - amount
-        );
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
