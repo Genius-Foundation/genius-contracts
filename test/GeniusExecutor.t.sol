@@ -432,4 +432,6 @@ contract GeniusExecutorTest is Test {
         assertEq(geniusPool.availableAssets(), 120 ether, "Pool should have 120 test tokens available");
         assertEq(geniusPool.totalStakedAssets(), 0, "Pool should have 0 test tokens staked");
     }
+
+    
 }

@@ -213,8 +213,8 @@ contract GeniusPool is Orchestrable {
         _updateAvailableAssets();
 
         emit BridgeFunds(
-    amountIn,
-    dstChainId
+            amountIn,
+            dstChainId
         );
     }
 
@@ -243,7 +243,7 @@ contract GeniusPool is Orchestrable {
 
         _updateBalance();
         _updateAvailableAssets();
-        
+
         emit SwapDeposit(
             trader,
             token,
@@ -516,21 +516,20 @@ contract GeniusPool is Orchestrable {
      * If the total assets exceed the needed liquidity, the available assets are updated accordingly.
      */
     function _updateAvailableAssets() internal {
-        // Calculate the amount that is the threshold percentage of the staked assets
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
 
-        // Calculate the liquidity needed as the staked assets minus the reduction
-        // Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
+        /**
+          * Calculate the liquidity needed as the staked assets minus the reduction
+          * Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
+         */
         uint256 neededLiquidity = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
         
-        // Ensure we do not underflow when calculating available assets
         if (totalAssets > neededLiquidity) {
             availableAssets = totalAssets - neededLiquidity;
         } else {
             availableAssets = 0;
         }
 
-        // Update the minimum asset balance
         minAssetBalance = neededLiquidity;
     }
 
