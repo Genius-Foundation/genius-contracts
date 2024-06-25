@@ -4,7 +4,6 @@ pragma solidity ^0.8.4;
 import {Test, console} from "forge-std/Test.sol";
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {IStargateRouter} from "../src/interfaces/IStargateRouter.sol";
 
 import {GeniusPool} from "../src/GeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
@@ -26,7 +25,6 @@ contract GeniusPoolTest is Test {
     address ORCHESTRATOR;
 
     ERC20 public USDC;
-    IStargateRouter public stargateRouter;
 
     GeniusPool public geniusPool;
     GeniusVault public geniusVault;
@@ -41,10 +39,9 @@ contract GeniusPoolTest is Test {
         ORCHESTRATOR = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38; // The hardcoded tx.origin for forge
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
-        stargateRouter = IStargateRouter(0x45A01E4e04F14f7A4a6702c74187c5F6222033cd); // Stargate Router on Avalanche
 
         vm.startPrank(OWNER, OWNER);
-        geniusPool = new GeniusPool(address(USDC), address(stargateRouter), OWNER);
+        geniusPool = new GeniusPool(address(USDC), OWNER);
         geniusVault = new GeniusVault(address(USDC), OWNER);
         vm.stopPrank();
 
@@ -84,7 +81,17 @@ contract GeniusPoolTest is Test {
         geniusPool.addBridgeLiquidity(1_000 ether, targetChainId);
 
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.Paused.selector));
-        geniusPool.removeBridgeLiquidity(1 ether, 0.5 ether, targetChainId, sourcePoolId, targetPoolId);
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+
+        uint256[] memory amounts = new uint256[](1);
+        amounts[0] = 1_000 ether;
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodePacked(sourcePoolId, targetPoolId);
+
+        geniusPool.removeBridgeLiquidity(0.5 ether, targetChainId, tokens, amounts, data);
 
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.Paused.selector));
         geniusPool.addLiquiditySwap(TRADER, address(USDC), 1_000 ether);
@@ -104,17 +111,6 @@ contract GeniusPoolTest is Test {
         vm.startPrank(OWNER);
         geniusPool.emergencyUnlock();
         assertEq(geniusPool.isPaused(), 0, "GeniusPool should be unpaused");
-    }
-
-    function testGetLayerZeroFee() public view {
-        (
-            uint256 layerZeroFee,
-        ) = geniusPool.layerZeroFee(101, 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38);
-
-        console.log("Layer Zero Fee: ", layerZeroFee);
-        // console.log("lzTxParams: ", lzTxParams);
-
-        assertEq(layerZeroFee, 0, "Layer Zero Fee should be 0");
     }
 
     function testRevertWhenAlreadyInitialized() public {
@@ -339,23 +335,37 @@ contract GeniusPoolTest is Test {
 
         vm.startPrank(ORCHESTRATOR);
         USDC.approve(address(geniusPool), 1_000 ether);
-        geniusPool.removeBridgeLiquidity{value: 20 ether}(
-            100 * 1e6,
-            0,
-            targetChainId,
-            sourcePoolId,
-            targetPoolId
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(USDC);
+
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+
+        // Create erc20 transfer calldata
+        address randomAddress = makeAddr("pretendBridge");
+
+        // Create erc20 transfer calldata
+        bytes memory stableTransferData = abi.encodeWithSelector(
+            USDC.transfer.selector,
+            randomAddress,
+            100 ether
         );
 
-        assertEq(USDC.balanceOf(address(geniusPool)), 499.9999999999 ether, "GeniusPool balance should be 499.9999999999 ether");
+        bytes[] memory data = new bytes[](1);
+        data[0] = stableTransferData;
+
+        geniusPool.removeBridgeLiquidity(100 ether, targetChainId, targets, values, data);
+
+        assertEq(USDC.balanceOf(address(geniusPool)), 400 ether, "GeniusPool balance should be 400 ether");
         assertEq(USDC.balanceOf(ORCHESTRATOR), initialOrchestatorBalance - 500 ether, "Orchestrator balance should be -500 ether");
 
         uint256 totalAssets = geniusPool.totalAssets();
         uint256 availableAssets = geniusPool.availableAssets();
         uint256 totalStakedAssets = geniusPool.totalStakedAssets();
 
-        assertEq(totalAssets, 499.9999999999 ether, "Total assets should be 499.9999999999 ether");
+        assertEq(totalAssets, 400 ether, "Total assets should be 400 ether");
         assertEq(totalStakedAssets, 0, "Total staked assets should be 0 ether");
-        assertEq(availableAssets, 499.9999999999 ether, "Available assets should be 499.9999999999 ether");
+        assertEq(availableAssets, 400 ether, "Available assets should be 400 ether");
     }
 }

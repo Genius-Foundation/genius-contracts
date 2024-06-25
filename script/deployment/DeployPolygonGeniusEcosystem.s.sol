@@ -17,7 +17,6 @@ import {GeniusActions} from "../../src/GeniusActions.sol";
  */
 contract DeployPolygonGeniusEcosystem is Script {
     address public constant stableAddress = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
-    address public constant bridgeAddress = 0x45A01E4e04F14f7A4a6702c74187c5F6222033cd;
     address public constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     address public constant owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
@@ -36,7 +35,6 @@ contract DeployPolygonGeniusEcosystem is Script {
 
         geniusPool = new GeniusPool(
             stableAddress,
-            bridgeAddress,
             owner
         );
 

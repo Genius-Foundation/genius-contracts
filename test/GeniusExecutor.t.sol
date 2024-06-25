@@ -87,7 +87,6 @@ contract GeniusExecutorTest is Test {
         vm.prank(owner);
         POOL = new GeniusPool(
             address(USDC),
-            0x000000000022D473030F116dDEE9F6B43aC78BA3,
             owner
         );
 

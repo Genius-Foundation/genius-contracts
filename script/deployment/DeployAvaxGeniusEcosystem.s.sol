@@ -17,7 +17,6 @@ import {GeniusActions} from "../../src/GeniusActions.sol";
  */
 contract DeployAvaxGeniusEcosystem is Script {
     address public constant stableAddress = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
-    address public constant bridgeAddress = 0x45A01E4e04F14f7A4a6702c74187c5F6222033cd;
     address public constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     address public constant owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
@@ -36,7 +35,6 @@ contract DeployAvaxGeniusEcosystem is Script {
 
         geniusPool = new GeniusPool(
             stableAddress, 
-            bridgeAddress,
             owner
         );
 
