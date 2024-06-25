@@ -207,7 +207,7 @@ contract GeniusPoolAccounting is Test {
         vm.stopPrank();
         
         USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, 100 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
 
         LogEntry[] memory entries = new LogEntry[](4);
         entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 100 ether);
@@ -245,7 +245,7 @@ contract GeniusPoolAccounting is Test {
         vm.stopPrank();
         
         USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, 100 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
 
         assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
         assertEq(POOL.totalAssets(), 200 ether, "Total assets mismatch");
@@ -302,7 +302,7 @@ contract GeniusPoolAccounting is Test {
         
         // =================== ADD LIQUIDITY ===================
         USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, 100 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
 
         assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
         assertEq(POOL.totalAssets(), 200 ether, "Total assets mismatch");
@@ -369,7 +369,7 @@ contract GeniusPoolAccounting is Test {
 
         // =================== ADD LIQUIDITY ===================
         USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, 100 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
 
         assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
         assertEq(POOL.totalAssets(), 220 ether, "Total assets mismatch");

@@ -76,6 +76,7 @@ contract GeniusPool is Orchestrable {
      */
     event SwapDeposit(
         address indexed trader,
+        address token,
         uint256 amountDeposited
     );
 
@@ -229,12 +230,14 @@ contract GeniusPool is Orchestrable {
      */
     function addLiquiditySwap(
         address trader,
+        address token,
         uint256 amount
     ) external {
         _isPoolReady();
 
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken();
 
         _transferERC20From(address(STABLECOIN), msg.sender,  address(this), amount);
 
@@ -242,6 +245,7 @@ contract GeniusPool is Orchestrable {
         _updateAvailableAssets();
         emit SwapDeposit(
         trader,
+        token,
         amount
         );
     }
@@ -368,6 +372,8 @@ contract GeniusPool is Orchestrable {
      * - Only the contract owner can call this function.
      */
     function setRebalanceThreshold(uint256 threshold) external onlyOwner {
+        _isPoolReady();
+
         rebalanceThreshold = threshold;
 
         _updateBalance();   

@@ -118,7 +118,7 @@ contract GeniusExecutor {
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
         if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
-        POOL.addLiquiditySwap(owner, amountToDeposit);
+        POOL.addLiquiditySwap(owner, address(STABLECOIN), amountToDeposit);
     }
 
 
@@ -165,7 +165,7 @@ contract GeniusExecutor {
 
         if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
-        POOL.addLiquiditySwap(owner, amountToDeposit);
+        POOL.addLiquiditySwap(owner, address(STABLECOIN), amountToDeposit);
     }
 
 
@@ -193,7 +193,7 @@ contract GeniusExecutor {
         uint256 amountToDeposit = STABLECOIN.balanceOf(address(this)) - initialStablecoinValue;
         if (!STABLECOIN.approve(address(POOL), amountToDeposit)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amountToDeposit);
 
-        POOL.addLiquiditySwap(trader, amountToDeposit);
+        POOL.addLiquiditySwap(trader, address(STABLECOIN), amountToDeposit);
     }
 
     function depositToVault(
