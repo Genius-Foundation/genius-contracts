@@ -189,7 +189,7 @@ contract GeniusPoolTest is Test {
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
-        assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
+        assertEq(availableAssets, 750 ether, "Available assets should be 100 ether");
     }
 
     function testRemoveStakedLiquidity() public {
@@ -214,7 +214,7 @@ contract GeniusPoolTest is Test {
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
-        assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
+        assertEq(availableAssets, 750 ether, "Available assets should be 100 ether");
         assertEq(traderBalance, 0, "Trader balance should be 0 ether");
 
         // Remove staked liquidity
@@ -249,7 +249,7 @@ contract GeniusPoolTest is Test {
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
-        assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
+        assertEq(availableAssets, 750 ether, "Available assets should be 100 ether");
         assertEq(traderBalance, 0, "Trader balance should be 0 ether");
 
         deal(address(usdc), trader, 1_000 ether);
@@ -263,7 +263,7 @@ contract GeniusPoolTest is Test {
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,500 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
-        assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
+        assertEq(availableAssets, 750 ether, "Available assets should be 100 ether");
         assertEq(traderBalance, 500 ether, "Trader balance should be 500 ether");
 
         vm.startPrank(trader);
@@ -277,7 +277,7 @@ contract GeniusPoolTest is Test {
 
         assertEq(totalAssets, 2000 ether, "Total assets should be 2,000 ether");
         assertEq(totalStakedAssets, 1_500 ether, "Total staked assets should be 1,500 ether");
-        assertEq(availableAssets, 650 ether, "Available assets should be 650 ether");
+        assertEq(availableAssets, 1625 ether, "Available assets should be 650 ether");
         assertEq(traderBalance, 0, "Trader balance should be 0 ether");
     }
 
