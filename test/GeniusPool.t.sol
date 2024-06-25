@@ -42,19 +42,21 @@ contract GeniusPoolTest is Test {
         usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         stargateRouter = IStargateRouter(0x45A01E4e04F14f7A4a6702c74187c5F6222033cd); // Stargate Router on Avalanche
 
-        vm.startPrank(owner);
+        vm.startPrank(owner, owner);
         geniusPool = new GeniusPool(address(usdc), address(stargateRouter), owner);
         geniusVault = new GeniusVault(address(usdc), owner);
+        vm.stopPrank();
 
         assertEq(geniusPool.owner(), owner, "Owner should be orchestrator");
 
-        vm.startPrank(orchestrator);
+        vm.startPrank(owner);
         geniusVault.initialize(address(geniusPool));
 
         vm.startPrank(owner);
         geniusPool.initialize(address(geniusVault));
 
         geniusPool.addOrchestrator(orchestrator);
+        geniusPool.addOrchestrator(address(this));
         assertEq(geniusPool.orchestrator(orchestrator), true);
 
         deal(address(usdc), trader, 1_000 ether);
