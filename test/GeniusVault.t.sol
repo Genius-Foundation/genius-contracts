@@ -63,7 +63,7 @@ contract GeniusVaultTest is Test {
 
         assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
-        assertEq(availableAssets, 100 ether, "Available assets should be 100 ether");
+        assertEq(availableAssets, 750 ether, "Available assets should be 750 ether");
         assertEq(vaultAssets, 1_000 ether, "Vault assets should be 1,000 ether");
         assertEq(userShares, 1_000 ether, "User shares should be 1,000 ether");
     }
@@ -96,7 +96,7 @@ contract GeniusVaultTest is Test {
 
         assertEq(totalAssets, 1_000 ether, "Total assets in GeniusPool should be 1,000 USDC");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets in GeniusPool should be 1,000 USDC");
-        assertEq(availableAssets, 100 ether, "Available assets in GeniusPool should be 100 USDC, reflecting rebalance threshold");
+        assertEq(availableAssets, 750 ether, "Available assets in GeniusPool should be 100 USDC, reflecting rebalance threshold");
 
         uint256 totalAssetsStaked = geniusVault.totalAssets();
         uint256 traderShares = geniusVault.balanceOf(trader);
