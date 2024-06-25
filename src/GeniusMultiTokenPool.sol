@@ -2,19 +2,18 @@
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
-import {IStargateRouter} from "./interfaces/IStargateRouter.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 /**
  * @title GeniusMultiTokenPool
- * @author altloot
+ * @author looter
  * 
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
- *         liquidity management and swaps.
+ *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
 
 contract GeniusMultiTokenPool is Orchestrable {
@@ -33,14 +32,14 @@ contract GeniusMultiTokenPool is Orchestrable {
     //                          VARIABLES
     // =============================================================
 
-    uint256 public initialized;
-    uint256 public isPaused;
+    uint256 public initialized; // Flag to check if the contract has been initialized
+    uint256 public isPaused; // Flag to check if the contract is paused
 
     uint256 public totalStables; // The total amount of stablecoin assets in the contract
     uint256 public minStableBalance; // The minimum amount of stablecoin assets needed to maintain liquidity
-    uint256 public availStableBalance; // totalStables - (totalStakedStables * (1 + stableRebalanceThreshold) (in percentage)
-    uint256 public totalStakedStables; // The total amount of stablecoin assets made available to the pool through user deposits
-    uint256 public stableRebalanceThreshold = 75; // The maximum % of deviation from totalStakedStables before blocking trades
+    uint256 public availStableBalance; // totalStables - (totalStakedAssets * (1 + stableRebalanceThreshold) (in percentage)
+    uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
+    uint256 public stableRebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
 
     address[] public supportedTokens;
     mapping(address token => uint256 isSupported) public isSupportedToken;
@@ -75,7 +74,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     );
 
     /**
-     * @dev An event emitted when a swap deposit is made.
+     * @dev Emitted when a swap deposit is made.
      * @param trader The address of the trader who made the deposit.
      * @param token The address of the token deposited.
      * @param amountDeposited The amount of tokens deposited.
@@ -87,7 +86,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     );
 
     /**
-     * @dev An event emitted when a swap withdrawal occurs.
+     * @dev Emitted when a swap withdrawal occurs.
      * @param trader The address of the trader who made the withdrawal.
      * @param amountWithdrawn The amount that was withdrawn.
      */
@@ -97,7 +96,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     );
 
     /**
-     * @dev Event triggered when funds are bridged to another chain.
+     * @dev Emitted when funds are bridged to another chain.
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
      */
@@ -157,8 +156,12 @@ contract GeniusMultiTokenPool is Orchestrable {
         VAULT = vaultAddress;
         supportedTokens = tokens;
 
+        for (uint256 i = 0; i < tokens.length; i++) {
+            isSupportedToken[tokens[i]] = 1;
+        }
+
         initialized = 1;
-        paused = 0;
+        isPaused = 0;
     }
 
     // =============================================================
@@ -172,7 +175,6 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
     function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator {
-       
         _isPoolReady();
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
@@ -203,12 +205,13 @@ contract GeniusMultiTokenPool is Orchestrable {
         uint256 srcPoolId,
         uint256 dstPoolId
     ) public onlyOrchestrator payable {
-
         _isPoolReady();
+        _isAmountValid(amountIn);
 
-        if (amountIn == 0) revert GeniusErrors.InvalidAmount();
-        if (amountIn > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amountIn, STABLECOIN.balanceOf(address(this)));
-        if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amountIn);
+        if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
+            minStableBalance,
+            totalStables - amountIn
+        );
 
         (,
         IStargateRouter.lzTxObj memory _lzTxParams
@@ -246,7 +249,7 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param trader The address of the trader who is adding liquidity.
      * @param token The address of the token being swapped.
      * @param amount The amount of tokens being swapped.
-     * Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
+     * @notice Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
      */
     function addLiquiditySwap(
         address trader,
@@ -255,6 +258,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     ) external payable {
         _isPoolReady();
 
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         if (token == address(STABLECOIN)) {
@@ -284,7 +288,7 @@ contract GeniusMultiTokenPool is Orchestrable {
 
     /**
      * @dev Removes liquidity from the GeniusMultiTokenPool contract by swapping stablecoins for the specified amount.
-     * Only the orchestrator can call this function.
+     *      Only the orchestrator can call this function.
      * @param trader The address of the trader who wants to remove liquidity.
      * @param amount The amount of stablecoins to be swapped and transferred to the caller.
      */
@@ -292,12 +296,14 @@ contract GeniusMultiTokenPool is Orchestrable {
         address trader,
         uint256 amount
     ) external onlyOrchestrator {
-
         _isPoolReady();
-
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
-        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+        _isAmountValid(amount);
+        
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(
+            minStableBalance,
+            totalStables - amount
+        );
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
@@ -317,13 +323,13 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amount The amount of reward liquidity to remove.
      */
     function removeRewardLiquidity(uint256 amount) external onlyOrchestrator {
-        
         _isPoolReady();
+        _isAmountValid(amount);
 
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > totalStables) revert GeniusErrors.InvalidAmount();
-        if (amount > IERC20(STABLECOIN).balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
-        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(
+            minStableBalance,
+            totalStables - amount
+        );
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
@@ -365,7 +371,7 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         uint256 _postSwapBalance = totalStables;
 
-        require(_preSwapBalance > _postSwapBalance, "Swap must increase stablecoin balance");
+        require(_preSwapBalance < _postSwapBalance, "Swap must increase stablecoin balance");
     }
 
     // =============================================================
@@ -386,7 +392,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
 
         _updateStableBalance();
-        _updateStakedBalance(amount, true);
+        _updateStakedBalance(amount, 1);
         _updateAvailableAssets();
 
         emit Stake(
@@ -402,25 +408,33 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param amount The amount of liquidity to be removed.
      */
     function removeStakedLiquidity(address trader, uint256 amount) external {
-        
         _isPoolReady();
 
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
+
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > STABLECOIN.balanceOf(address(this))) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, STABLECOIN.balanceOf(address(this)));
-        if (amount > totalStakedStables) revert GeniusErrors.InsufficientBalance(address(STABLECOIN), amount, totalStakedStables);
-        if (!_isStakingBalanceWithinThreshold(totalStables - amount, amount)) revert GeniusErrors.ThresholdWouldExceed(minStableBalance, totalStables - amount);
+        if (amount > totalStables) revert GeniusErrors.InvalidAmount();
+        if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
+            address(STABLECOIN),
+            amount,
+            totalStakedAssets
+        );
+        if (!_isBalanceWithinThreshold(totalStables - amount)) revert GeniusErrors.ThresholdWouldExceed(
+            minStableBalance,
+            totalStables - amount
+        );
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         _updateStableBalance();
-        _updateStakedBalance(amount, false);
+        _updateStakedBalance(amount, 0);
         _updateAvailableAssets();
 
         emit Unstake(
             trader,
             amount,
-            totalStakedStables
+            totalStakedAssets
         );
     }
 
@@ -434,6 +448,8 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param threshold The new rebalance threshold to be set.
      */
     function setRebalanceThreshold(uint256 threshold) external onlyOwner {
+        _isPoolReady();
+
         stableRebalanceThreshold = threshold;
 
         _updateStableBalance();
@@ -478,26 +494,33 @@ contract GeniusMultiTokenPool is Orchestrable {
         }
     }
 
+    // =============================================================
+    //                           EMERGENCY
+    // =============================================================
+
     /**
      * @dev Pauses the contract and locks all functionality in case of an emergency.
-     * Can only be called by the contract owner.
-     * This function sets the `paused` state to 1, preventing all contract operations.
+     * This function sets the `isPaused` state to 1, preventing all contract operations.
      */
     function emergencyLock() external onlyOwner {
-        paused = 1;
+        isPaused = 1;
     }
 
     /**
      * @dev Allows the owner to emergency unlock the contract.
-     * This function sets the `paused` state to 0, allowing normal contract operations to resume.
+     * This function sets the `isPaused` state to 0, allowing normal contract operations to resume.
      */
     function emergencyUnlock() external onlyOwner {
-        paused = 0;
+        isPaused = 0;
     }
 
     // =============================================================
     //                        READ FUNCTIONS
     // =============================================================
+
+    function isTokenSupported(address token) public view returns (bool) {
+        return isSupportedToken[token] == 1;
+    }
 
     /**
      * @dev Calculates the layer zero fee and returns the fee amount along with the layer zero transaction parameters.
@@ -544,7 +567,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         return (
             totalStables,
             availStableBalance,
-            totalStakedStables
+            totalStakedAssets
         );
     }
 
@@ -568,7 +591,6 @@ contract GeniusMultiTokenPool is Orchestrable {
 
     /**
      * @dev Checks if the pool is ready for use.
-     * @return True if the pool is ready, otherwise reverts with an error.
      */
     function _isPoolReady() internal view {
         if (isPaused == 1) revert GeniusErrors.Paused();
@@ -576,27 +598,31 @@ contract GeniusMultiTokenPool is Orchestrable {
     }
 
     /**
+     * @dev Checks if the given amount is valid for a transaction.
+     * @param amount The amount to be checked.
+     */
+    function _isAmountValid(uint256 amount) internal view {
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+
+        if (amount > totalStables) revert GeniusErrors.InsufficientBalance(
+            address(STABLECOIN),
+            amount,
+            totalStables
+        );
+
+        if (amount > availStableBalance) revert GeniusErrors.InsufficientLiquidity(
+            availStableBalance,
+            amount
+        );
+    }
+
+    /**
      * @dev Checks if the given balance is within the threshold limit.
      * @param balance The balance to be checked.
      * @return boolean indicating whether the balance is within the threshold limit.
      */
-    function _isBalanceWithinThreshold(uint256 balance) public view returns (bool) {
-        uint256 _lowerBound = (totalStakedStables * stableRebalanceThreshold) / 100;
-
-        return balance >= _lowerBound;
-    }
-
-    /**
-     * @dev Checks if the balance is within the specified threshold after unstaking a certain amount.
-     * @param balance The current balance of the token.
-     * @param amountToUnstake The amount to be unstaked.
-     * @return A boolean indicating whether the balance is within the threshold.
-     */
-    function _isStakingBalanceWithinThreshold(
-        uint256 balance,
-        uint256 amountToUnstake
-    ) internal view returns (bool) {
-        uint256 _lowerBound = ((totalStakedStables - amountToUnstake) * stableRebalanceThreshold) / 100;
+    function _isBalanceWithinThreshold(uint256 balance) internal view returns (bool) {
+        uint256 _lowerBound = (totalStakedAssets * stableRebalanceThreshold) / 100;
 
         return balance >= _lowerBound;
     }
@@ -634,13 +660,13 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
      * @dev Updates the staked balance of the contract.
      * @param amount The amount to update the staked balance by.
-     * @param add A boolean indicating whether to add or subtract the amount from the staked balance.
+     * @param add 0 to subtract, 1 to add.
      */
-    function _updateStakedBalance(uint256 amount, bool add) internal {
-        if (add) {
-            totalStakedStables += amount;
+    function _updateStakedBalance(uint256 amount, uint256 add) internal {
+        if (add == 1) {
+            totalStakedAssets += amount;
         } else {
-            totalStakedStables -= amount;
+            totalStakedAssets -= amount;
         }
     }
 
@@ -651,9 +677,8 @@ contract GeniusMultiTokenPool is Orchestrable {
      * Otherwise, the available stable balance is set to 0.
      */
     function _updateAvailableAssets() internal {
-        uint256 _reduction = totalStakedStables > 0 ? (totalStakedStables * stableRebalanceThreshold) / 100 : 0;
-
-        uint256 _neededLiquidity = totalStakedStables > _reduction ? totalStakedStables - _reduction : 0;
+        uint256 _reduction = totalStakedAssets > 0 ? (totalStakedAssets * stableRebalanceThreshold) / 100 : 0;
+        uint256 _neededLiquidity = totalStakedAssets > _reduction ? totalStakedAssets - _reduction : 0;
         
         if (totalStables > _neededLiquidity) {
             availStableBalance = totalStables - _neededLiquidity;
@@ -739,7 +764,9 @@ contract GeniusMultiTokenPool is Orchestrable {
             _approveERC20(token, target, value);
         }
 
-        (bool swapSuccess, ) = target.call{value: value}(data);
-        require(swapSuccess, "Swap failed");
+        uint256 _nativeValue = token == NATIVE ? value : 0;
+        (bool success, ) = target.call{value: _nativeValue}(data);
+
+        require(success, "Swap failed");
     }
 }

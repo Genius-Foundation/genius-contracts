@@ -44,18 +44,17 @@ library GeniusErrors {
     error ArrayLengthsMismatch();
 
     /**
+     * @dev Error thrown when there is an insufficient amount of STABLECOIN available for rebalance
+            or swaps in the contract.
+     */
+    error InsufficientLiquidity(uint256 availableLiquidity, uint256 requiredLiquidity);
+
+    /**
      * @dev Error thrown when an invalid amount is passed to a function.
      * @param assets The amount that was passed.
      * @param shares The amount that was expected.
      */
     error InvalidAssetAmount(uint256 assets, uint256 shares);
-
-    /**
-    * @dev Error thrown when the contract needs to be rebalanced.
-    * @param totalStakedAssets The total amount of assets staked in the contract.
-    * @param availableAssets The amount of assets available to be rebalanced.
-    */
-     error NeedsRebalance(uint256 totalStakedAssets, uint256 availableAssets);
 
     /**
      * @dev Error thrown when an approval fails.

@@ -31,8 +31,9 @@ contract GeniusVault is ERC4626, Ownable {
     // =============================================================
 
     constructor(
-        address _asset
-    ) ERC4626(ERC20(_asset), "Genius USD", "gUSD") Ownable(tx.origin) {
+        address _asset,
+        address _owner
+    ) ERC4626(ERC20(_asset), "Genius USD", "gUSD") Ownable(_owner) {
         initialized = false;
     }
 
