@@ -15,13 +15,22 @@ contract MockSwapTarget {
         address tokenOut,
         address poolAddress,
         uint256 amountOut
-    ) external returns (bool, uint256) {
-        // Transfer tokenIn from poolAddress to this contract
-        IERC20(tokenIn).transferFrom(poolAddress, address(this), amountIn);
+    ) external payable returns (bool, uint256) {
+       
+       if (msg.value > 0) {
+            console.log("Received ETH: ", msg.value);
 
-        // Transfer tokenOut from this contract to recipient
-        IERC20(tokenOut).transfer(poolAddress, amountOut);
-        
-        return (true, amountOut);
+            IERC20(tokenOut).transfer(poolAddress, amountOut);
+
+            return (true, amountOut);
+        } else {
+            // Transfer tokenIn from poolAddress to this contract
+            IERC20(tokenIn).transferFrom(poolAddress, address(this), amountIn);
+
+            // Transfer tokenOut from this contract to recipient
+            IERC20(tokenOut).transfer(poolAddress, amountOut);
+            
+            return (true, amountOut);
+        }
     }
 }
