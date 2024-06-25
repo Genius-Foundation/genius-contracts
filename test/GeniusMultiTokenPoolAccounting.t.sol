@@ -493,7 +493,6 @@ contract GeniusMultiTokenPoolAccounting is Test {
         assertEq(address(POOL).balance - initialETHBalance, depositAmount, "ETH deposit failed");
 
         console.log("Native Pool Balance After Deposit:", address(POOL).balance);
-        uint256 nativeBalance = POOL.tokenBalances(NATIVE);
 
         // Verify token balances using supportedTokenBalances
         GeniusMultiTokenPool.TokenBalance[] memory tokenBalances = POOL.supportedTokenBalances();

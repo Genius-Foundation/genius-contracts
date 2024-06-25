@@ -448,6 +448,8 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @param threshold The new rebalance threshold to be set.
      */
     function setRebalanceThreshold(uint256 threshold) external onlyOwner {
+        _isPoolReady();
+
         stableRebalanceThreshold = threshold;
 
         _updateStableBalance();
@@ -676,7 +678,6 @@ contract GeniusMultiTokenPool is Orchestrable {
      */
     function _updateAvailableAssets() internal {
         uint256 _reduction = totalStakedAssets > 0 ? (totalStakedAssets * stableRebalanceThreshold) / 100 : 0;
-
         uint256 _neededLiquidity = totalStakedAssets > _reduction ? totalStakedAssets - _reduction : 0;
         
         if (totalStables > _neededLiquidity) {
