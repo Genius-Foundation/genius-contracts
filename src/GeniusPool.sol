@@ -179,7 +179,7 @@ contract GeniusPool is Orchestrable, Executable {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory data
-    ) public onlyExecutor payable {
+    ) public onlyOrchestrator payable {
         _isPoolReady();
         _isAmountValid(amountIn);
 
