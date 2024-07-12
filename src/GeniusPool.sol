@@ -7,6 +7,7 @@ import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
 import {Executable} from "./access/Executable.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
+import {GeniusExecutor} from "./GeniusExecutor.sol";
 
 /**
  * @title GeniusPool
@@ -131,9 +132,10 @@ contract GeniusPool is Orchestrable, Executable {
      * @param vaultAddress The address of the GeniusPool contract.
      * @notice This function can only be called once to initialize the contract.
      */
-    function initialize(address vaultAddress) external onlyOwner {
+    function initialize(address vaultAddress, address executor) external onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
         VAULT = vaultAddress;
+        _initializeExecutor(executor);
 
         initialized = 1;
         isPaused = 0;
