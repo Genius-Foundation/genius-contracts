@@ -295,7 +295,6 @@ contract GeniusExecutorTest is Test {
         EXECUTOR.tokenSwapAndDeposit(
             address(ROUTER), // Targeting the LBRouter for the swap
             swapCalldata,
-            0, // No ETH value is sent
             permitBatch,
             signature,
             trader
@@ -472,7 +471,6 @@ contract GeniusExecutorTest is Test {
         // Perform the deposit via GeniusExecutor
         vm.prank(trader);
         EXECUTOR.depositToVault(
-            depositAmount,
             permitBatch,
             signature,
             trader
@@ -520,7 +518,7 @@ contract GeniusExecutorTest is Test {
 
         // Perform the deposit
         vm.startPrank(trader);
-        EXECUTOR.depositToVault(depositAmount, depositPermitBatch, depositSignature, trader);
+        EXECUTOR.depositToVault( depositPermitBatch, depositSignature, trader);
         VAULT.approve(address(EXECUTOR), VAULT.balanceOf(trader));
         
         // Now set up the withdrawal
@@ -548,7 +546,6 @@ contract GeniusExecutorTest is Test {
 
         // Perform the withdrawal via GeniusExecutor
         EXECUTOR.withdrawFromVault(
-            withdrawAmount,
             withdrawPermitBatch,
             withdrawSignature,
             trader

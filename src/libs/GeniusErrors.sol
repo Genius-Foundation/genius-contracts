@@ -44,6 +44,16 @@ library GeniusErrors {
     error ArrayLengthsMismatch();
 
     /**
+    * @dev Error thrown when the permit batch length is invalid.
+    */
+    error InvalidPermitBatchLength();
+
+    /**
+    * @dev Error thrown thrown when the msg.value is not sufficient.
+    */
+    error InvalidNativeAmount(uint256 amount);
+
+    /**
      * @dev Error thrown when there is an insufficient amount of STABLECOIN available for rebalance
             or swaps in the contract.
      */
@@ -62,6 +72,13 @@ library GeniusErrors {
      * @param amount The amount that is required.
      */
     error ApprovalFailure(address token, uint256 amount);
+
+    /**
+     * @dev Error thrown when an approval fails.
+     * @param token The address of the token that is required.
+     * @param amount The amount that is required.
+     */
+    error TransferFailed(address token, uint256 amount);
 
     /**
      * @dev Error thrown when an external call fails.

@@ -67,6 +67,8 @@ contract GeniusExecutor {
         bytes calldata signature,
         address owner
     ) external payable {
+        _checkNative(_sum(values));
+
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
 
@@ -85,6 +87,7 @@ contract GeniusExecutor {
         bytes[] calldata data, // calldata
         uint256[] calldata values // native 
     ) external payable {
+        _checkNative(_sum(values));
         _batchExecution(targets, data, values);
         _sweepNative();
     }
@@ -108,22 +111,29 @@ contract GeniusExecutor {
         bytes calldata signature,
         address owner
     ) external {
+
+        if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
+
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
-        address _tokenAddress = permitBatch.details[0].token;
-        IERC20 tokenToSwap = IERC20(_tokenAddress);
+        IERC20 tokenToSwap = IERC20(permitBatch.details[0].token);
 
-        uint256 _amountToSwap = tokenToSwap.balanceOf(address(this));
-
-        if (!tokenToSwap.approve(target, _amountToSwap)) revert GeniusErrors.ApprovalFailure(_tokenAddress, _amountToSwap);
+        if (!tokenToSwap.approve(target, permitBatch.details[0].amount)) revert GeniusErrors.ApprovalFailure(
+            permitBatch.details[0].token,
+            permitBatch.details[0].amount
+        );
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
-        (bool _success, ) = target.call{value: value}(data);
+        (bool _success, ) = target.call{value: 0}(data);
         if(!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
 
         uint256 _depositAmount = STABLECOIN.balanceOf(address(this)) - _initStableValue;
-        if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
+
+        if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(
+            address(STABLECOIN),
+            _depositAmount
+        );
 
         POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
 
@@ -139,9 +149,6 @@ contract GeniusExecutor {
      * @param permitBatch The permit batch containing permit details for token transfers.
      * @param signature The signature for the permit batch.
      *
-     * @dev Does not require that every swap utilizes an ERC20 token.
-     *      Native swaps can be performed by setting the token address to 0.
-     *      If the token address is not 0, the contract will approve the target 
      */
     function multiSwapAndDeposit(
         address[] calldata targets,
@@ -158,14 +165,7 @@ contract GeniusExecutor {
             routers.length != permitBatch.details.length
         ) revert GeniusErrors.ArrayLengthsMismatch();
 
-        uint256 _neededNative = 0;
-        for (uint i = 0; i < values.length; i++) {
-            _neededNative += values[i];
-        }
-        if (_neededNative > address(this).balance) revert GeniusErrors.InsufficientNativeBalance(
-            _neededNative,
-            address(this).balance
-        );
+        _checkNative(_sum(values));
         
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
@@ -198,6 +198,7 @@ contract GeniusExecutor {
         address trader
     ) external payable {
         require(target != address(0), "Invalid target address");
+        _checkNative(value);
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
@@ -218,41 +219,47 @@ contract GeniusExecutor {
 
     /**
      * @dev Deposits a specified amount of tokens to the vault.
-     * @param amount The amount of tokens to deposit.
      * @param permitBatch The permit batch data for permit approvals and transfers.
      * @param signature The signature for permit approvals.
      * @param owner The address of the owner of the tokens.
      */
     function depositToVault(
-        uint256 amount,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
     ) external {
+
+        require(permitBatch.details.length == 1, "Invalid permit batch length");
+        if (permitBatch.details[0].token != address(STABLECOIN)) {
+            revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
+        }
+
         _permitAndBatchTransfer(permitBatch, signature, owner);
-        _approveVault(amount);
-        _depositToVault(owner, amount);
+        _approveVault(permitBatch.details[0].amount);
+        _depositToVault(owner, permitBatch.details[0].amount);
     }
 
     /**
-     * @dev Deposits a specified amount of STABLECOIN tokens to the GeniusVault contract.
-     * @param amount The amount of STABLECOIN tokens to be deposited.
+     * @dev Withdraws a specified amount of STABLECOIN from the vault.
      * @param permitBatch The permit information for batch transfer.
      * @param signature The signature for the permit.
-     * @param owner The address of the trader to deposit for.
+     * @param owner The address of the trader to withdraw for.
      */
     function withdrawFromVault(
-        uint256 amount,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
     ) external {
+
+        if (permitBatch.details[0].token != address(VAULT)) {
+            revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
+        }
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
-        _approveVault(amount);
-        _withdrawFromVault(owner, amount);
+        _approveVault(permitBatch.details[0].amount);
+        _withdrawFromVault(owner, permitBatch.details[0].amount);
 
         uint256 _residBalance = STABLECOIN.balanceOf(address(this)) - _initStableValue;
 
@@ -264,6 +271,28 @@ contract GeniusExecutor {
     // =============================================================
 
     /**
+     * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
+     * @param amount The expected amount of native currency.
+     * @return Throws an error if the native currency amount is not equal to the specified amount.
+     */
+    function _checkNative(uint256 amount) internal {
+        if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
+    }
+
+    /**
+     * @dev Calculates the sum of an array of uint256 values.
+     * @param amounts An array of uint256 values.
+     * @return The total sum of the array elements.
+     */
+    function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
+        for (uint i = 0; i < amounts.length;) {
+            total += amounts[i];
+
+            unchecked { i++; }
+        }
+    }
+
+    /**
      * @dev Internal function to sweep all left over tokens to the owner.
      * @param permitBatch The permit batch containing details of tokens to be swept.
      */
@@ -272,16 +301,18 @@ contract GeniusExecutor {
         address owner
     ) internal {
         // Sweep all left over tokens to the owner
-        for (uint i = 0; i < permitBatch.details.length; i++) {
+        for (uint i = 0; i < permitBatch.details.length;) {
             IERC20 token = IERC20(permitBatch.details[i].token);
             uint256 balance = token.balanceOf(address(this));
             if (balance > 0) {
                 uint256 _delta = balance > permitBatch.details[i].amount ? balance - permitBatch.details[i].amount : 0;
                 
                 if (_delta > 0) {
-                    if (!token.transfer(owner, _delta)) revert GeniusErrors.TransferFailed(token, _delta);
+                    if (!token.transfer(owner, _delta)) revert GeniusErrors.TransferFailed(address(token), _delta);
                 }
             }
+
+            unchecked { i++; }
         }
     }
 
@@ -292,7 +323,7 @@ contract GeniusExecutor {
      */
     function _sweepNative() internal {
         if (address(this).balance > 0) {
-            if (!payable(msg.sender).send(amountIn)) revert GeniusErrors.TransferFailed(address(0), amountIn);
+            if (!payable(msg.sender).send(address(this).balance)) revert GeniusErrors.TransferFailed(address(0), address(this).balance);
         }
     }
 

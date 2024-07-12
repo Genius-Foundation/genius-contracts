@@ -176,7 +176,6 @@ contract MultiTokenPoolExecutorInteractions is Test {
         EXECUTOR.tokenSwapAndDeposit(
             address(ROUTER),
             swapCalldata,
-            0,
             permitBatch,
             signature,
             TRADER
@@ -342,7 +341,6 @@ contract MultiTokenPoolExecutorInteractions is Test {
         // Perform the deposit via GeniusExecutor
         vm.prank(TRADER);
         EXECUTOR.depositToVault(
-            depositAmount,
             permitBatch,
             signature,
             TRADER
@@ -397,7 +395,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
 
         // Perform the deposit
         vm.startPrank(TRADER);
-        EXECUTOR.depositToVault(depositAmount, depositPermitBatch, depositSignature, TRADER);
+        EXECUTOR.depositToVault(depositPermitBatch, depositSignature, TRADER);
         VAULT.approve(address(EXECUTOR), VAULT.balanceOf(TRADER));
         
         // Now set up the withdrawal
@@ -427,7 +425,6 @@ contract MultiTokenPoolExecutorInteractions is Test {
 
         // Perform the withdrawal via GeniusExecutor
         EXECUTOR.withdrawFromVault(
-            withdrawAmount,
             withdrawPermitBatch,
             withdrawSignature,
             TRADER
