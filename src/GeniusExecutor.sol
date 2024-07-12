@@ -30,11 +30,15 @@ contract GeniusExecutor {
     GeniusPool public immutable POOL;
     GeniusVault public immutable VAULT;
 
-    constructor(address _permit2, address _pool, address _vault) payable {
+    constructor(
+        address permit2,
+        address pool,
+        address vault
+    ) {
 
-        PERMIT2 = IAllowanceTransfer(_permit2);
-        VAULT = GeniusVault(_vault);
-        POOL = GeniusPool(_pool);
+        PERMIT2 = IAllowanceTransfer(permit2);
+        VAULT = GeniusVault(vault);
+        POOL = GeniusPool(pool);
         STABLECOIN = IERC20(POOL.STABLECOIN());
 
     }
@@ -65,6 +69,9 @@ contract GeniusExecutor {
     ) external payable {
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
+
+        _sweepERC20s(permitBatch, owner);
+        _sweepNative();
     }
 
     /**
@@ -79,6 +86,7 @@ contract GeniusExecutor {
         uint256[] calldata values // native 
     ) external payable {
         _batchExecution(targets, data, values);
+        _sweepNative();
     }
 
        /**
@@ -96,11 +104,10 @@ contract GeniusExecutor {
     function tokenSwapAndDeposit(
         address target,
         bytes calldata data,
-        uint256 value,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external payable {
+    ) external {
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
         address _tokenAddress = permitBatch.details[0].token;
@@ -119,6 +126,8 @@ contract GeniusExecutor {
         if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
         POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
+
+        _sweepERC20s(permitBatch, owner);
     }
 
 
@@ -169,6 +178,9 @@ contract GeniusExecutor {
         if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
         POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
+
+        _sweepERC20s(permitBatch, owner);
+        _sweepNative();
     }
 
 
@@ -200,8 +212,17 @@ contract GeniusExecutor {
         );
 
         POOL.addLiquiditySwap(trader, address(STABLECOIN), _depositAmount);
+
+        _sweepNative();
     }
 
+    /**
+     * @dev Deposits a specified amount of tokens to the vault.
+     * @param amount The amount of tokens to deposit.
+     * @param permitBatch The permit batch data for permit approvals and transfers.
+     * @param signature The signature for permit approvals.
+     * @param owner The address of the owner of the tokens.
+     */
     function depositToVault(
         uint256 amount,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
@@ -241,6 +262,39 @@ contract GeniusExecutor {
     // =============================================================
     //                      INTERNAL FUNCTIONS
     // =============================================================
+
+    /**
+     * @dev Internal function to sweep all left over tokens to the owner.
+     * @param permitBatch The permit batch containing details of tokens to be swept.
+     */
+    function _sweepERC20s(
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        address owner
+    ) internal {
+        // Sweep all left over tokens to the owner
+        for (uint i = 0; i < permitBatch.details.length; i++) {
+            IERC20 token = IERC20(permitBatch.details[i].token);
+            uint256 balance = token.balanceOf(address(this));
+            if (balance > 0) {
+                uint256 _delta = balance > permitBatch.details[i].amount ? balance - permitBatch.details[i].amount : 0;
+                
+                if (_delta > 0) {
+                    if (!token.transfer(owner, _delta)) revert GeniusErrors.TransferFailed(token, _delta);
+                }
+            }
+        }
+    }
+
+    /**
+     * @dev Internal function to sweep native tokens from the contract.
+     * If the contract balance is greater than zero, it transfers the balance to the `msg.sender`.
+     * If the transfer fails, it reverts with a `TransferFailed` error.
+     */
+    function _sweepNative() internal {
+        if (address(this).balance > 0) {
+            if (!payable(msg.sender).send(amountIn)) revert GeniusErrors.TransferFailed(address(0), amountIn);
+        }
+    }
 
     /**
      * @dev Internal function to permit and transfer tokens from the caller's address.
