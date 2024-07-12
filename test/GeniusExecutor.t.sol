@@ -60,8 +60,8 @@ contract GeniusExecutorTest is Test {
 
     // Internal contracts
     GeniusPool public POOL;
-    GeniusExecutor public EXECUTOR;
     GeniusVault public VAULT;
+    GeniusExecutor public EXECUTOR;
 
     function setUp() public {
         avalanche = vm.createFork(rpc);
@@ -93,15 +93,18 @@ contract GeniusExecutorTest is Test {
         vm.startPrank(OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
 
-        POOL.initialize(address(VAULT));
-        VAULT.initialize(address(POOL));
-        vm.stopPrank();
-
         EXECUTOR = new GeniusExecutor(
             permit2Address,
             address(POOL),
             address(VAULT)
         );
+
+        POOL.initialize(address(VAULT), address(EXECUTOR));
+        vm.stopPrank();
+
+        vm.startPrank(OWNER);
+        VAULT.initialize(address(POOL));
+        vm.stopPrank();
 
         deal(address(wavaxContract), trader, 100 ether);
         deal(address(meowContract), trader, 100 ether);

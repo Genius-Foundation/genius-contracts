@@ -6,6 +6,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import {GeniusPool} from "../src/GeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
+import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 
 contract GeniusPoolAccounting is Test {
     // ============ Network ============
@@ -18,8 +19,10 @@ contract GeniusPoolAccounting is Test {
     // ============ Internal Contracts ============
     GeniusPool public POOL;
     GeniusVault public VAULT;
+    GeniusExecutor public EXECUTOR;
 
     // ============ Constants ============
+    address public PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public OWNER;
     address public TRADER;
     address public ORCHESTRATOR;
@@ -68,8 +71,9 @@ contract GeniusPoolAccounting is Test {
         ERC20 usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         POOL = new GeniusPool(address(usdc), OWNER);
         VAULT = new GeniusVault(address(usdc), OWNER);
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT));
 
-        POOL.initialize(address(VAULT));
+        POOL.initialize(address(VAULT), address(EXECUTOR));
         VAULT.initialize(address(POOL));
         
         // Add Orchestrator

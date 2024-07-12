@@ -8,15 +8,18 @@ import {MockUSDC} from "./mocks/mockUSDC.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusPool} from "../src/GeniusPool.sol";
+import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 
 contract GeniusVaultTest is Test {
 
+    address public permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public owner = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
     address public trader;
 
     MockUSDC public usdc;
     GeniusVault public geniusVault;
     GeniusPool public geniusPool;
+    GeniusExecutor public executor;
 
     function setUp() public {
         trader = makeAddr("trader");
@@ -31,11 +34,17 @@ contract GeniusVaultTest is Test {
             owner
         );
 
+        executor = new GeniusExecutor(
+            permit2,
+            address(geniusPool),
+            address(geniusVault)
+        );
+
         vm.prank(owner);
         geniusVault.initialize(address(geniusPool));
 
         vm.prank(owner);
-        geniusPool.initialize(address(geniusVault));
+        geniusPool.initialize(address(geniusVault), address(executor));
 
         vm.prank(owner);
         usdc.mint(trader, 1_000 ether);

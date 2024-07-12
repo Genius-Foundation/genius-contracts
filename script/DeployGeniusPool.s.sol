@@ -29,6 +29,6 @@ contract DeployGeniusPool is Script {
         console.log("GeniusPool deployed at: ", address(geniusPool));
 
         // Initialize the GeniusPool contract
-        geniusPool.initialize(0x11Fc9cba7055eEe21FCAeA973F46E26F09f0A289);
+        geniusPool.initialize(0x11Fc9cba7055eEe21FCAeA973F46E26F09f0A289, 0x11Fc9cba7055eEe21FCAeA973F46E26F09f0A289);
     }
 }

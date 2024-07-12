@@ -8,6 +8,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {GeniusPool} from "../src/GeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
+import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 
 
 contract GeniusPoolTest is Test {
@@ -28,6 +29,7 @@ contract GeniusPoolTest is Test {
 
     GeniusPool public geniusPool;
     GeniusVault public geniusVault;
+    GeniusExecutor public executor;
 
     function setUp() public {
         avalanche = vm.createFork(rpc);
@@ -43,6 +45,7 @@ contract GeniusPoolTest is Test {
         vm.startPrank(OWNER, OWNER);
         geniusPool = new GeniusPool(address(USDC), OWNER);
         geniusVault = new GeniusVault(address(USDC), OWNER);
+        executor = new GeniusExecutor(OWNER, address(geniusPool), address(geniusVault));
         vm.stopPrank();
 
         assertEq(geniusPool.owner(), OWNER, "Owner should be ORCHESTRATOR");
@@ -51,7 +54,7 @@ contract GeniusPoolTest is Test {
         geniusVault.initialize(address(geniusPool));
 
         vm.startPrank(OWNER);
-        geniusPool.initialize(address(geniusVault));
+        geniusPool.initialize(address(geniusVault), address(executor));
 
         geniusPool.addOrchestrator(ORCHESTRATOR);
         geniusPool.addOrchestrator(address(this));
@@ -116,7 +119,7 @@ contract GeniusPoolTest is Test {
     function testRevertWhenAlreadyInitialized() public {
         vm.startPrank(OWNER);
         vm.expectRevert();
-        geniusPool.initialize(address(geniusVault));
+        geniusPool.initialize(address(geniusVault), address(executor));
     }
 
     function testSetRebalanceThreshold() public {

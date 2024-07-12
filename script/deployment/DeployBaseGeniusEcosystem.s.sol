@@ -45,7 +45,7 @@ contract DeployBaseGeniusEcosystem is Script {
         );
 
         // Initialize the contracts
-        geniusPool.initialize(address(geniusVault));
+        geniusPool.initialize(address(geniusVault), address(geniusExecutor));
         geniusVault.initialize(address(geniusPool));
 
         // Add orchestrators

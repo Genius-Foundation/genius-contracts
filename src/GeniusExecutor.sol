@@ -92,14 +92,13 @@ contract GeniusExecutor {
         _sweepNative();
     }
 
-       /**
+    /**
      * @dev Aggregates multiple calls in a single transaction.
      *      This method will set `sender` to the `msg.sender` temporarily
      *      for the span of its execution.
      *      This method does not support reentrancy.
      * @param target An array of addresses to call.
      * @param data    An array of calldata to forward to the targets.
-     * @param value  How much ETH to forward to each target.
      * @param permitBatch The permit information for batch transfer.
      * @param signature The signature for the permit.
      * @param owner The address of the trader to deposit for.
@@ -273,7 +272,6 @@ contract GeniusExecutor {
     /**
      * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
      * @param amount The expected amount of native currency.
-     * @return Throws an error if the native currency amount is not equal to the specified amount.
      */
     function _checkNative(uint256 amount) internal {
         if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
@@ -282,7 +280,7 @@ contract GeniusExecutor {
     /**
      * @dev Calculates the sum of an array of uint256 values.
      * @param amounts An array of uint256 values.
-     * @return The total sum of the array elements.
+     * @return total sum of the array elements.
      */
     function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
         for (uint i = 0; i < amounts.length;) {
