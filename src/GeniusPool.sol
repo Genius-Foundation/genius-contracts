@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
+import {Executable} from "./access/Executable.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 /**
@@ -16,7 +17,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
  *         and other Genius related activities.
  */
 
-contract GeniusPool is Orchestrable {
+contract GeniusPool is Orchestrable, Executable {
 
     // =============================================================
     //                          IMMUTABLES
@@ -153,7 +154,7 @@ contract GeniusPool is Orchestrable {
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        _transferERC20From(address(STABLECOIN), tx.origin, address(this), amount);
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
 
         _updateBalance();
         _updateAvailableAssets();
@@ -178,7 +179,7 @@ contract GeniusPool is Orchestrable {
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory data
-    ) public onlyOrchestrator payable {
+    ) public onlyExecutor payable {
         _isPoolReady();
         _isAmountValid(amountIn);
 
@@ -219,7 +220,7 @@ contract GeniusPool is Orchestrable {
         address trader,
         address token,
         uint256 amount
-    ) external {
+    ) external onlyExecutor {
         _isPoolReady();
 
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
@@ -247,7 +248,7 @@ contract GeniusPool is Orchestrable {
     function removeLiquiditySwap(
         address trader,
         uint256 amount
-    ) external onlyOrchestrator {
+    ) external onlyExecutor {
         _isPoolReady();
         _isAmountValid(amount);
 
