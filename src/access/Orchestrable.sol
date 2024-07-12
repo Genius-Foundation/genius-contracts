@@ -38,9 +38,9 @@ abstract contract Orchestrable is Ownable {
      * @dev Throws a `NotOrchestrator` error if the caller is not the orchestrator.
      */
     function _checkOrchestrator() internal view virtual {
-        Status status = isOrchestrator[tx.origin];
+        Status status = isOrchestrator[msg.sender];
 
-        if (status != Status.AUTHORIZED) revert NotOrchestrator(tx.origin);
+        if (status != Status.AUTHORIZED) revert NotOrchestrator(msg.sender);
     }
 
     /**
@@ -63,7 +63,7 @@ abstract contract Orchestrable is Ownable {
     * @param _orchestrator The address of the orchestrator to remove
     */
     function removeOrchestrator(address _orchestrator) external onlyOwner {
-        Status status = isOrchestrator[tx.origin];
+        Status status = isOrchestrator[msg.sender];
 
         if (status == Status.UNAUTHORIZED) revert NotOrchestrator(_orchestrator);
 
