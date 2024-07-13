@@ -156,10 +156,10 @@ contract GeniusPool is Orchestrable, Executable {
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
-
-        _updateBalance();
+        _updateBalance(amount);
         _updateAvailableAssets();
+
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
 
         emit ReceiveBridgeFunds(
             amount,
@@ -190,16 +190,13 @@ contract GeniusPool is Orchestrable, Executable {
             totalAssets - amountIn
         );
 
+        _updateBalance(amountIn);
+        _updateAvailableAssets();
 
         _batchExecution(targets, data, values);
 
         uint256 _initStableValue = totalAssets;
-
-        _updateBalance();
-        _updateAvailableAssets();
-
         uint256 _stableDelta = _initStableValue - totalAssets;
-
         if (_stableDelta != amountIn) revert GeniusErrors.InvalidAmount();
 
         emit BridgeFunds(
@@ -229,10 +226,10 @@ contract GeniusPool is Orchestrable, Executable {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
 
-        _transferERC20From(address(STABLECOIN), msg.sender,  address(this), amount);
-
-        _updateBalance();
+        _updateBalance(amount);
         _updateAvailableAssets();
+
+        _transferERC20From(address(STABLECOIN), msg.sender,  address(this), amount);
 
         emit SwapDeposit(
             trader,
@@ -260,10 +257,10 @@ contract GeniusPool is Orchestrable, Executable {
             totalAssets - amount
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
-
-        _updateBalance();
+        _updateBalance(amount);
         _updateAvailableAssets();
+
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
         
         emit SwapWithdrawal(trader, amount);
     }
@@ -285,10 +282,10 @@ contract GeniusPool is Orchestrable, Executable {
             totalAssets - amount
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
-
-        _updateBalance();
+        _updateBalance(amount);
         _updateAvailableAssets();
+
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
     }
 
     // =============================================================
@@ -306,11 +303,11 @@ contract GeniusPool is Orchestrable, Executable {
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
-
-        _updateBalance();
+        _updateBalance(amount);
         _updateStakedBalance(amount, 1);
         _updateAvailableAssets();
+
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
 
         emit Stake(
             trader,
@@ -338,12 +335,11 @@ contract GeniusPool is Orchestrable, Executable {
             totalStakedAssets
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
-
-        _updateBalance();
+        _updateBalance(amount);
         _updateStakedBalance(amount, 0);
         _updateAvailableAssets();
 
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         emit Unstake(
             trader,
@@ -365,7 +361,7 @@ contract GeniusPool is Orchestrable, Executable {
 
         rebalanceThreshold = threshold;
 
-        _updateBalance();   
+        _updateBalance(0);   
         _updateAvailableAssets();
     }
 
@@ -453,8 +449,8 @@ contract GeniusPool is Orchestrable, Executable {
      * @dev Updates the balance of the contract by fetching the total assets of the STABLECOIN token.
      * This function is internal and can only be called from within the contract.
      */
-    function _updateBalance() internal {
-        totalAssets = STABLECOIN.balanceOf(address(this));
+    function _updateBalance(uint256 amount) internal {
+        totalAssets = STABLECOIN.balanceOf(address(this)) + amount;
     }
 
     /**
