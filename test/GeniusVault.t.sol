@@ -37,7 +37,8 @@ contract GeniusVaultTest is Test {
         executor = new GeniusExecutor(
             permit2,
             address(geniusPool),
-            address(geniusVault)
+            address(geniusVault),
+            owner
         );
 
         vm.prank(owner);

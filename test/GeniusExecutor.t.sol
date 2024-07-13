@@ -96,7 +96,8 @@ contract GeniusExecutorTest is Test {
         EXECUTOR = new GeniusExecutor(
             permit2Address,
             address(POOL),
-            address(VAULT)
+            address(VAULT),
+            OWNER
         );
 
         POOL.initialize(address(VAULT), address(EXECUTOR));

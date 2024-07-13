@@ -451,7 +451,7 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice The token must not already be supported.
      */
     function addToken(address token) external onlyOwner {
-        require(isSupportedToken[token] == 1, "Token is already supported");
+        require(isSupportedToken[token] == 0, "Token is already supported");
         supportedTokens.push(token);
         isSupportedToken[token] = 1;
     }
@@ -464,7 +464,7 @@ contract GeniusMultiTokenPool is Orchestrable {
      * @notice If the token is successfully removed, it will no longer be supported by the contract.
      */
     function removeToken(address token) external onlyOwner {
-        require(isSupportedToken[token] == 0, "Token is not supported");
+        require(isSupportedToken[token] == 1, "Token is not supported");
         require(IERC20(token).balanceOf(address(this)) == 0, "Token balance must be 0");
 
         isSupportedToken[token] = 0;

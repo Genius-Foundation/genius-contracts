@@ -41,7 +41,8 @@ contract DeployPolygonGeniusEcosystem is Script {
         geniusExecutor = new GeniusExecutor(
             permit2Address,
             address(geniusPool),
-            address(geniusVault)
+            address(geniusVault),
+            owner
         );
 
         // Initialize the contracts

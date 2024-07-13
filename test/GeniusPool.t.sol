@@ -21,6 +21,7 @@ contract GeniusPoolTest is Test {
     uint256 sourcePoolId = 1;
     uint256 targetPoolId = 1;
 
+    address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
@@ -45,7 +46,7 @@ contract GeniusPoolTest is Test {
         vm.startPrank(OWNER, OWNER);
         geniusPool = new GeniusPool(address(USDC), OWNER);
         geniusVault = new GeniusVault(address(USDC), OWNER);
-        executor = new GeniusExecutor(OWNER, address(geniusPool), address(geniusVault));
+        executor = new GeniusExecutor(PERMIT2, address(geniusPool), address(geniusVault), OWNER);
         vm.stopPrank();
 
         assertEq(geniusPool.owner(), OWNER, "Owner should be ORCHESTRATOR");

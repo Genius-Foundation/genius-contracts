@@ -3,11 +3,13 @@ pragma solidity ^0.8.20;
 
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import { GeniusPool } from "./GeniusPool.sol";
 import { GeniusVault } from "./GeniusVault.sol";
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
+import { Orchestrable, Ownable } from "./access/Orchestrable.sol";
 
 /**
  * @title GeniusExecutor
@@ -19,7 +21,7 @@ import { GeniusErrors } from "./libs/GeniusErrors.sol";
  *         utilizing the Permit2 contract, as well facilitating interactions
  *         with the GeniusVault contract and the GeniusPool contract.
  */
-contract GeniusExecutor {
+contract GeniusExecutor is Orchestrable, ReentrancyGuard {
 
     // =============================================================
     //                          IMMUTABLES
@@ -33,8 +35,9 @@ contract GeniusExecutor {
     constructor(
         address permit2,
         address pool,
-        address vault
-    ) {
+        address vault,
+        address owner
+    ) Ownable(owner) {
 
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = GeniusVault(vault);
@@ -66,7 +69,7 @@ contract GeniusExecutor {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external payable {
+    ) external payable nonReentrant {
         _checkNative(_sum(values));
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
@@ -86,7 +89,7 @@ contract GeniusExecutor {
         address[] calldata targets, // routers
         bytes[] calldata data, // calldata
         uint256[] calldata values // native 
-    ) external payable {
+    ) external payable nonReentrant {
         _checkNative(_sum(values));
         _batchExecution(targets, data, values);
         _sweepNative();
@@ -109,7 +112,7 @@ contract GeniusExecutor {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external {
+    ) external onlyOrchestrator nonReentrant {
 
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
 
@@ -157,7 +160,7 @@ contract GeniusExecutor {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external payable {
+    ) external payable nonReentrant {
         if (
             targets.length != data.length ||
             data.length != values.length ||
@@ -195,7 +198,7 @@ contract GeniusExecutor {
         bytes calldata data,
         uint256 value,
         address trader
-    ) external payable {
+    ) external payable nonReentrant {
         require(target != address(0), "Invalid target address");
         _checkNative(value);
 
@@ -226,7 +229,7 @@ contract GeniusExecutor {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external {
+    ) external onlyOrchestrator nonReentrant {
 
         require(permitBatch.details.length == 1, "Invalid permit batch length");
         if (permitBatch.details[0].token != address(STABLECOIN)) {
@@ -248,7 +251,7 @@ contract GeniusExecutor {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external {
+    ) external onlyOrchestrator nonReentrant {
 
         if (permitBatch.details[0].token != address(VAULT)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
@@ -421,5 +424,13 @@ contract GeniusExecutor {
      */
     function _withdrawFromVault(address receiver, uint256 amount) private {
         VAULT.withdraw(amount, receiver, address(this));
+    }
+
+    /**
+     * @dev Fallback function to reject native tokens.
+     * Reverts the transaction with an error message indicating that native tokens are not accepted.
+     */
+    receive() external payable {
+        revert("Native tokens not accepted directly");
     }
 }

@@ -135,7 +135,7 @@ contract GeniusPool is Orchestrable, Executable {
     function initialize(address vaultAddress, address executor) external onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
         VAULT = vaultAddress;
-        _initializeExecutor(executor);
+        _initializeExecutor(payable(executor));
 
         initialized = 1;
         isPaused = 0;

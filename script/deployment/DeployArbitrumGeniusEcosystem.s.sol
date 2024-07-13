@@ -51,7 +51,7 @@ contract DeployArbitrumGeniusEcosystem is Script {
         // Get an instance of the GeniusPool contract at 0xf79C2054Dcd781b19da5f58BB2F901db9c2bfAbC
         geniusPool = GeniusPool(0x92Ca25e45a0Dcb2C5df1EC17B687A0A009Cb3E04);
         geniusVault = GeniusVault(0x237008a4052209e97753e1c9a0a148a0796Ce632);
-        geniusExecutor = GeniusExecutor(0x3A12188Cb2e96b41dFB1D48Cf3fdE6cECa7DcFC1);
+        geniusExecutor = GeniusExecutor(payable(0x3A12188Cb2e96b41dFB1D48Cf3fdE6cECa7DcFC1));
 
         // Initialize the contracts
         // geniusPool.initialize(address(geniusVault));

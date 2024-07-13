@@ -71,7 +71,7 @@ contract GeniusPoolAccounting is Test {
         ERC20 usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         POOL = new GeniusPool(address(usdc), OWNER);
         VAULT = new GeniusVault(address(usdc), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT));
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT), OWNER);
 
         POOL.initialize(address(VAULT), address(EXECUTOR));
         VAULT.initialize(address(POOL));

@@ -27,7 +27,7 @@ abstract contract Executable is Ownable {
      * @dev Initializes the executor contract.
      * @param executor The address of the executor contract.
      */
-    function _initializeExecutor(address executor) internal onlyOwner {
+    function _initializeExecutor(address payable executor) internal onlyOwner {
         require(isExecutable == 0, "Executor already initialized");
         EXECUTOR = GeniusExecutor(executor);
 
