@@ -159,7 +159,12 @@ contract GeniusPool is Orchestrable, Executable {
         _updateBalance(amount);
         _updateAvailableAssets();
 
-        _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
+        _transferERC20From(
+            address(STABLECOIN),
+            msg.sender,
+            address(this),
+            amount
+        );
 
         emit ReceiveBridgeFunds(
             amount,
