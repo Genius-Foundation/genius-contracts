@@ -175,10 +175,15 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        _transferERC20From(address(STABLECOIN), tx.origin, address(this), amount);
-
-        _updateStableBalance();
+        _updateStableBalance(amount, 1);
         _updateAvailableAssets();
+
+        _transferERC20From(
+            address(STABLECOIN),
+            msg.sender,
+            address(this),
+            amount
+        );
 
         emit ReceiveBridgeFunds(
             amount,
@@ -197,10 +202,11 @@ contract GeniusMultiTokenPool is Orchestrable {
     function removeBridgeLiquidity(
         uint256 amountIn,
         uint16 dstChainId,
-        address[] memory targets,
-        uint256[] memory values,
-        bytes[] memory data
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata data
     ) public onlyOrchestrator payable {
+        // Checks
         _isPoolReady();
         _isAmountValid(amountIn);
 
@@ -209,22 +215,50 @@ contract GeniusMultiTokenPool is Orchestrable {
             totalStables - amountIn
         );
 
+        uint256 _initStableBalance = STABLECOIN.balanceOf(address(this));
+        
+        // Store pre-execution balances for all supported tokens
+        uint256 supportedTokensLength = supportedTokens.length;
+        uint256[] memory _preERC20Balances = new uint256[](supportedTokensLength);
+        for (uint256 i; i < supportedTokensLength;) {
+            _preERC20Balances[i] = supportedTokens[i] == NATIVE ? 
+                address(this).balance : 
+                IERC20(supportedTokens[i]).balanceOf(address(this));
 
-        _batchExecution(targets, data, values);
+            unchecked { ++i; }
+        }
 
-        uint256 _initStableValue = totalStables;
-
-        _updateStableBalance();
+        // Effects
+        _updateStableBalance(amountIn, 0);
         _updateAvailableAssets();
 
-        uint256 _stableDelta = _initStableValue - totalStables;
+        // Interactions
+        _batchExecution(targets, data, values);
 
-        if (_stableDelta != amountIn) revert GeniusErrors.InvalidAmount();
+        // Post-interaction checks
+        if (_initStableBalance - STABLECOIN.balanceOf(address(this)) != amountIn) revert GeniusErrors.InvalidAmount();
 
-        emit BridgeFunds(
-            amountIn,
-            dstChainId
-        );
+        // Check balances of all supported tokens
+        for (uint256 i; i < supportedTokensLength;) {
+            address token = supportedTokens[i];
+            uint256 _postBalance = token == NATIVE ? 
+                address(this).balance : 
+                IERC20(token).balanceOf(address(this));
+
+            if (token != address(STABLECOIN) && _postBalance != _preERC20Balances[i]) {
+                revert GeniusErrors.UnexpectedBalanceChange(token);
+            }
+
+            // Update internal balances to match actual balances
+            if (tokenBalances[token] != _preERC20Balances[i]) {
+                tokenBalances[token] = _preERC20Balances[i];
+            }
+
+            unchecked { ++i; }
+        }
+
+        // Event emission
+        emit BridgeFunds(amountIn, dstChainId);
     }
 
 
@@ -250,10 +284,10 @@ contract GeniusMultiTokenPool is Orchestrable {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         if (token == address(STABLECOIN)) {
-            _transferERC20From(token, msg.sender, address(this), amount);
-
-            _updateStableBalance();
+            _updateStableBalance(amount, 1);
             _updateAvailableAssets();
+
+            _transferERC20From(token, msg.sender, address(this), amount);
         } else if (isSupportedToken[token] == 1) {
 
             if (token == NATIVE) {
@@ -293,10 +327,10 @@ contract GeniusMultiTokenPool is Orchestrable {
             totalStables - amount
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
-
-        _updateStableBalance();
+        _updateStableBalance(amount, 0);
         _updateAvailableAssets();
+
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
         
         emit SwapWithdrawal(trader, amount);
     }
@@ -319,10 +353,10 @@ contract GeniusMultiTokenPool is Orchestrable {
             totalStables - amount
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
-
-        _updateStableBalance();
+        _updateStableBalance(amount, 0);
         _updateAvailableAssets();
+
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
     }
 
     // =============================================================
@@ -343,23 +377,56 @@ contract GeniusMultiTokenPool is Orchestrable {
         address target,
         bytes calldata data
     ) external onlyOrchestrator {
-
         _isPoolReady();
 
+        // Checks
         (bool isSufficient, TokenBalance memory tokenBalance) = _isBalanceSufficient(token, amount);
         if (!isSufficient) revert GeniusErrors.InsufficientBalance(token, amount, tokenBalance.balance);
+        if (token == NATIVE && amount > 0) {
+            require(amount <= address(this).balance, "Insufficient ETH balance");
+        }
+        // Utilize balanceOf in case of donated tokens
+        uint256 _preSwapStableBalance = STABLECOIN.balanceOf(address(this));
+        TokenBalance[] memory _preSwapTokenBalances = supportedTokenBalances();
 
-        uint256 _preSwapBalance = totalStables;
+        // Effects
+        if (token == NATIVE) {
+            tokenBalances[NATIVE] -= amount;
+        } else {
+            tokenBalances[token] -= amount;
+        }
 
+        // Interactions
         _executeSwap(token, target, data, amount);
 
-        _updateStableBalance();
-        _updateAvailableAssets();
+        // Post-swap checks and effects
+        uint256 _postSwapStableBalance = STABLECOIN.balanceOf(address(this));
+        uint256 _stableDelta = _postSwapStableBalance - _preSwapStableBalance;
+        require(_stableDelta > 0, "GeniusMultTokenPool: Swap must increase stablecoin balance");
+
+        // Update the token balance after the swap
         _updateTokenBalance(token);
 
-        uint256 _postSwapBalance = totalStables;
+        TokenBalance[] memory _postSwapTokenBalances = supportedTokenBalances();
 
-        require(_preSwapBalance < _postSwapBalance, "GeniusMultTokenPool: Swap must increase stablecoin balance");
+        for (uint256 i = 0; i < _postSwapTokenBalances.length; i++) {
+            TokenBalance memory _preBalance = _preSwapTokenBalances[i];
+            TokenBalance memory _postBalance = _postSwapTokenBalances[i];
+
+            if (_postBalance.token == token) {
+                if (token == NATIVE) {
+                    require(_postBalance.balance == _preBalance.balance - amount, "Invalid NATIVE balance change");
+                } else {
+                    require(_postBalance.balance == _preBalance.balance - amount, "Invalid token balance change");
+                }
+            } else {
+                require(_postBalance.balance == _preBalance.balance, "Unexpected token balance change");
+            }
+        }
+
+        // Final effects
+        _updateStableBalance(_stableDelta, 1);
+        _updateAvailableAssets();
     }
 
     // =============================================================
@@ -377,11 +444,16 @@ contract GeniusMultiTokenPool is Orchestrable {
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
-
-        _updateStableBalance();
+        _updateStableBalance(amount, 1);
         _updateStakedBalance(amount, 1);
         _updateAvailableAssets();
+
+        _transferERC20From(
+            address(STABLECOIN),
+            msg.sender,
+            address(this),
+            amount
+        );
 
         emit Stake(
             trader,
@@ -408,12 +480,12 @@ contract GeniusMultiTokenPool is Orchestrable {
             amount,
             totalStakedAssets
         );
-        
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
 
-        _updateStableBalance();
+        _updateStableBalance(amount, 0);
         _updateStakedBalance(amount, 0);
         _updateAvailableAssets();
+        
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         emit Unstake(
             trader,
@@ -436,7 +508,7 @@ contract GeniusMultiTokenPool is Orchestrable {
 
         stableRebalanceThreshold = threshold;
 
-        _updateStableBalance();
+        _updateStableBalance(0, 0);
         _updateAvailableAssets();
     }
 
@@ -610,9 +682,15 @@ contract GeniusMultiTokenPool is Orchestrable {
     /**
      * @dev Updates the balance of the contract by retrieving the total balance of the STABLECOIN token.
      * This function is internal and can only be called from within the contract.
+     * @param amount The amount to update the balance by.
+     * @param add 0 to subtract, 1 to add.
      */
-    function _updateStableBalance() internal {
-        totalStables = STABLECOIN.balanceOf(address(this));
+    function _updateStableBalance(uint256 amount, uint256 add) internal {
+        if (add == 1) {
+            totalStables = STABLECOIN.balanceOf(address(this)) += amount;
+        } else {
+            totalStables = STABLECOIN.balanceOf(address(this)) -= amount;
+        }
     }
 
     /**
