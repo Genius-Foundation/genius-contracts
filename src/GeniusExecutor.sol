@@ -111,13 +111,17 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
      * @param values The array of ETH values to send with each call.
      */
     function aggregate(
-        address[] calldata targets, // routers
-        bytes[] calldata data, // calldata
-        uint256[] calldata values // native 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
     ) external payable nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         _checkNative(_sum(values));
-        _checkTargets(targets, [], msg.sender);
+        
+        // Create an empty dynamic array of PermitDetails
+        IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
+        
+        _checkTargets(targets, emptyPermitDetails, address(0));
 
         _batchExecution(targets, data, values);
         _sweepNative();
@@ -223,33 +227,35 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     * @param target The address to call.
     * @param data The calldata to forward to the target.
     * @param value How much ETH to forward to the target.
-    * @param trader The address of the trader to deposit for.
     */
     function nativeSwapAndDeposit(
         address target,
         bytes calldata data,
-        uint256 value,
-        address trader
+        uint256 value
     ) external payable nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
+
+        IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
         address[] memory targets = new address[](1);
         targets[0] = target;
         _checkNative(value);
-        _checkTargets(targets, [], address(0));
+        _checkTargets(targets, emptyPermitDetails, msg.sender);
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
-
         (bool _success, ) = target.call{value: value}(data);
 
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
 
-        uint256 _depositAmount = STABLECOIN.balanceOf(address(this)) - _initStableValue;
+        uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
+        uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
+
+        if (_depositAmount == 0) revert GeniusErrors.UnexpectedBalanceChange(address(STABLECOIN));
         if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(
             address(STABLECOIN),
             _depositAmount
         );
 
-        POOL.addLiquiditySwap(trader, address(STABLECOIN), _depositAmount);
+        POOL.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount);
 
         _sweepNative();
     }

@@ -285,8 +285,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
         EXECUTOR.nativeSwapAndDeposit{value: swapAmount}(
             address(ROUTER),
             swapCalldata,
-            swapAmount,
-            TRADER
+            swapAmount
         );
 
         // Prepare log entries for assertion checks

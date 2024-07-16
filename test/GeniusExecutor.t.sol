@@ -330,8 +330,7 @@ contract GeniusExecutorTest is Test {
         EXECUTOR.nativeSwapAndDeposit(
             address(USDC),
             transferCalldata,
-            0,
-            trader
+            0
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
