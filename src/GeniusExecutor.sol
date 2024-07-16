@@ -38,8 +38,6 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     IERC20 public immutable STABLECOIN;
     GeniusPool public immutable POOL;
     GeniusVault public immutable VAULT;
-    
-    mapping(bytes4 => uint256) private ERC20_FUNCTIONS;
 
     constructor(
         address permit2,
