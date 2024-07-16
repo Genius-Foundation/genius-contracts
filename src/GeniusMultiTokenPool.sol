@@ -153,8 +153,10 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         VAULT = vaultAddress;
         supportedTokens = tokens;
 
-        for (uint256 i = 0; i < tokens.length; i++) {
+        for (uint256 i = 0; i < tokens.length;) {
             isSupportedToken[tokens[i]] = 1;
+
+            unchecked { i++; }
         }
 
         initialized = 1;
@@ -226,7 +228,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
                 address(this).balance : 
                 IERC20(supportedTokens[i]).balanceOf(address(this));
 
-            unchecked { ++i; }
+            unchecked { 1++; }
         }
 
         // Effects
@@ -255,7 +257,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
                 tokenBalances[token] = _preERC20Balances[i];
             }
 
-            unchecked { ++i; }
+            unchecked { i++; }
         }
 
         // Event emission
@@ -410,7 +412,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
 
         TokenBalance[] memory _postSwapTokenBalances = supportedTokenBalances();
 
-        for (uint256 i = 0; i < _postSwapTokenBalances.length; i++) {
+        for (uint256 i = 0; i < _postSwapTokenBalances.length;) {
             TokenBalance memory _preBalance = _preSwapTokenBalances[i];
             TokenBalance memory _postBalance = _postSwapTokenBalances[i];
 
@@ -423,6 +425,8 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
             } else {
                 require(_postBalance.balance == _preBalance.balance, "Unexpected token balance change");
             }
+
+            unchecked { i++; }
         }
 
         // Final effects
@@ -542,12 +546,14 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
 
         isSupportedToken[token] = 0;
 
-        for (uint256 i = 0; i < supportedTokens.length; i++) {
+        for (uint256 i = 0; i < supportedTokens.length;) {
             if (supportedTokens[i] == token) {
                 supportedTokens[i] = supportedTokens[supportedTokens.length - 1];
                 supportedTokens.pop();
                 break;
             }
+
+            unchecked { i++; }
         }
     }
 
@@ -609,8 +615,10 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     function supportedTokenBalances() public view returns (TokenBalance[] memory) {
         TokenBalance[] memory _supportedTokenBalances = new TokenBalance[](supportedTokens.length);
 
-        for (uint256 i = 0; i < supportedTokens.length; i++) {
+        for (uint256 i = 0; i < supportedTokens.length;) {
             _supportedTokenBalances[i] = TokenBalance(supportedTokens[i], tokenBalances[supportedTokens[i]]);
+            
+            unchecked { i++; }
         }
 
         return _supportedTokenBalances;
