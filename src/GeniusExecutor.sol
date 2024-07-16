@@ -95,7 +95,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     ) external payable nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         _checkNative(_sum(values));
-        _checkTargets(targets);
+        _checkTargets(targets, permitBatch.details, owner);
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
@@ -117,7 +117,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     ) external payable nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         _checkNative(_sum(values));
-        _checkTargets(targets);
+        _checkTargets(targets, [], msg.sender);
 
         _batchExecution(targets, data, values);
         _sweepNative();
@@ -146,13 +146,11 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
 
         address[] memory targets = new address[](1);
         targets[0] = target;
-        _checkTargets(targets);
+        _checkTargets(targets, permitBatch.details, owner);
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
-        IERC20 tokenToSwap = IERC20(permitBatch.details[0].token);
-
-        if (!tokenToSwap.approve(target, permitBatch.details[0].amount)) revert GeniusErrors.ApprovalFailure(
+        if (!IERC20(permitBatch.details[0].token).approve(target, permitBatch.details[0].amount)) revert GeniusErrors.ApprovalFailure(
             permitBatch.details[0].token,
             permitBatch.details[0].amount
         );
@@ -201,7 +199,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
         _checkNative(_sum(values));
-        _checkTargets(targets);
+        _checkTargets(targets, permitBatch.details, owner);
         
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
@@ -237,7 +235,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         address[] memory targets = new address[](1);
         targets[0] = target;
         _checkNative(value);
-        _checkTargets(targets);
+        _checkTargets(targets, [], address(0));
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
@@ -312,40 +310,34 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     /**
      * @dev Checks if the given targets are valid for generic execution.
      * @param targets The array of addresses representing the targets to be checked.
+     * @param tokenDetails The array of PermitDetails representing the token details.
+     * @param owner The address of the msg.sender utilizing the PermitDetails.
      * @notice This function reverts if any of the targets is equal to the address of the POOL or VAULT contracts.
      */
-    function _checkTargets(address[] memory targets) internal view {
-        for (uint i = 0; i < targets.length;) {
-            
+    function _checkTargets(
+        address[] memory targets,
+        IAllowanceTransfer.PermitDetails[] memory tokenDetails,
+        address owner
+    ) internal view {
+        for (uint256 i = 0; i < targets.length;) {
             if (targets[i] == address(POOL) || targets[i] == address(VAULT)) {
-                /**
-                 * The GeniusPool and GeniusMultiTokenPool contracts are not allowed as targets
-                 * as they implement the Executable access control, which only allows the
-                 * `msg.sender` to be the GeniusExecutor contract, and not the orchestrator.
-                 */
                 revert GeniusErrors.InvalidTarget(targets[i]);
             }
-
-            if (isAllowedTarget[targets[i]] == 0) {
-                    /**
-                     * Attempt to cast the target address to an ERC20 token
-                     */
-                try IERC20(targets[i]).totalSupply() {
-                    /**
-                     * If the cast succeeds, it's an ERC20 token
-                     * and is allowed to be targeted. This is to allow for
-                     * approvals and transfers.
-                     */
-
-                } catch {
-                    /**
-                     * If the cast fails, it's not an ERC20 token and should
-                     * not be allowed to avoid malicious contract interactions
-                     */
+            
+            if (isAllowedTarget[targets[i]] == 0 && targets[i] != owner) {
+                uint256 _isValid = 0;
+                for (uint256 j = 0; j < tokenDetails.length;) {
+                    if (targets[i] == tokenDetails[j].token) {
+                        _isValid = 1;
+                        break;
+                    }
+                    unchecked { ++j; }
+                }
+                if (_isValid == 0) {
                     revert GeniusErrors.InvalidTarget(targets[i]);
                 }
             }
-
+            
             unchecked { ++i; }
         }
     }
