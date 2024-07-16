@@ -5,6 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
+import {Executable} from "./access/Executable.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 /**
@@ -15,7 +16,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
  *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
 
-contract GeniusMultiTokenPool is Orchestrable {
+contract GeniusMultiTokenPool is Orchestrable, Executable {
 
     // =============================================================
     //                          IMMUTABLES
@@ -277,7 +278,7 @@ contract GeniusMultiTokenPool is Orchestrable {
         address trader,
         address token,
         uint256 amount
-    ) external payable {
+    ) external payable onlyExecutor {
         _isPoolReady();
 
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
@@ -317,7 +318,7 @@ contract GeniusMultiTokenPool is Orchestrable {
     function removeLiquiditySwap(
         address trader,
         uint256 amount
-    ) external onlyOrchestrator {
+    ) external onlyExecutor {
         _isPoolReady();
         _isAmountValid(amount);
         
