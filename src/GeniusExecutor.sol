@@ -71,6 +71,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         address owner
     ) external payable nonReentrant {
         _checkNative(_sum(values));
+        _checkTargets(targets);
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
@@ -91,6 +92,8 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         uint256[] calldata values // native 
     ) external payable nonReentrant {
         _checkNative(_sum(values));
+        _checkTargets(targets);
+
         _batchExecution(targets, data, values);
         _sweepNative();
     }
@@ -168,6 +171,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         ) revert GeniusErrors.ArrayLengthsMismatch();
 
         _checkNative(_sum(values));
+        _checkTargets(targets);
         
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
@@ -200,7 +204,12 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         address trader
     ) external payable nonReentrant {
         require(target != address(0), "Invalid target address");
+        
+        // Create an address[] array with a single element
+        address[] memory targets = new address[](1);
+        targets[0] = target;
         _checkNative(value);
+        _checkTargets(targets);
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
@@ -271,6 +280,26 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     // =============================================================
     //                      INTERNAL FUNCTIONS
     // =============================================================
+
+    /**
+     * @dev Checks if the given targets are valid for generic execution. Swaps utilizing
+     *      a `msg.value` > 0 must come directly from a users address.  Because of this,
+     *      the POOL and VAULT contracts are not valid targets, as they can only check
+     *      if the `msg.sender` is the executor, and not the orchestrator, whereas the 
+     *      exector can check if the `msg.sender` is the orchestrator.
+     * @param targets The array of addresses representing the targets to be checked.
+     * @notice This function reverts if any of the targets is equal to the address of the POOL or VAULT contracts.
+     */
+    function _checkTargets(address[] calldata targets) internal pure {
+        for (uint i = 0; i < targets.length;) {
+            
+            if (targets[i] == address(POOL) || targets[i] == address(VAULT)) {
+                revert GeniusErrors.InvalidTarget(targets[i]);
+            }
+
+            unchecked { i++; }
+        }
+    }
 
     /**
      * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
