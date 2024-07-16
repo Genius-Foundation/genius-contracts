@@ -228,7 +228,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
                 address(this).balance : 
                 IERC20(supportedTokens[i]).balanceOf(address(this));
 
-            unchecked { 1++; }
+            unchecked { i++; }
         }
 
         // Effects

@@ -64,7 +64,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         for (uint256 i = 0; i < length;) {
             address router = routers[i];
             if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
-            if (isAllowedTarget[router]) revert GeniusErrors.DuplicateRouter(router);
+            if (isAllowedTarget[router] == 0) revert GeniusErrors.DuplicateRouter(router);
             
             isAllowedTarget[router] = 1;
             allowedTargets.push(router);
@@ -328,16 +328,17 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
                 revert GeniusErrors.InvalidTarget(targets[i]);
             }
 
-            if (!isAllowedTarget[targets[i]]) {
+            if (isAllowedTarget[targets[i]] == 0) {
                     /**
                      * Attempt to cast the target address to an ERC20 token
                      */
-                try IERC20(targets[i]) returns (IERC20) {
+                try IERC20(targets[i]).totalSupply() {
                     /**
                      * If the cast succeeds, it's an ERC20 token
                      * and is allowed to be targeted. This is to allow for
                      * approvals and transfers.
                      */
+
                 } catch {
                     /**
                      * If the cast fails, it's not an ERC20 token and should
