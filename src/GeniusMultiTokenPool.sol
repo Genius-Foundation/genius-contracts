@@ -688,9 +688,9 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      */
     function _updateStableBalance(uint256 amount, uint256 add) internal {
         if (add == 1) {
-            totalStables = STABLECOIN.balanceOf(address(this)) += amount;
+            totalStables = STABLECOIN.balanceOf(address(this)) + amount;
         } else {
-            totalStables = STABLECOIN.balanceOf(address(this)) -= amount;
+            totalStables = STABLECOIN.balanceOf(address(this)) - amount;
         }
     }
 

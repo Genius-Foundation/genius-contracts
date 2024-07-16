@@ -54,6 +54,16 @@ library GeniusErrors {
     error InvalidNativeAmount(uint256 amount);
 
     /**
+     * @dev Error thrown when the target of a generic call is invalid.
+     */
+    error InvalidTarget(address invalidTarget);
+
+    /**
+     * @dev Error thrown when the target of a generic call is invalid.
+     */
+    error UnexpectedBalanceChange(address effectedToken);
+
+    /**
      * @dev Error thrown when there is an insufficient amount of STABLECOIN available for rebalance
             or swaps in the contract.
      */

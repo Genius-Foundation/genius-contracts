@@ -290,7 +290,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
      * @param targets The array of addresses representing the targets to be checked.
      * @notice This function reverts if any of the targets is equal to the address of the POOL or VAULT contracts.
      */
-    function _checkTargets(address[] calldata targets) internal pure {
+    function _checkTargets(address[] memory targets) internal view {
         for (uint i = 0; i < targets.length;) {
             
             if (targets[i] == address(POOL) || targets[i] == address(VAULT)) {
