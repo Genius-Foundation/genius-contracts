@@ -24,6 +24,13 @@ import { Orchestrable, Ownable } from "./access/Orchestrable.sol";
 contract GeniusExecutor is Orchestrable, ReentrancyGuard {
 
     // =============================================================
+    //                           VARIABLES
+    // =============================================================
+    uint256 public isInitialized = 0;
+    address[] public allowedTargets;
+    mapping(address => uint256) public isAllowedTarget;
+
+    // =============================================================
     //                          IMMUTABLES
     // =============================================================
 
@@ -31,6 +38,8 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     IERC20 public immutable STABLECOIN;
     GeniusPool public immutable POOL;
     GeniusVault public immutable VAULT;
+    
+    mapping(bytes4 => uint256) private ERC20_FUNCTIONS;
 
     constructor(
         address permit2,
@@ -49,6 +58,22 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     // =============================================================
     //                      EXTERNAL FUNCTIONS
     // =============================================================
+
+    function initialize(address[] calldata routers) external onlyOwner {
+        uint256 length = routers.length;
+        for (uint256 i = 0; i < length;) {
+            address router = routers[i];
+            if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
+            if (isAllowedTarget[router]) revert GeniusErrors.DuplicateRouter(router);
+            
+            isAllowedTarget[router] = 1;
+            allowedTargets.push(router);
+
+            unchecked { ++i; }
+        }
+
+        isInitialized = 1;
+    }
 
     /**
      * @dev Aggregates multiple calls in a single transaction.
@@ -70,6 +95,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         bytes calldata signature,
         address owner
     ) external payable nonReentrant {
+        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         _checkNative(_sum(values));
         _checkTargets(targets);
 
@@ -91,6 +117,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         bytes[] calldata data, // calldata
         uint256[] calldata values // native 
     ) external payable nonReentrant {
+        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         _checkNative(_sum(values));
         _checkTargets(targets);
 
@@ -116,8 +143,12 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         bytes calldata signature,
         address owner
     ) external onlyOrchestrator nonReentrant {
-
+        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
+
+        address[] memory targets = new address[](1);
+        targets[0] = target;
+        _checkTargets(targets);
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
@@ -169,6 +200,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
             data.length != values.length ||
             routers.length != permitBatch.details.length
         ) revert GeniusErrors.ArrayLengthsMismatch();
+        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
         _checkNative(_sum(values));
         _checkTargets(targets);
@@ -203,9 +235,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         uint256 value,
         address trader
     ) external payable nonReentrant {
-        require(target != address(0), "Invalid target address");
-        
-        // Create an address[] array with a single element
+        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         address[] memory targets = new address[](1);
         targets[0] = target;
         _checkNative(value);
@@ -239,7 +269,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         bytes calldata signature,
         address owner
     ) external onlyOrchestrator nonReentrant {
-
+        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         require(permitBatch.details.length == 1, "Invalid permit batch length");
         if (permitBatch.details[0].token != address(STABLECOIN)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
@@ -261,7 +291,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         bytes calldata signature,
         address owner
     ) external onlyOrchestrator nonReentrant {
-
+        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details[0].token != address(VAULT)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
         }
@@ -282,11 +312,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     // =============================================================
 
     /**
-     * @dev Checks if the given targets are valid for generic execution. Swaps utilizing
-     *      a `msg.value` > 0 must come directly from a users address.  Because of this,
-     *      the POOL and VAULT contracts are not valid targets, as they can only check
-     *      if the `msg.sender` is the executor, and not the orchestrator, whereas the 
-     *      exector can check if the `msg.sender` is the orchestrator.
+     * @dev Checks if the given targets are valid for generic execution.
      * @param targets The array of addresses representing the targets to be checked.
      * @notice This function reverts if any of the targets is equal to the address of the POOL or VAULT contracts.
      */
@@ -294,10 +320,34 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         for (uint i = 0; i < targets.length;) {
             
             if (targets[i] == address(POOL) || targets[i] == address(VAULT)) {
+                /**
+                 * The GeniusPool and GeniusMultiTokenPool contracts are not allowed as targets
+                 * as they implement the Executable access control, which only allows the
+                 * `msg.sender` to be the GeniusExecutor contract, and not the orchestrator.
+                 */
                 revert GeniusErrors.InvalidTarget(targets[i]);
             }
 
-            unchecked { i++; }
+            if (!isAllowedTarget[targets[i]]) {
+                    /**
+                     * Attempt to cast the target address to an ERC20 token
+                     */
+                try IERC20(targets[i]) returns (IERC20) {
+                    /**
+                     * If the cast succeeds, it's an ERC20 token
+                     * and is allowed to be targeted. This is to allow for
+                     * approvals and transfers.
+                     */
+                } catch {
+                    /**
+                     * If the cast fails, it's not an ERC20 token and should
+                     * not be allowed to avoid malicious contract interactions
+                     */
+                    revert GeniusErrors.InvalidTarget(targets[i]);
+                }
+            }
+
+            unchecked { ++i; }
         }
     }
 

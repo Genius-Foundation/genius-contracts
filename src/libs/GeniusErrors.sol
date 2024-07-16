@@ -58,6 +58,10 @@ library GeniusErrors {
      */
     error InvalidTarget(address invalidTarget);
 
+    error InvalidRouter(address invalidRouter);
+
+    error DuplicateRouter(address router);
+
     /**
      * @dev Error thrown when the target of a generic call is invalid.
      */
