@@ -146,6 +146,7 @@ contract GeniusVaultTest is Test {
         vm.prank(trader);
         geniusVault.deposit(1_000 ether, trader);
         assertEq(usdc.balanceOf(trader), 0, "Trader's USDC should be 0 after deposit");
+        assertEq(usdc.balanceOf(address(geniusPool)), 1_000 ether, "GeniusPool should have 1,000 USDC after deposit");
 
         vm.prank(trader);
         geniusVault.approve(trader, 1_000 ether);

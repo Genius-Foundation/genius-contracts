@@ -30,6 +30,7 @@ contract OrchestrableTest is Test {
         vm.prank(owner);
         orchestrableERC20.removeOrchestrator(orchestrator);
         assertEq(orchestrableERC20.orchestrator(orchestrator), false);
+        vm.stopPrank();
     }
 
     function testMintAsOrchestrator() public {
@@ -48,7 +49,7 @@ contract OrchestrableTest is Test {
         orchestrableERC20.addOrchestrator(orchestrator);
         assertEq(orchestrableERC20.orchestrator(orchestrator), true);
 
-        vm.prank(owner);
+        vm.prank(orchestrator);
         orchestrableERC20.mint(orchestrator, 1000);
     }
 }
