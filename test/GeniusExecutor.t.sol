@@ -49,6 +49,7 @@ contract GeniusExecutorTest is Test {
 
     // External contracts
     TestERC20 public USDC;
+    TestERC20 public WETH;
 
     ERC20 public wavaxContract;
     ERC20 public meowContract;
@@ -75,6 +76,7 @@ contract GeniusExecutorTest is Test {
         coinReceiver = makeAddr("coinReceiver");
 
         USDC = new TestERC20();
+        WETH = new TestERC20();
         ROUTER = new MockSwapTarget();
 
         wavaxContract = ERC20(WAVAX);
@@ -105,6 +107,11 @@ contract GeniusExecutorTest is Test {
 
         vm.startPrank(OWNER);
         VAULT.initialize(address(POOL));
+
+        address[] memory routers = new address[](1);
+        routers[0] = address(ROUTER);
+
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         deal(address(wavaxContract), trader, 100 ether);
@@ -122,6 +129,8 @@ contract GeniusExecutorTest is Test {
 
         vm.prank(trader);
         VAULT.approve(permit2Address, 1_000 ether);
+
+
     }
 
     function testAggregateWithoutPermit2() public {
@@ -138,30 +147,43 @@ contract GeniusExecutorTest is Test {
         vm.prank(holderTwo);
         USDC.approve(address(EXECUTOR), 100 ether);
 
+        address LP = makeAddr("fakeLP");
+        WETH.transfer(LP, 100 ether);
+
+        vm.startPrank(LP);
+        WETH.approve(address(ROUTER), 100 ether);
+
+
+
+
         // Create call data for swapExactNATIVEForTokens
-        bytes memory transferCalldata_one = abi.encodeWithSignature(
-            "transferFrom(address,address,uint256)",
-            holderOne,
-            address(EXECUTOR),
+        bytes memory mockSwap_one = abi.encodeWithSignature(
+            "mockSwap(address tokenIn, uint256 amountIn, address tokenOut, address poolAddress, uint256 amountOut)",
+            address(USDC),
+            1 ether,
+            address(WETH),
+            address(LP),
             1 ether
         );
 
         // Create call data for swapExactNATIVEForTokens
-        bytes memory transferCalldata_two = abi.encodeWithSignature(
-            "transferFrom(address,address,uint256)",
-            holderTwo,
-            address(EXECUTOR),
+        bytes memory mockSwap_two = abi.encodeWithSignature(
+            "mockSwap(address tokenIn, uint256 amountIn, address tokenOut, address poolAddress, uint256 amountOut)",
+            address(USDC),
+            2 ether,
+            address(WETH),
+            address(LP),
             2 ether
         );
 
         // Declare the arrays in memory instead of calldata
         address[] memory targets = new address[](2);
-        targets[0] = address(USDC);
-        targets[1] = address(USDC);
+        targets[0] = address(ROUTER);
+        targets[1] = address(ROUTER);
 
         bytes[] memory data = new bytes[](2);
-        data[0] = transferCalldata_one; 
-        data[1] = transferCalldata_two; 
+        data[0] = mockSwap_one; 
+        data[1] = mockSwap_two;
 
         uint256[] memory values = new uint256[](2);
         values[0] = 0; 
