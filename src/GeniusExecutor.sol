@@ -62,7 +62,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         for (uint256 i = 0; i < length;) {
             address router = routers[i];
             if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
-            if (isAllowedTarget[router] == 0) revert GeniusErrors.DuplicateRouter(router);
+            if (isAllowedTarget[router] == 1) revert GeniusErrors.DuplicateRouter(router);
             
             isAllowedTarget[router] = 1;
             allowedTargets.push(router);
