@@ -109,7 +109,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
         supportedTokens[2] = address(TOKEN2);
         supportedTokens[3] = address(TOKEN3);
         
-        MULTI_POOL.initialize(address(VAULT), supportedTokens);
+        MULTI_POOL.initialize(address(EXECUTOR), address(VAULT), supportedTokens);
         VAULT.initialize(address(MULTI_POOL));
         
         // Add Orchestrator

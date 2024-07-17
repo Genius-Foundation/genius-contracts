@@ -7,6 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
+import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -19,10 +20,12 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
     // ============ External Contracts ============
     ERC20 public USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
+    address public PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     
     // ============ Internal Contracts ============
     GeniusMultiTokenPool public POOL;
     GeniusVault public VAULT;
+    GeniusExecutor public EXECUTOR;
 
     // ============ Constants ============
     address public OWNER;
@@ -90,6 +93,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         // Deploy contracts
         POOL = new GeniusMultiTokenPool(address(USDC), OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT), OWNER);
 
         // Initialize pool with supported tokens
         address[] memory supportedTokens = new address[](4);
@@ -98,7 +102,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         supportedTokens[2] = address(TOKEN2);
         supportedTokens[3] = address(TOKEN3);
         
-        POOL.initialize(address(VAULT), supportedTokens);
+        POOL.initialize(address(EXECUTOR), address(VAULT), supportedTokens);
         VAULT.initialize(address(POOL));
         
         // Add Orchestrator

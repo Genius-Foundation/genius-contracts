@@ -2,7 +2,6 @@
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
 import {Executable} from "./access/Executable.sol";
@@ -15,7 +14,6 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
  *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
-
 contract GeniusMultiTokenPool is Orchestrable, Executable {
 
     // =============================================================
@@ -147,13 +145,19 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      * @notice This function can only be called once by the contract owner.
      * @notice Once initialized, the `VAULT` address cannot be changed.
      */
-    function initialize(address vaultAddress, address[] memory tokens) external onlyOwner {
+    function initialize(address executor, address vaultAddress, address[] memory tokens) external onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
 
         VAULT = vaultAddress;
         supportedTokens = tokens;
+        _initializeExecutor(payable(executor));
 
         for (uint256 i = 0; i < tokens.length;) {
+
+            if (tokens[i] == address(0)) revert GeniusErrors.InvalidToken(tokens[i]);
+            if (isSupportedToken[tokens[i]] == 1) revert GeniusErrors.DuplicateToken(tokens[i]);
+            if (tokens[i] == address(STABLECOIN)) revert GeniusErrors.DuplicateToken(tokens[i]);
+
             isSupportedToken[tokens[i]] = 1;
 
             unchecked { i++; }
@@ -212,6 +216,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         // Checks
         _isPoolReady();
         _isAmountValid(amountIn);
+        _checkNative(_sum(values));
 
         if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
             minStableBalance,
@@ -249,7 +254,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
                 IERC20(token).balanceOf(address(this));
 
             if (token != address(STABLECOIN) && _postBalance != _preERC20Balances[i]) {
-                revert GeniusErrors.UnexpectedBalanceChange(token);
+                revert GeniusErrors.UnexpectedBalanceChange(token, _postBalance, _preERC20Balances[i]);
             }
 
             // Update internal balances to match actual balances
@@ -294,7 +299,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         } else if (isSupportedToken[token] == 1) {
 
             if (token == NATIVE) {
-                require(msg.value == amount, "Invalid amount of ETH sent");
+                if (msg.value != amount) revert GeniusErrors.InvalidAmount();
             } else {
                 _transferERC20From(token, msg.sender, address(this), amount);
             }
@@ -370,7 +375,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      * @dev Swaps a specified amount of tokens or native currency to stablecoins.
      * Can only be called by the orchestrator.
      * @param token The address of the token to be swapped. Pass 0x0 for native currency.
-     * @param amount The amount of tokens to be swapped. Pass 0 if swapping native currency.
+     * @param amount The amount of tokens (or native) to be swapped.
      * @param target The address of the target contract to execute the swap.
      * @param data The calldata to be used when executing the swap on the target contract.
      */
@@ -381,56 +386,68 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         bytes calldata data
     ) external onlyOrchestrator {
         _isPoolReady();
-
-        // Checks
+        require(amount > 0, "GeniusMultiTokenPool: Invalid amount");
         (bool isSufficient, TokenBalance memory tokenBalance) = _isBalanceSufficient(token, amount);
         if (!isSufficient) revert GeniusErrors.InsufficientBalance(token, amount, tokenBalance.balance);
-        if (token == NATIVE && amount > 0) {
-            require(amount <= address(this).balance, "Insufficient ETH balance");
-        }
-        // Utilize balanceOf in case of donated tokens
-        uint256 _preSwapStableBalance = STABLECOIN.balanceOf(address(this));
-        TokenBalance[] memory _preSwapTokenBalances = supportedTokenBalances();
 
-        // Effects
-        if (token == NATIVE) {
-            tokenBalances[NATIVE] -= amount;
-        } else {
-            tokenBalances[token] -= amount;
+        // Store pre-swap balances
+        uint256 _preSwapStableBalance = STABLECOIN.balanceOf(address(this));
+        uint256[] memory _preSwapBalances = new uint256[](supportedTokens.length);
+        for (uint256 i = 0; i < supportedTokens.length;) {
+            _preSwapBalances[i] = supportedTokens[i] == NATIVE ?
+                address(this).balance :
+                IERC20(supportedTokens[i]).balanceOf(address(this));
+
+            unchecked { ++i; }
         }
 
         // Interactions
         _executeSwap(token, target, data, amount);
 
-        // Post-swap checks and effects
+        // Post-swap checks
         uint256 _postSwapStableBalance = STABLECOIN.balanceOf(address(this));
-        uint256 _stableDelta = _postSwapStableBalance - _preSwapStableBalance;
-        require(_stableDelta > 0, "GeniusMultTokenPool: Swap must increase stablecoin balance");
+        uint256 _stableDelta = 
+        _postSwapStableBalance > _preSwapStableBalance ?
+        _postSwapStableBalance - _preSwapStableBalance : 0;
 
-        // Update the token balance after the swap
-        _updateTokenBalance(token);
+        if (_stableDelta == 0) revert GeniusErrors.InvalidDelta();
 
-        TokenBalance[] memory _postSwapTokenBalances = supportedTokenBalances();
+        // Check balances of all supported tokens
+        for (uint256 i = 0; i < supportedTokens.length;) {
+            uint256 _postBalance = supportedTokens[i] == NATIVE ?
+                address(this).balance :
+                IERC20(supportedTokens[i]).balanceOf(address(this));
 
-        for (uint256 i = 0; i < _postSwapTokenBalances.length;) {
-            TokenBalance memory _preBalance = _preSwapTokenBalances[i];
-            TokenBalance memory _postBalance = _postSwapTokenBalances[i];
-
-            if (_postBalance.token == token) {
-                if (token == NATIVE) {
-                    require(_postBalance.balance == _preBalance.balance - amount, "Invalid NATIVE balance change");
-                } else {
-                    require(_postBalance.balance == _preBalance.balance - amount, "Invalid token balance change");
+            if (supportedTokens[i] == token) {
+                if (_postBalance != _preSwapBalances[i] - amount) {
+                    revert GeniusErrors.UnexpectedBalanceChange(
+                        supportedTokens[i],
+                        _postBalance,
+                        _preSwapBalances[i] - amount
+                    );
                 }
             } else {
-                require(_postBalance.balance == _preBalance.balance, "Unexpected token balance change");
+                if (_postBalance != _preSwapBalances[i]) {
+                    revert GeniusErrors.UnexpectedBalanceChange(
+                        supportedTokens[i],
+                        _postBalance,
+                        _preSwapBalances[i]
+                    );
+                }
             }
 
-            unchecked { i++; }
+            // If there is a change in the balance, update internal balances
+            if (tokenBalances[supportedTokens[i]] != _postBalance) {
+                tokenBalances[supportedTokens[i]] = _postBalance;
+            }
+
+            unchecked { ++i; }
         }
 
+        // Update stablecoin balance
+        totalStables = _postSwapStableBalance;
+
         // Final effects
-        _updateStableBalance(_stableDelta, 1);
         _updateAvailableAssets();
     }
 
@@ -528,7 +545,8 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      * @notice The token must not already be supported.
      */
     function addToken(address token) external onlyOwner {
-        require(isSupportedToken[token] == 0, "Token is already supported");
+        if(isSupportedToken[token] == 1) revert GeniusErrors.DuplicateToken(token);
+
         supportedTokens.push(token);
         isSupportedToken[token] = 1;
     }
@@ -541,8 +559,10 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      * @notice If the token is successfully removed, it will no longer be supported by the contract.
      */
     function removeToken(address token) external onlyOwner {
-        require(isSupportedToken[token] == 1, "Token is not supported");
-        require(IERC20(token).balanceOf(address(this)) == 0, "Token balance must be 0");
+        uint256 _tokenBalance = IERC20(token).balanceOf(address(this));
+
+        if (isSupportedToken[token] == 0) revert GeniusErrors.InvalidToken(token);
+        if (_tokenBalance != 0) revert GeniusErrors.RemainingBalance(_tokenBalance);
 
         isSupportedToken[token] = 0;
 
@@ -627,6 +647,15 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     // =============================================================
     //                     INTERNAL FUNCTIONS
     // =============================================================
+
+    /**
+     * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
+     * @param amount The expected amount of native currency.
+     */
+    function _checkNative(uint256 amount) internal {
+        if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
+    }
+
 
     /**
      * @dev Checks if the pool is ready for use.
@@ -722,8 +751,13 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      * Otherwise, the available stable balance is set to 0.
      */
     function _updateAvailableAssets() internal {
-        uint256 _reduction = totalStakedAssets > 0 ? (totalStakedAssets * stableRebalanceThreshold) / 100 : 0;
-        uint256 _neededLiquidity = totalStakedAssets > _reduction ? totalStakedAssets - _reduction : 0;
+        uint256 _reduction = 
+        totalStakedAssets > 0 ?
+        (totalStakedAssets * stableRebalanceThreshold) / 100 : 0;
+
+        uint256 _neededLiquidity =
+        totalStakedAssets > _reduction ?
+        totalStakedAssets - _reduction : 0;
         
         if (totalStables > _neededLiquidity) {
             availStableBalance = totalStables - _neededLiquidity;
@@ -745,6 +779,19 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
             tokenBalances[token] = address(this).balance;
         } else {
             tokenBalances[token] = IERC20(token).balanceOf(address(this));
+        }
+    }
+
+    /**
+     * @dev Calculates the sum of an array of uint256 values.
+     * @param amounts An array of uint256 values.
+     * @return total sum of the array elements.
+     */
+    function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
+        for (uint i = 0; i < amounts.length;) {
+            total += amounts[i];
+
+            unchecked { i++; }
         }
     }
 

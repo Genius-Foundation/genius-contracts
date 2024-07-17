@@ -184,11 +184,12 @@ contract GeniusPool is Orchestrable, Executable {
         uint256 amountIn,
         uint16 dstChainId,
         address[] memory targets,
-        uint256[] memory values,
+        uint256[] calldata values,
         bytes[] memory data
     ) public onlyOrchestrator payable {
         _isPoolReady();
         _isAmountValid(amountIn);
+        _checkNative(_sum(values));
 
         if (!_isBalanceWithinThreshold(totalAssets - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
             minAssetBalance,
@@ -413,6 +414,14 @@ contract GeniusPool is Orchestrable, Executable {
     // =============================================================
 
     /**
+     * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
+     * @param amount The expected amount of native currency.
+     */
+    function _checkNative(uint256 amount) internal {
+        if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
+    }
+
+    /**
      * @dev Checks if the pool is ready for use.
      */
     function _isPoolReady() internal view {
@@ -490,6 +499,19 @@ contract GeniusPool is Orchestrable, Executable {
         }
 
         minAssetBalance = neededLiquidity;
+    }
+
+    /**
+     * @dev Calculates the sum of an array of uint256 values.
+     * @param amounts An array of uint256 values.
+     * @return total sum of the array elements.
+     */
+    function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
+        for (uint i = 0; i < amounts.length;) {
+            total += amounts[i];
+
+            unchecked { i++; }
+        }
     }
 
     /**

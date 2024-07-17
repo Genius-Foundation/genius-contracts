@@ -39,6 +39,11 @@ library GeniusErrors {
     error InvalidAmount();
 
     /**
+    * @dev Error thrown when the expected change is invalid.
+    */
+    error InvalidDelta();
+
+    /**
     * @dev Error thrown when the array lengths do not match.
     */
     error ArrayLengthsMismatch();
@@ -58,14 +63,28 @@ library GeniusErrors {
      */
     error InvalidTarget(address invalidTarget);
 
+    /**
+     * @dev Error thrown when the target of a generic swap call is to an unauthorized router.
+     */
     error InvalidRouter(address invalidRouter);
 
+    /**
+     * @dev Error thrown when attempting to add a duplicate router.
+     */
     error DuplicateRouter(address router);
 
     /**
-     * @dev Error thrown when the target of a generic call is invalid.
+     * @dev Error thrown when attempting to add a duplicate token.
      */
-    error UnexpectedBalanceChange(address effectedToken);
+    error DuplicateToken(address token);
+
+    /**
+     * @dev Error thrown when the the balance of a token is unexpectedly changed.
+     * @param token The address of the effected token.
+     * @param expectedBalance The expected balance of the token.
+     * @param newBalance The new balance of the token.
+     */
+    error UnexpectedBalanceChange(address token, uint256 expectedBalance, uint256 newBalance);
 
     /**
      * @dev Error thrown when there is an insufficient amount of STABLECOIN available for rebalance
@@ -107,6 +126,13 @@ library GeniusErrors {
      * @param actualAmount The amount that is available.
      */
     error InsufficientNativeBalance(uint256 expectedAmount, uint256 actualAmount);
+
+    /**
+     * @dev Error thrown when there is remaining balance of a supported token when
+     *      attempting to remove support for the token.
+     * @param amount The amount that would be left in the contract.  
+     */
+    error RemainingBalance(uint256 amount);
 
     /**
      * @dev Error thrown when there is a residual STABLECOIN balance after an external call.

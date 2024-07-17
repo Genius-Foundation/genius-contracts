@@ -26,7 +26,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     // =============================================================
     //                           VARIABLES
     // =============================================================
-    uint256 public isInitialized = 0;
+    uint256 public isInitialized;
     address[] public allowedTargets;
     mapping(address => uint256) public isAllowedTarget;
 
@@ -101,7 +101,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         _batchExecution(targets, data, values);
 
         _sweepERC20s(permitBatch, owner);
-        _sweepNative();
+        _sweepNative(msg.sender);
     }
 
     /**
@@ -115,16 +115,13 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         bytes[] calldata data,
         uint256[] calldata values
     ) external payable nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
-        _checkNative(_sum(values));
-        
-        // Create an empty dynamic array of PermitDetails
+        if (isInitialized == 0) revert GeniusErrors.NotInitialized();        
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
-        
-        _checkTargets(targets, emptyPermitDetails, address(0));
+        _checkTargets(targets, emptyPermitDetails, msg.sender);
+        _checkNative(_sum(values));
 
         _batchExecution(targets, data, values);
-        _sweepNative();
+        _sweepNative(msg.sender);
     }
 
     /**
@@ -204,6 +201,11 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
 
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
+        for (uint i = 0; i < routers.length;) {
+            if (isAllowedTarget[routers[i]] == 0) revert GeniusErrors.InvalidRouter(routers[i]);
+
+            unchecked { ++i; }
+        }
         
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
@@ -218,7 +220,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
 
         _sweepERC20s(permitBatch, owner);
-        _sweepNative();
+        _sweepNative(msg.sender);
     }
 
 
@@ -249,7 +251,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
         uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
 
-        if (_depositAmount == 0) revert GeniusErrors.UnexpectedBalanceChange(address(STABLECOIN));
+        if (_depositAmount == 0) revert GeniusErrors.UnexpectedBalanceChange(address(STABLECOIN), _initStableValue, _postStableValue);
         if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(
             address(STABLECOIN),
             _depositAmount
@@ -257,7 +259,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
 
         POOL.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount);
 
-        _sweepNative();
+        _sweepNative(msg.sender);
     }
 
     /**
@@ -301,7 +303,6 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
-        _approveVault(permitBatch.details[0].amount);
         _withdrawFromVault(owner, permitBatch.details[0].amount);
 
         uint256 _residBalance = STABLECOIN.balanceOf(address(this)) - _initStableValue;
@@ -318,21 +319,23 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
      * @param targets The array of addresses representing the targets to be checked.
      * @param tokenDetails The array of PermitDetails representing the token details.
      * @param owner The address of the msg.sender utilizing the PermitDetails.
-     * @notice This function reverts if any of the targets is equal to the address of the POOL or VAULT contracts.
+     * @notice This function reverts if any of the targets is equal to the address of
+                the POOL or VAULT contracts. Additionally, it will revert if a target is 
+                not a part of the permit2 details array, an authorized router, or the owner.
      */
     function _checkTargets(
         address[] memory targets,
         IAllowanceTransfer.PermitDetails[] memory tokenDetails,
         address owner
     ) internal view {
-        for (uint256 i = 0; i < targets.length;) {
+        for (uint256 i; i < targets.length;) {
             if (targets[i] == address(POOL) || targets[i] == address(VAULT)) {
                 revert GeniusErrors.InvalidTarget(targets[i]);
             }
             
             if (isAllowedTarget[targets[i]] == 0 && targets[i] != owner) {
                 uint256 _isValid = 0;
-                for (uint256 j = 0; j < tokenDetails.length;) {
+                for (uint256 j; j < tokenDetails.length;) {
                     if (targets[i] == tokenDetails[j].token) {
                         _isValid = 1;
                         break;
@@ -398,9 +401,11 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
      * If the contract balance is greater than zero, it transfers the balance to the `msg.sender`.
      * If the transfer fails, it reverts with a `TransferFailed` error.
      */
-    function _sweepNative() internal {
-        if (address(this).balance > 0) {
-            if (!payable(msg.sender).send(address(this).balance)) revert GeniusErrors.TransferFailed(address(0), address(this).balance);
+    function _sweepNative(address receiver) internal {
+        uint256 _balance = address(this).balance;
+
+        if (_balance > 0) {
+            if (!payable(receiver).send(_balance)) revert GeniusErrors.TransferFailed(address(0), address(this).balance);
         }
     }
 
