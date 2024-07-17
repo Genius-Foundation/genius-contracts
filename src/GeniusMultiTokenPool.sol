@@ -154,7 +154,6 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
 
         for (uint256 i = 0; i < tokens.length;) {
 
-            if (tokens[i] == address(0)) revert GeniusErrors.InvalidToken(tokens[i]);
             if (isSupportedToken[tokens[i]] == 1) revert GeniusErrors.DuplicateToken(tokens[i]);
             if (tokens[i] == address(STABLECOIN)) revert GeniusErrors.DuplicateToken(tokens[i]);
 
