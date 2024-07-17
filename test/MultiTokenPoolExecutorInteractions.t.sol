@@ -108,12 +108,17 @@ contract MultiTokenPoolExecutorInteractions is Test {
         supportedTokens[1] = address(TOKEN1);
         supportedTokens[2] = address(TOKEN2);
         supportedTokens[3] = address(TOKEN3);
+
+        address[] memory routers = new address[](1);
+        routers[0] = address(ROUTER);
         
         MULTI_POOL.initialize(address(EXECUTOR), address(VAULT), supportedTokens);
         VAULT.initialize(address(MULTI_POOL));
+        EXECUTOR.initialize(routers);
         
         // Add Orchestrator
         MULTI_POOL.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.addOrchestrator(ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -173,6 +178,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
         );
 
         // Perform the swap and deposit via GeniusExecutor
+        vm.prank(ORCHESTRATOR);
         EXECUTOR.tokenSwapAndDeposit(
             address(ROUTER),
             swapCalldata,
@@ -338,7 +344,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
         );
 
         // Perform the deposit via GeniusExecutor
-        vm.prank(TRADER);
+        vm.prank(ORCHESTRATOR);
         EXECUTOR.depositToVault(
             permitBatch,
             signature,
@@ -393,9 +399,13 @@ contract MultiTokenPoolExecutorInteractions is Test {
         );
 
         // Perform the deposit
-        vm.startPrank(TRADER);
+        vm.startPrank(ORCHESTRATOR);
+        console.log("msg.sender", msg.sender);
         EXECUTOR.depositToVault(depositPermitBatch, depositSignature, TRADER);
+        console.log("deposit successful");
+        vm.startPrank(TRADER);
         VAULT.approve(address(EXECUTOR), VAULT.balanceOf(TRADER));
+        vm.stopPrank();
         
         // Now set up the withdrawal
         // Set up permit details for withdrawal (vault shares)
@@ -422,12 +432,14 @@ contract MultiTokenPoolExecutorInteractions is Test {
 
 
 
+        vm.startPrank(ORCHESTRATOR);
         // Perform the withdrawal via GeniusExecutor
         EXECUTOR.withdrawFromVault(
             withdrawPermitBatch,
             withdrawSignature,
             TRADER
         );
+        vm.stopPrank(); 
 
         // Prepare log entries for assertion checks
         LogEntry[] memory entries = new LogEntry[](5);
