@@ -282,7 +282,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         address owner
     ) external onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
-        require(permitBatch.details.length == 1, "Invalid permit batch length");
+        if (permitBatch.details.length != 1) revert GeniusErrors.ArrayLengthsMismatch();
         if (permitBatch.details[0].token != address(STABLECOIN)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
         }
@@ -474,7 +474,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     ) private {
         for (uint i = 0; i < targets.length;) {
             (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            require(_success, "External call failed");
+            if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], values[i]);
 
             unchecked { i++; }
         }
