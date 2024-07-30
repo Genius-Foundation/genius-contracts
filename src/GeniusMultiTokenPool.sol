@@ -129,8 +129,8 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         address stablecoin,
         address owner
     ) Ownable(owner) {
-        require(stablecoin != address(0), "GeniusMultTokenPool: STABLECOIN address is the zero address");
-        require(owner != address(0), "GeniusMultTokenPool: Owner address is the zero address");
+        if (stablecoin == address(0)) revert GeniusErrors.InvalidToken(stablecoin);
+        if (owner == address(0)) revert GeniusErrors.InvalidOwner();
 
         STABLECOIN = IERC20(stablecoin);
 
@@ -385,7 +385,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         bytes calldata data
     ) external onlyOrchestrator {
         _isPoolReady();
-        require(amount > 0, "GeniusMultiTokenPool: Invalid amount");
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
         (bool isSufficient, TokenBalance memory tokenBalance) = _isBalanceSufficient(token, amount);
         if (!isSufficient) revert GeniusErrors.InsufficientBalance(token, amount, tokenBalance.balance);
 
@@ -858,7 +858,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         uint256 _nativeValue = token == NATIVE ? value : 0;
         (bool success, ) = target.call{value: _nativeValue}(data);
 
-        require(success, "Swap failed");
+        if (!success) revert GeniusErrors.ExternalCallFailed(target, 0);
     }
 
     /**
@@ -874,7 +874,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     ) private {
         for (uint i = 0; i < targets.length;) {
             (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            require(_success, "External call failed");
+            if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], i);
 
             unchecked { i++; }
         }

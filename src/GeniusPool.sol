@@ -118,8 +118,8 @@ contract GeniusPool is Orchestrable, Executable {
         address stablecoin,
         address owner
     ) Ownable(owner) {
-        require(stablecoin != address(0), "GeniusVault: STABLECOIN address is the zero address");
-        require(owner != address(0), "GeniusVault: Owner address is the zero address");
+        if (stablecoin == address(0)) revert GeniusErrors.InvalidToken(stablecoin);
+        if (owner == address(0)) revert GeniusErrors.InvalidOwner();
 
         STABLECOIN = IERC20(stablecoin);
 
@@ -560,7 +560,7 @@ contract GeniusPool is Orchestrable, Executable {
     ) private {
         for (uint i = 0; i < targets.length;) {
             (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            require(_success, "External call failed");
+            if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], i);
 
             unchecked { i++; }
         }

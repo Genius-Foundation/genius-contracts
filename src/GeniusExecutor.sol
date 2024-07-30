@@ -474,7 +474,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     ) private {
         for (uint i = 0; i < targets.length;) {
             (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], values[i]);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], i);
 
             unchecked { i++; }
         }

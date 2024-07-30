@@ -4,6 +4,11 @@ pragma solidity ^0.8.20;
 
 library GeniusErrors {
     /**
+     * @dev Error thrown when an invalid owner address is encountered.
+     */
+    error InvalidOwner();
+
+    /**
      * @dev Error thrown when an invalid spender address is encountered.
      */
     error InvalidSpender();
