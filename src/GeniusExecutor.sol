@@ -27,8 +27,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     //                           VARIABLES
     // =============================================================
     uint256 public isInitialized;
-    address[] public allowedTargets;
-    mapping(address => uint256) public isAllowedTarget;
+    mapping(address => uint256) private allowedTargets;
 
     // =============================================================
     //                          IMMUTABLES
@@ -62,15 +61,23 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         for (uint256 i = 0; i < length;) {
             address router = routers[i];
             if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
-            if (isAllowedTarget[router] == 1) revert GeniusErrors.DuplicateRouter(router);
+            if (allowedTargets[router] == 1) revert GeniusErrors.DuplicateRouter(router);
             
-            isAllowedTarget[router] = 1;
-            allowedTargets.push(router);
+            allowedTargets[router] = 1;
 
             unchecked { ++i; }
         }
 
         isInitialized = 1;
+    }
+
+    /**
+     * @dev Sets the allowed status for a target address.
+     * @param target The address to set the allowed status for.
+     * @param isAllowed The allowed status to set. True for allowed, false for not allowed.
+     */
+    function setAllowedTarget(address target, bool isAllowed) external onlyOwner {
+        allowedTargets[target] = isAllowed ? 1 : 0;
     }
 
     /**
@@ -101,7 +108,8 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         _batchExecution(targets, data, values);
 
         _sweepERC20s(permitBatch, owner);
-        _sweepNative(msg.sender);
+
+        if (msg.value > 0) _sweepNative(msg.sender);
     }
 
     /**
@@ -121,7 +129,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         _checkNative(_sum(values));
 
         _batchExecution(targets, data, values);
-        _sweepNative(msg.sender);
+        if (msg.value > 0) _sweepNative(msg.sender);
     }
 
     /**
@@ -202,7 +210,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
         for (uint i = 0; i < routers.length;) {
-            if (isAllowedTarget[routers[i]] == 0) revert GeniusErrors.InvalidRouter(routers[i]);
+            if (allowedTargets[routers[i]] == 0) revert GeniusErrors.InvalidRouter(routers[i]);
 
             unchecked { ++i; }
         }
@@ -220,7 +228,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
 
         _sweepERC20s(permitBatch, owner);
-        _sweepNative(msg.sender);
+        if (msg.value > 0) _sweepNative(msg.sender);
     }
 
 
@@ -259,7 +267,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
 
         POOL.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount);
 
-        _sweepNative(msg.sender);
+        if (msg.value > 0) _sweepNative(msg.sender);
     }
 
     /**
@@ -328,22 +336,32 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         IAllowanceTransfer.PermitDetails[] memory tokenDetails,
         address owner
     ) internal view {
-        for (uint256 i; i < targets.length;) {
-            if (targets[i] == address(POOL) || targets[i] == address(VAULT)) {
-                revert GeniusErrors.InvalidTarget(targets[i]);
+        uint256 targetsLength = targets.length;
+        uint256 tokenDetailsLength = tokenDetails.length;
+        
+        for (uint256 i; i < targetsLength;) {
+            address target = targets[i];
+            
+            if (target == address(POOL) || target == address(VAULT)) {
+                revert GeniusErrors.InvalidTarget(target);
             }
             
-            if (isAllowedTarget[targets[i]] == 0 && targets[i] != owner) {
-                uint256 _isValid = 0;
-                for (uint256 j; j < tokenDetails.length;) {
-                    if (targets[i] == tokenDetails[j].token) {
-                        _isValid = 1;
+            if (allowedTargets[target] == 0 && target != owner) {
+                if (tokenDetailsLength == 0) {
+                    revert GeniusErrors.InvalidTarget(target);
+                }
+                
+                uint256 isValid;
+                for (uint256 j; j < tokenDetailsLength;) {
+                    if (target == tokenDetails[j].token) {
+                        isValid = 1;
                         break;
                     }
+
                     unchecked { ++j; }
                 }
-                if (_isValid == 0) {
-                    revert GeniusErrors.InvalidTarget(targets[i]);
+                if (isValid == 0) {
+                    revert GeniusErrors.InvalidTarget(target);
                 }
             }
             
