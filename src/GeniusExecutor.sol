@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
@@ -117,6 +116,9 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
      * @param targets The array of target contract addresses to call.
      * @param data The array of calldata for each call.
      * @param values The array of ETH values to send with each call.
+     *
+     * @dev This function only allows native tokens to be sent with the transaction. Additionally,
+     *       The only valid targets are allowedTargets (protocol approved routers) and the msg.sender.
      */
     function aggregate(
         address[] calldata targets,
@@ -169,7 +171,14 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         (bool _success, ) = target.call{value: 0}(data);
         if(!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
 
-        uint256 _depositAmount = STABLECOIN.balanceOf(address(this)) - _initStableValue;
+        uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
+        uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
+
+        if (_depositAmount == 0) revert GeniusErrors.UnexpectedBalanceChange(
+            address(STABLECOIN),
+            _initStableValue,
+            _postStableValue
+        );
 
         if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(
             address(STABLECOIN),
@@ -195,33 +204,32 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values,
-        address[] calldata routers,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
     ) external payable nonReentrant {
         if (
             targets.length != data.length ||
-            data.length != values.length ||
-            routers.length != permitBatch.details.length
+            data.length != values.length
         ) revert GeniusErrors.ArrayLengthsMismatch();
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
-        for (uint i = 0; i < routers.length;) {
-            if (allowedTargets[routers[i]] == 0) revert GeniusErrors.InvalidRouter(routers[i]);
-
-            unchecked { ++i; }
-        }
         
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
-        _approveRouters(routers, permitBatch);
         _batchExecution(targets, data, values);
 
-        uint256 _depositAmount = STABLECOIN.balanceOf(address(this)) - _initStableValue;
+        uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
+        uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
+
+        if (_depositAmount == 0) revert GeniusErrors.UnexpectedBalanceChange(
+            address(STABLECOIN),
+            _initStableValue,
+            _postStableValue
+        );
 
         if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
