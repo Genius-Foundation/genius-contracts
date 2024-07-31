@@ -17,6 +17,8 @@ import { IAllowanceTransfer, IEIP712 } from "permit2/interfaces/IAllowanceTransf
 // Mocks
 import {TestERC20} from "./mocks/TestERC20.sol";
 import {MockSwapTarget} from "./mocks/MockSwapTarget.sol";
+import {MockERC20} from "./mocks/MockERC20.sol";
+import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
 /**
  * @title GeniusExecutorTest
@@ -36,9 +38,10 @@ contract GeniusExecutorTest is Test {
 
     // All of the addresses used in the tests
     address public OWNER;
-    address public trader;
-    uint256 private privateKey;
-    address public coinReceiver;
+    address public TRADER;
+    address public ORCHESTRATOR;
+    uint256 private PRIVATE_KEY;
+    address public RECEIVER;
 
     address public quoterAddress = 0xd76019A16606FDa4651f636D9751f500Ed776250;
     address public permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -70,10 +73,11 @@ contract GeniusExecutorTest is Test {
         assertEq(vm.activeFork(), avalanche);
 
         OWNER = makeAddr("owner");
-        (address traderAddress, uint256 traderKey) = makeAddrAndKey("trader");
-        trader = traderAddress;
-        privateKey = traderKey;
-        coinReceiver = makeAddr("coinReceiver");
+        (address traderAddress, uint256 traderKey) = makeAddrAndKey("TRADER");
+        TRADER = traderAddress;
+        PRIVATE_KEY = traderKey;
+        RECEIVER = makeAddr("RECEIVER");
+        ORCHESTRATOR = makeAddr("orchestrator");
 
         USDC = new TestERC20();
         WETH = new TestERC20();
@@ -108,82 +112,84 @@ contract GeniusExecutorTest is Test {
         vm.startPrank(OWNER);
         VAULT.initialize(address(POOL));
 
+        POOL.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+
         address[] memory routers = new address[](1);
         routers[0] = address(ROUTER);
 
         EXECUTOR.initialize(routers);
         vm.stopPrank();
 
-        deal(address(wavaxContract), trader, 100 ether);
-        deal(address(meowContract), trader, 100 ether);
-        deal(address(USDC), trader, 100 ether);
+        deal(address(wavaxContract), TRADER, 100 ether);
+        deal(address(meowContract), TRADER, 100 ether);
+        deal(address(USDC), TRADER, 100 ether);
 
-        vm.prank(trader);
+        vm.prank(TRADER);
         wavaxContract.approve(permit2Address, 100 ether);
 
-        vm.prank(trader);
+        vm.prank(TRADER);
         meowContract.approve(permit2Address, 100 ether);
 
-        vm.prank(trader);
+        vm.prank(TRADER);
         USDC.approve(permit2Address, 1_000 ether);
 
-        vm.prank(trader);
+        vm.prank(TRADER);
         VAULT.approve(permit2Address, 1_000 ether);
 
 
     }
 
     function testAggregateWithoutPermit2() public {
-
         address holderOne = makeAddr("holderOne");
         address holderTwo = makeAddr("holderTwo");
 
         USDC.transfer(holderOne, 100 ether);
         USDC.transfer(holderTwo, 100 ether);
 
+        // !!!! NEVER DO THIS ON DEPLOYED CODE
         vm.prank(holderOne);
         USDC.approve(address(EXECUTOR), 100 ether);
 
         vm.prank(holderTwo);
         USDC.approve(address(EXECUTOR), 100 ether);
 
-        address LP = makeAddr("fakeLP");
-        WETH.transfer(LP, 100 ether);
+        // Set up MockDEXRouter
+        MockDEXRouter mockRouter = new MockDEXRouter();
+        
+        // Add MockDEXRouter to the list of approved routers
+        address[] memory routers = new address[](1);
+        routers[0] = address(mockRouter);
+        vm.prank(OWNER);
+        EXECUTOR.initialize(routers);
 
-        vm.startPrank(LP);
-        WETH.approve(address(ROUTER), 100 ether);
+        // Approve MockDEXRouter to spend USDC on behalf of EXECUTOR
+        vm.prank(address(EXECUTOR));
+        USDC.approve(address(mockRouter), type(uint256).max);
 
-
-
-
-        // Create call data for swapExactNATIVEForTokens
-        bytes memory mockSwap_one = abi.encodeWithSignature(
-            "mockSwap(address tokenIn, uint256 amountIn, address tokenOut, address poolAddress, uint256 amountOut)",
+        // Create call data for swaps
+        bytes memory swap_one = abi.encodeWithSignature(
+            "swap(address,address,uint256)",
             address(USDC),
-            1 ether,
             address(WETH),
-            address(LP),
             1 ether
         );
 
-        // Create call data for swapExactNATIVEForTokens
-        bytes memory mockSwap_two = abi.encodeWithSignature(
-            "mockSwap(address tokenIn, uint256 amountIn, address tokenOut, address poolAddress, uint256 amountOut)",
+        bytes memory swap_two = abi.encodeWithSignature(
+            "swap(address,address,uint256)",
             address(USDC),
-            2 ether,
             address(WETH),
-            address(LP),
             2 ether
         );
 
-        // Declare the arrays in memory instead of calldata
+        // Declare the arrays in memory
         address[] memory targets = new address[](2);
-        targets[0] = address(ROUTER);
-        targets[1] = address(ROUTER);
+        targets[0] = address(mockRouter);
+        targets[1] = address(mockRouter);
 
         bytes[] memory data = new bytes[](2);
-        data[0] = mockSwap_one; 
-        data[1] = mockSwap_two;
+        data[0] = swap_one; 
+        data[1] = swap_two;
 
         uint256[] memory values = new uint256[](2);
         values[0] = 0; 
@@ -195,9 +201,21 @@ contract GeniusExecutorTest is Test {
             values
         );
 
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 3 ether, "Executor should have 3 test tokens");
-        assertEq(USDC.balanceOf(holderOne), 99 ether, "Holder One should have 97 test tokens");
-        assertEq(USDC.balanceOf(holderTwo), 98 ether, "Holder Two should have 98 test tokens");
+        // Check balances
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 USDC");
+        assertEq(USDC.balanceOf(holderOne), 100 ether, "Holder One should still have 100 USDC");
+        assertEq(USDC.balanceOf(holderTwo), 100 ether, "Holder Two should still have 100 USDC");
+
+        // Verify that the mock swaps occurred
+        address mockWETHAddress = mockRouter.mockTokens(address(WETH));
+        assertEq(mockWETHAddress != address(0), true, "Mock WETH token should have been created");
+        assertEq(MockERC20(mockWETHAddress).balanceOf(address(EXECUTOR)), mockRouter.MINT_AMOUNT() * 2, "Executor should have received mock WETH");
+
+        // Verify that the MockDEXRouter didn't receive any USDC
+        assertEq(USDC.balanceOf(address(mockRouter)), 0, "MockDEXRouter should not have received any USDC");
+
+        // Verify that the correct amount of mock WETH was minted
+        assertEq(MockERC20(mockWETHAddress).totalSupply(), mockRouter.MINT_AMOUNT() * 2, "Total supply of mock WETH should be MINT_AMOUNT * 2");
     }
 
     function testAggregateWithPermit2() public {
@@ -255,7 +273,7 @@ contract GeniusExecutorTest is Test {
 
         bytes memory permitSignature = sigUtils.getPermitBatchSignature(
             permitBatch,
-            privateKey,
+            PRIVATE_KEY,
             DOMAIN_SEPERATOR
         );
 
@@ -265,7 +283,7 @@ contract GeniusExecutorTest is Test {
             values,
             permitBatch,
             permitSignature,
-            trader
+            TRADER
         );
 
 
@@ -273,8 +291,8 @@ contract GeniusExecutorTest is Test {
         assertEq(meowContract.balanceOf(receiverTwo), 2 ether, "Receiver Two should have 2 MEOW");
         assertEq(wavaxContract.balanceOf(address(EXECUTOR)), 0, "Executor should have no WAVAX");
         assertEq(meowContract.balanceOf(address(EXECUTOR)), 0, "Executor should have no MEOW");
-        assertEq(wavaxContract.balanceOf(trader), 99 ether, "Trader should have 99 WAVAX");
-        assertEq(meowContract.balanceOf(trader), 98 ether, "Trader should have 98 MEOW");
+        assertEq(wavaxContract.balanceOf(TRADER), 99 ether, "Trader should have 99 WAVAX");
+        assertEq(meowContract.balanceOf(TRADER), 98 ether, "Trader should have 98 MEOW");
     }
 
 
@@ -282,7 +300,7 @@ contract GeniusExecutorTest is Test {
         uint160 transferAmount = 10 ether;  // Define the amount of WAVAX to swap
 
         // Approve LBRouter to spend WAVAX from GeniusExecutor
-        vm.prank(trader);
+        vm.prank(TRADER);
         USDC.approve(address(permit2), transferAmount);
         USDC.approve(address(EXECUTOR), transferAmount);
         USDC.transfer(address(ROUTER), transferAmount);
@@ -313,7 +331,7 @@ contract GeniusExecutorTest is Test {
 
         bytes memory signature = sigUtils.getPermitBatchSignature(
             permitBatch,
-            privateKey,
+            PRIVATE_KEY,
             DOMAIN_SEPERATOR
         );
 
@@ -323,7 +341,7 @@ contract GeniusExecutorTest is Test {
             swapCalldata,
             permitBatch,
             signature,
-            trader
+            TRADER
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
@@ -334,6 +352,10 @@ contract GeniusExecutorTest is Test {
     }
 
     function testNativeSwapAndDeposit() public {
+        vm.prank(OWNER);
+        EXECUTOR.setAllowedTarget(address(ROUTER), true);
+        vm.stopPrank();
+
         address target = makeAddr("target");
 
         USDC.transfer(target, 10 ether);
@@ -379,11 +401,11 @@ contract GeniusExecutorTest is Test {
         values[1] = 0;
 
 
-        USDC.transfer(trader, 100 ether);
+        USDC.transfer(TRADER, 100 ether);
         USDC.transfer(holderOne, 100 ether);
         USDC.transfer(holderTwo, 100 ether);
 
-        vm.prank(trader);
+        vm.prank(TRADER);
         USDC.approve(address(permit2), 100 ether);
 
         vm.prank(holderOne);
@@ -431,30 +453,30 @@ contract GeniusExecutorTest is Test {
 
         bytes memory signature = sigUtils.getPermitBatchSignature(
             permitBatch,
-            privateKey,
+            PRIVATE_KEY,
             DOMAIN_SEPERATOR
         );
 
         address[] memory routers = new address[](1);
         routers[0] = makeAddr("fakeRouter1");
 
-        uint256 traderBalance = USDC.balanceOf(trader);
+        uint256 traderBalance = USDC.balanceOf(TRADER);
 
-        vm.prank(trader);
+        vm.prank(TRADER);
         EXECUTOR.multiSwapAndDeposit(
             targets,
             data,
             values,
             permitBatch,
             signature,
-            trader
+            TRADER
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
         assertEq(USDC.balanceOf(address(POOL)), 120 ether, "Executor should have 120 test tokens");
         assertEq(USDC.balanceOf(holderOne), 90 ether, "Holder One should have 90 test tokens");
         assertEq(USDC.balanceOf(holderTwo), 90 ether, "Holder Two should have 90 test tokens");
-        assertEq(USDC.balanceOf(trader), traderBalance - 100 ether, "Trader should have expected balance");
+        assertEq(USDC.balanceOf(TRADER), traderBalance - 100 ether, "Trader should have expected balance");
         assertEq(POOL.totalAssets(), 120 ether, "Pool should have 120 test tokens available");
         assertEq(POOL.availableAssets(), 120 ether, "Pool should have 120 test tokens available");
         assertEq(POOL.totalStakedAssets(), 0, "Pool should have 0 test tokens staked");
@@ -464,9 +486,9 @@ contract GeniusExecutorTest is Test {
         uint160 depositAmount = 10 ether;
 
         // Set up initial balances
-        deal(address(USDC), trader, 100 ether);
+        deal(address(USDC), TRADER, 100 ether);
         
-        vm.startPrank(trader);
+        vm.startPrank(TRADER);
         USDC.approve(address(permit2), 100 ether);
         USDC.approve(address(EXECUTOR), 100 ether);
         vm.stopPrank();
@@ -488,23 +510,23 @@ contract GeniusExecutorTest is Test {
 
         bytes memory signature = sigUtils.getPermitBatchSignature(
             permitBatch,
-            privateKey,
+            PRIVATE_KEY,
             DOMAIN_SEPERATOR
         );
 
         // Perform the deposit via GeniusExecutor
-        vm.prank(trader);
+        vm.prank(ORCHESTRATOR);
         EXECUTOR.depositToVault(
             permitBatch,
             signature,
-            trader
+            TRADER
         );
 
         // Assert the results
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 USDC");
         assertEq(VAULT.totalAssets(), depositAmount, "Vault should have received the deposit");
-        assertEq(VAULT.balanceOf(trader), depositAmount, "Trader should have received vault shares");
-        assertEq(USDC.balanceOf(trader), 90 ether, "Trader should have 90 USDC left");
+        assertEq(VAULT.balanceOf(TRADER), depositAmount, "Trader should have received vault shares");
+        assertEq(USDC.balanceOf(TRADER), 90 ether, "Trader should have 90 USDC left");
     }
 
     function testWithdrawFromVault() public {
@@ -512,9 +534,9 @@ contract GeniusExecutorTest is Test {
         uint160 withdrawAmount = 1 ether;
 
         // First, deposit to the vault
-        deal(address(USDC), trader, 100 ether);
+        deal(address(USDC), TRADER, 100 ether);
         
-        vm.startPrank(trader);
+        vm.startPrank(TRADER);
         USDC.approve(address(permit2), 100 ether);
         USDC.approve(address(EXECUTOR), 100 ether);
         vm.stopPrank();
@@ -536,14 +558,14 @@ contract GeniusExecutorTest is Test {
 
         bytes memory depositSignature = sigUtils.getPermitBatchSignature(
             depositPermitBatch,
-            privateKey,
+            PRIVATE_KEY,
             DOMAIN_SEPERATOR
         );
 
         // Perform the deposit
-        vm.startPrank(trader);
-        EXECUTOR.depositToVault( depositPermitBatch, depositSignature, trader);
-        VAULT.approve(address(EXECUTOR), VAULT.balanceOf(trader));
+        vm.startPrank(TRADER);
+        EXECUTOR.depositToVault( depositPermitBatch, depositSignature, TRADER);
+        VAULT.approve(address(EXECUTOR), VAULT.balanceOf(TRADER));
         
         // Now set up the withdrawal
         // Set up permit details for withdrawal (vault shares)
@@ -563,7 +585,7 @@ contract GeniusExecutorTest is Test {
 
         bytes memory withdrawSignature = sigUtils.getPermitBatchSignature(
             withdrawPermitBatch,
-            privateKey,
+            PRIVATE_KEY,
             DOMAIN_SEPERATOR
         );
         vm.stopPrank();
@@ -572,14 +594,14 @@ contract GeniusExecutorTest is Test {
         EXECUTOR.withdrawFromVault(
             withdrawPermitBatch,
             withdrawSignature,
-            trader
+            TRADER
         );
 
         // Assert the results
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 USDC");
         assertEq(USDC.balanceOf(address(POOL)), 9 ether, "Pool should have remaining USDC");
-        assertEq(VAULT.balanceOf(trader), 9 ether, "Trader should have remaining vault shares");
-        assertEq(USDC.balanceOf(trader), 91 ether, "Trader should have received withdrawn USDC");
+        assertEq(VAULT.balanceOf(TRADER), 9 ether, "Trader should have remaining vault shares");
+        assertEq(USDC.balanceOf(TRADER), 91 ether, "Trader should have received withdrawn USDC");
     }
 
 }
