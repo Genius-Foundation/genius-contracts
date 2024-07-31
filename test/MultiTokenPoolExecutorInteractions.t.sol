@@ -259,7 +259,6 @@ contract MultiTokenPoolExecutorInteractions is Test {
             targets,
             data,
             values,
-            routers,
             permitBatch,
             signature,
             TRADER
