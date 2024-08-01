@@ -336,6 +336,7 @@ contract GeniusExecutorTest is Test {
         );
 
         // Perform the swap and deposit via GeniusExecutor
+        vm.startPrank(ORCHESTRATOR);
         EXECUTOR.tokenSwapAndDeposit(
             address(ROUTER), // Targeting the LBRouter for the swap
             swapCalldata,
@@ -343,6 +344,7 @@ contract GeniusExecutorTest is Test {
             signature,
             TRADER
         );
+        vm.stopPrank();
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
         assertEq(USDC.balanceOf(address(POOL)), 5 ether, "Executor should have 5 test tokens");
@@ -352,35 +354,28 @@ contract GeniusExecutorTest is Test {
     }
 
     function testNativeSwapAndDeposit() public {
-        vm.prank(OWNER);
-        EXECUTOR.setAllowedTarget(address(ROUTER), true);
+        vm.startPrank(OWNER);
+        MockDEXRouter dexRouter = new MockDEXRouter();
+        EXECUTOR.setAllowedTarget(address(dexRouter), true);
+        deal(address(USDC), address(dexRouter), 100 ether);
+        vm.deal(address(this), 1 ether);
         vm.stopPrank();
 
-        address target = makeAddr("target");
-
-        USDC.transfer(target, 10 ether);
-        vm.prank(target);
-        USDC.approve(address(EXECUTOR), 10 ether);
-
-        // Encode a transferFrom call to the target address to the executor contract
-        bytes memory transferCalldata = abi.encodeWithSignature(
-            "transferFrom(address,address,uint256)",
-            target,
-            address(EXECUTOR),
-            10 ether
+        bytes memory swapData = abi.encodeWithSelector(
+            MockDEXRouter.swapToStables.selector,
+            address(USDC)
         );
 
-
-        EXECUTOR.nativeSwapAndDeposit(
-            address(USDC),
-            transferCalldata,
-            0
+        EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
+            address(dexRouter),
+            swapData,
+            1 ether
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(POOL)), 10 ether, "Executor should have 10 test tokens");
-        assertEq(POOL.totalAssets(), 10 ether, "Pool should have 10 test tokens available");
-        assertEq(POOL.availableAssets(), 10 ether, "Pool should have 10 test tokens available");
+        assertEq(USDC.balanceOf(address(POOL)), 50 ether, "Executor should have 10 test tokens");
+        assertEq(POOL.totalAssets(), 50 ether, "Pool should have 10 test tokens available");
+        assertEq(POOL.availableAssets(), 50 ether, "Pool should have 10 test tokens available");
         assertEq(POOL.totalStakedAssets(), 0, "Pool should have 0 test tokens staked");
     }
 
@@ -563,7 +558,7 @@ contract GeniusExecutorTest is Test {
         );
 
         // Perform the deposit
-        vm.startPrank(TRADER);
+        vm.startPrank(ORCHESTRATOR);
         EXECUTOR.depositToVault( depositPermitBatch, depositSignature, TRADER);
         VAULT.approve(address(EXECUTOR), VAULT.balanceOf(TRADER));
         
@@ -588,14 +583,15 @@ contract GeniusExecutorTest is Test {
             PRIVATE_KEY,
             DOMAIN_SEPERATOR
         );
-        vm.stopPrank();
 
         // Perform the withdrawal via GeniusExecutor
+
         EXECUTOR.withdrawFromVault(
             withdrawPermitBatch,
             withdrawSignature,
             TRADER
         );
+        vm.stopPrank();
 
         // Assert the results
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 USDC");
