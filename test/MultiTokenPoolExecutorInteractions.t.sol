@@ -254,6 +254,11 @@ contract MultiTokenPoolExecutorInteractions is Test {
         routers[0] = address(ROUTER);
         routers[1] = address(ROUTER);
 
+        vm.startPrank(address(EXECUTOR));
+        TOKEN1.approve(address(ROUTER), AMOUNT);
+        TOKEN2.approve(address(ROUTER), AMOUNT);
+        vm.stopPrank();
+
         // Perform the swap and deposit via GeniusExecutor
         EXECUTOR.multiSwapAndDeposit(
             targets,

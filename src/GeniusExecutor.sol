@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import { console } from "forge-std/Test.sol";
+
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
@@ -152,6 +154,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         bytes calldata signature,
         address owner
     ) external onlyOrchestrator nonReentrant {
+        console.log("GELLLO FROM EXECUTOR");
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
 
@@ -250,12 +253,13 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         address target,
         bytes calldata data,
         uint256 value
-    ) external payable nonReentrant {
+    ) external payable {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
         address[] memory targets = new address[](1);
         targets[0] = target;
+
         _checkNative(value);
         _checkTargets(targets, emptyPermitDetails, msg.sender);
 
@@ -533,10 +537,10 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         VAULT.withdraw(amount, receiver, address(this));
     }
 
-    /**
-     * @dev Fallback function to reject native tokens.
-     * Reverts the transaction with an error message indicating that native tokens are not accepted.
-     */
+    // /**
+    //  * @dev Receive function to reject plain Ether transfers.
+    //  * Reverts the transaction with an error message indicating that native tokens are not accepted directly.
+    //  */
     receive() external payable {
         revert("Native tokens not accepted directly");
     }

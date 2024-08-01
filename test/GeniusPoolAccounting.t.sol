@@ -3,10 +3,14 @@ pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IAllowanceTransfer, IEIP712} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {PermitSignature} from "./utils/SigUtils.sol";
 
 import {GeniusPool} from "../src/GeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
+
+import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
 contract GeniusPoolAccounting is Test {
     // ============ Network ============
@@ -15,11 +19,13 @@ contract GeniusPoolAccounting is Test {
 
     // ============ External Contracts ============
     ERC20 public USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
+    ERC20 public testToken;
     
     // ============ Internal Contracts ============
     GeniusPool public POOL;
     GeniusVault public VAULT;
     GeniusExecutor public EXECUTOR;
+    MockDEXRouter public DEX_ROUTER;
 
     // ============ Constants ============
     address public PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -27,12 +33,56 @@ contract GeniusPoolAccounting is Test {
     address public TRADER;
     address public ORCHESTRATOR;
 
+        // Add new variables for Permit2
+    address public permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    IEIP712 public permit2 = IEIP712(permit2Address);
+    PermitSignature public sigUtils;
+    uint256 private privateKey;
+    uint48 public nonce;
+    bytes32 public DOMAIN_SEPERATOR;
+
     // ============ Logging ============
 
         struct LogEntry {
         string name;
         uint256 actual;
         uint256 expected;
+    }
+
+    // Add new function for generating Permit2 batch and signature
+    function generatePermitBatchAndSignature(
+        address spender,
+        address[] memory tokens,
+        uint160[] memory amounts
+    ) internal returns (IAllowanceTransfer.PermitBatch memory, bytes memory) {
+        require(tokens.length == amounts.length, "Tokens and amounts length mismatch");
+        require(tokens.length > 0, "At least one token must be provided");
+
+        IAllowanceTransfer.PermitDetails[] memory permitDetails = new IAllowanceTransfer.PermitDetails[](tokens.length);
+        
+        for (uint i = 0; i < tokens.length; i++) {
+            permitDetails[i] = IAllowanceTransfer.PermitDetails({
+                token: tokens[i],
+                amount: amounts[i],
+                expiration: 1900000000,
+                nonce: nonce
+            });
+            nonce++;
+        }
+
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer.PermitBatch({
+            details: permitDetails,
+            spender: spender,
+            sigDeadline: 1900000000
+        });
+
+        bytes memory signature = sigUtils.getPermitBatchSignature(
+            permitBatch,
+            privateKey,
+            DOMAIN_SEPERATOR
+        );
+
+        return (permitBatch, signature);
     }
 
     function logValues(string memory title, LogEntry[] memory entries) internal view {
@@ -69,12 +119,23 @@ contract GeniusPoolAccounting is Test {
 
         // Deploy contracts
         ERC20 usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
+        ERC20 testToken = ERC20(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
         POOL = new GeniusPool(address(usdc), OWNER);
         VAULT = new GeniusVault(address(usdc), OWNER);
         EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT), OWNER);
+        DEX_ROUTER = new MockDEXRouter();
+        
 
         POOL.initialize(address(VAULT), address(EXECUTOR));
         VAULT.initialize(address(POOL));
+
+        permit2 = IEIP712(permit2Address);
+        DOMAIN_SEPERATOR = permit2.DOMAIN_SEPARATOR();
+        sigUtils = new PermitSignature();
+
+        (address traderAddress, uint256 traderKey) = makeAddrAndKey("trader");
+        TRADER = traderAddress;
+        privateKey = traderKey;
         
         // Add Orchestrator
         POOL.addOrchestrator(ORCHESTRATOR);
@@ -194,36 +255,77 @@ contract GeniusPoolAccounting is Test {
      * and minimum asset balance.
      */
     function testStakeAndDeposit() public {
+        uint256 depositAmount = 100 ether;
+
+        // Setup
+        vm.startPrank(OWNER);
+        address[] memory routers = new address[](1);
+        routers[0] = address(DEX_ROUTER);
+        EXECUTOR.initialize(routers);
+        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        vm.stopPrank();
 
         // Start acting as TRADER
         vm.startPrank(TRADER);
-        console.log("msg.sender after starting TRADER prank:", msg.sender);
-        
-        USDC.approve(address(VAULT), 100 ether);
-        VAULT.deposit(100 ether, TRADER);
+        USDC.approve(address(VAULT), depositAmount);
+        USDC.approve(permit2Address, type(uint256).max);
+        VAULT.deposit(depositAmount, TRADER);
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), 100 ether, "Total assets mismatch");
+        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
         assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         vm.stopPrank();
-        
-        USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
+
+        // Swap and deposit using EXECUTOR
+        vm.startPrank(ORCHESTRATOR);
+
+        // Generate permit details for USDC
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+
+        uint160[] memory amounts = new uint160[](1);
+        amounts[0] = uint160(depositAmount);
+
+        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = generatePermitBatchAndSignature(
+            address(EXECUTOR),
+            tokens,
+            amounts
+        );
+
+        // Create the calldata for the tokenSwapAndDeposit function
+        bytes memory calldataSwap = abi.encodeWithSignature(
+            "swapERC20ToStables(address,address,uint256)",
+            address(testToken),  // Using testToken as the input token
+            address(USDC),
+            depositAmount
+        );
+
+        // Execute the tokenSwapAndDeposit function
+        deal(address(USDC), address(DEX_ROUTER), depositAmount);
+        EXECUTOR.tokenSwapAndDeposit(
+            address(DEX_ROUTER),
+            calldataSwap,
+            permitBatch,
+            signature,
+            TRADER
+        );
+
+        vm.stopPrank();
 
         LogEntry[] memory entries = new LogEntry[](4);
-        entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 100 ether);
-        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 200 ether);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 175 ether);
+        entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), depositAmount);
+        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 150 ether);
+        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 125 ether);
         entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 25 ether);
 
         logValues("Post Stake and Deposit Values", entries);
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 200 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 175 ether, "Available assets mismatch");
+        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(POOL.totalAssets(), 150 ether, "Total assets mismatch");
+        assertEq(POOL.availableAssets(), 125 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
-
     }
 
     /**
@@ -233,44 +335,88 @@ contract GeniusPoolAccounting is Test {
      * It also logs the ending balances of key variables for further analysis.
      */
     function testCycleWithoutThresholdChange() public {
+        uint256 depositAmount = 100 ether;
+
+        // Setup
+        vm.startPrank(OWNER);
+        address[] memory routers = new address[](1);
+        routers[0] = address(DEX_ROUTER);  // Assuming EXECUTOR can act as a router
+        EXECUTOR.initialize(routers);
+        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        vm.stopPrank();
+
         // Start acting as TRADER
         vm.startPrank(TRADER);
-        
-        USDC.approve(address(VAULT), 100 ether);
-        VAULT.deposit(100 ether, TRADER);
+        USDC.approve(address(VAULT), depositAmount);
+        USDC.approve(permit2Address, type(uint256).max);
+        VAULT.deposit(depositAmount, TRADER);
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), 100 ether, "Total assets mismatch");
+        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
         assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        vm.stopPrank();
+
+        // Swap and deposit using EXECUTOR
+        vm.startPrank(ORCHESTRATOR);
+        
+        // Generate permit details for USDC
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+
+        uint160[] memory amounts = new uint160[](1);
+        amounts[0] = uint160(depositAmount);
+
+        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = generatePermitBatchAndSignature(
+            address(EXECUTOR),
+            tokens,
+            amounts
+        );
+
+        // Create the calldata for the tokenSwapAndDeposit function
+        bytes memory calldataSwap = abi.encodeWithSignature(
+            "swapERC20ToStables(address,address,uint256)",
+            address(testToken),  // Using testToken as the input token
+            address(USDC),
+            depositAmount
+        );
+
+        // Execute the tokenSwapAndDeposit function
+        // deal(address(testToken), address(EXECUTOR), depositAmount);
+        deal(address(USDC), address(DEX_ROUTER), depositAmount);
+        EXECUTOR.tokenSwapAndDeposit(
+            address(DEX_ROUTER),
+            calldataSwap,
+            permitBatch,
+            signature,
+            TRADER
+        );
 
         vm.stopPrank();
-        
-        USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
 
         assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 200 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 175 ether, "Available assets mismatch");
+        assertEq(POOL.totalAssets(), 150 ether, "Total assets mismatch");
+        assertEq(POOL.availableAssets(), 125 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // Start acting as TRADER
         vm.startPrank(TRADER);
-        VAULT.withdraw(100 ether, TRADER, TRADER);
+        VAULT.withdraw(depositAmount, TRADER, TRADER);
 
         assertEq(POOL.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 100 ether, "Available assets mismatch");
+        assertEq(POOL.availableAssets(), 50 ether, "Available assets mismatch");
 
         LogEntry[] memory entries = new LogEntry[](5);
         entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 0);
-        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 100 ether);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 100 ether);
+        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), depositAmount);
+        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), depositAmount);
         entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 0);
         entries[4] = LogEntry("Vault Balance", VAULT.totalAssets(), 0);
 
-        logValues("testStakeAndWithdraw Ending balances", entries);
+        logValues("testCycleWithoutThresholdChange Ending balances", entries);
 
+        vm.stopPrank();
     }
 
     /**
@@ -288,27 +434,67 @@ contract GeniusPoolAccounting is Test {
      * 9. Logs the ending balances of the pool and vault.
      */
     function testFullCycle() public {
+        uint256 depositAmount = 100 ether;
+
+        // Setup
+        vm.startPrank(OWNER);
+        address[] memory routers = new address[](1);
+        routers[0] = address(DEX_ROUTER);
+        EXECUTOR.initialize(routers);
+        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        vm.stopPrank();
 
         // =================== DEPOSIT THROUGH VAULT ===================
         vm.startPrank(TRADER);
-        
-        USDC.approve(address(VAULT), 100 ether);
-        VAULT.deposit(100 ether, TRADER);
+        USDC.approve(address(VAULT), depositAmount);
+        USDC.approve(permit2Address, type(uint256).max);
+        VAULT.deposit(depositAmount, TRADER);
+        vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), 100 ether, "Total assets mismatch");
+        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
         assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
-        vm.stopPrank();
-        
-        // =================== ADD LIQUIDITY ===================
-        USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
+        // =================== SWAP AND DEPOSIT ===================
+        vm.startPrank(ORCHESTRATOR);
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 200 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 175 ether, "Available assets mismatch");
+        // Generate permit details for USDC
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+
+        uint160[] memory amounts = new uint160[](1);
+        amounts[0] = uint160(depositAmount);
+
+        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = generatePermitBatchAndSignature(
+            address(EXECUTOR),
+            tokens,
+            amounts
+        );
+
+        // Create the calldata for the tokenSwapAndDeposit function
+        bytes memory calldataSwap = abi.encodeWithSignature(
+            "swapERC20ToStables(address,address,uint256)",
+            address(testToken),  // Using testToken as the input token
+            address(USDC),
+            depositAmount
+        );
+
+        // Execute the tokenSwapAndDeposit function
+        deal(address(USDC), address(DEX_ROUTER), depositAmount);
+        EXECUTOR.tokenSwapAndDeposit(
+            address(DEX_ROUTER),
+            calldataSwap,
+            permitBatch,
+            signature,
+            TRADER
+        );
+
+        vm.stopPrank();
+
+        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(POOL.totalAssets(), 150 ether, "Total assets mismatch");
+        assertEq(POOL.availableAssets(), 125 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // =================== CHANGE THRESHOLD ===================
@@ -316,28 +502,30 @@ contract GeniusPoolAccounting is Test {
         POOL.setRebalanceThreshold(10);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 200 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 110 ether, "#1111 Available assets mismatch");
+        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(POOL.totalAssets(), 150 ether, "Total assets mismatch");
+        assertEq(POOL.availableAssets(), 60 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
-        VAULT.withdraw(100 ether, TRADER, TRADER);
+        VAULT.withdraw(depositAmount, TRADER, TRADER);
 
         assertEq(POOL.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 100 ether, "Available assets mismatch");
+        assertEq(POOL.availableAssets(), 50 ether, "Available assets mismatch");
+
+        vm.stopPrank();
 
         LogEntry[] memory entries = new LogEntry[](5);
         entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 0);
-        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 100 ether);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 100 ether);
+        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 50 ether);
+        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 50 ether);
         entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 0);
         entries[4] = LogEntry("Vault Balance", VAULT.totalAssets(), 0);
 
-        logValues("testStakeAndWithdraw Ending balances", entries);
-    }    
+        logValues("testFullCycle Ending balances", entries);
+    } 
 
         /**
          * @dev This function tests the full cycle of a GeniusPoolAccounting contract with donations.
@@ -349,19 +537,29 @@ contract GeniusPoolAccounting is Test {
          * 5. Withdraws assets from the vault.
          * 6. Logs the final state of the contract.
          */
-        function testFullCycleWithDonations() public {
+    function testFullCycleWithDonations() public {
+        uint256 depositAmount = 100 ether;
+
+        // Setup
+        vm.startPrank(OWNER);
+        address[] memory routers = new address[](1);
+        routers[0] = address(DEX_ROUTER);
+        EXECUTOR.initialize(routers);
+        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        vm.stopPrank();
 
         // Initial donation
-        donateAndAssert(0, 0, 0, 0);
+        donateAndAssert(0, 0 ether, 0 ether, 0);
 
         // =================== DEPOSIT THROUGH VAULT ===================
         vm.startPrank(TRADER);
-        USDC.approve(address(VAULT), 100 ether);
-        VAULT.deposit(100 ether, TRADER);
+        USDC.approve(address(VAULT), depositAmount);
+        USDC.approve(permit2Address, type(uint256).max);
+        VAULT.deposit(depositAmount, TRADER);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), 100 ether, "Vault Total assets mismatch");
+        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.totalAssets(), depositAmount, "Vault Total assets mismatch");
         assertEq(POOL.totalAssets(), 110 ether, "Pool Total assets mismatch");
         assertEq(POOL.availableAssets(), 85 ether, "#1 Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
@@ -369,45 +567,77 @@ contract GeniusPoolAccounting is Test {
         // Donate before adding liquidity
         donateAndAssert(100 ether, 110 ether, 85 ether, 25 ether);
 
-        // =================== ADD LIQUIDITY ===================
-        USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
+        // =================== SWAP AND DEPOSIT ===================
+        vm.startPrank(ORCHESTRATOR);
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 220 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 195 ether, "Available assets mismatch");
+        // Generate permit details for USDC
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(USDC);
+
+        uint160[] memory amounts = new uint160[](1);
+        amounts[0] = uint160(depositAmount);
+
+        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = generatePermitBatchAndSignature(
+            address(EXECUTOR),
+            tokens,
+            amounts
+        );
+
+        // Create the calldata for the tokenSwapAndDeposit function
+        bytes memory calldataSwap = abi.encodeWithSignature(
+            "swapERC20ToStables(address,address,uint256)",
+            address(testToken),  // Using testToken as the input token
+            address(USDC),
+            depositAmount
+        );
+
+        // Execute the tokenSwapAndDeposit function
+        deal(address(USDC), address(DEX_ROUTER), depositAmount);
+        EXECUTOR.tokenSwapAndDeposit(
+            address(DEX_ROUTER),
+            calldataSwap,
+            permitBatch,
+            signature,
+            TRADER
+        );
+
+        vm.stopPrank();
+
+        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(POOL.totalAssets(), 170 ether, "Total assets mismatch");
+        assertEq(POOL.availableAssets(), 145 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // Donate before changing threshold
-        donateAndAssert(100 ether, 220 ether, 195 ether, 25 ether);
+        donateAndAssert(100 ether, 170 ether, 145 ether, 25 ether);
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
         POOL.setRebalanceThreshold(10);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 230 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 140 ether, "$$$$ Available assets mismatch");
+        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(POOL.totalAssets(), 180 ether, "Total assets mismatch");
+        assertEq(POOL.availableAssets(), 90 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
 
         // Donate before withdrawing
-        donateAndAssert(100 ether, 230 ether, 140 ether, 90 ether);
+        donateAndAssert(100 ether, 180 ether, 90 ether, 90 ether);
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
-        VAULT.withdraw(100 ether, TRADER, TRADER);
+        VAULT.withdraw(depositAmount, TRADER, TRADER);
         vm.stopPrank();
 
         assertEq(POOL.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 140 ether, "Available assets mismatch");
+        assertEq(POOL.availableAssets(), 90 ether, "Available assets mismatch");
 
         // Final state logging
         LogEntry[] memory entries = new LogEntry[](5);
         entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 0);
-        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 140 ether);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 140 ether);
+        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 100 ether);
+        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 100 ether);
         entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 0);
         entries[4] = LogEntry("Vault Balance", VAULT.totalAssets(), 0);
 

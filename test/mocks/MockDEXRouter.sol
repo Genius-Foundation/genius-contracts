@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {console} from "forge-std/Test.sol";
+
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./MockERC20.sol";
 
@@ -13,8 +15,9 @@ contract MockDEXRouter {
     uint256 public constant MINT_AMOUNT = 1000 * 10**18;
 
     function swapToStables(address usdc) external payable {
+        console.log("msg.value: %d", msg.value);
         
-        if (msg.value == 0) {
+        if (msg.value < 1 wei) {
             revert ("Must pay for USDC");
         }
 
@@ -24,6 +27,14 @@ contract MockDEXRouter {
         IERC20(usdc).transfer(msg.sender, _usdcAmount);
 
         usdcAmountOut = _usdcAmount;
+    }
+
+    function swapERC20ToStables(address tokenIn, address usdc, uint256 amountIn) external payable {
+        require(tokenIn != usdc, "Cannot swap same token");
+
+        uint256 _usdcBalance = IERC20(usdc).balanceOf(address(this));
+        uint256 _usdcAmount = _usdcBalance / 2;
+        IERC20(usdc).transfer(msg.sender, _usdcAmount);
     }
 
     function swap(address tokenIn, address tokenOut, uint256 amountIn) external payable returns (uint256 amountOut) {

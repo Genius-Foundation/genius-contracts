@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Test, console} from "forge-std/Test.sol";
+
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
@@ -196,13 +198,15 @@ contract GeniusPool is Orchestrable, Executable {
             totalAssets - amountIn
         );
 
+        uint256 _initStableValue = totalAssets;
+
         _updateBalance(amountIn, 0);
         _updateAvailableAssets();
 
         _batchExecution(targets, data, values);
 
-        uint256 _initStableValue = totalAssets;
         uint256 _stableDelta = _initStableValue - totalAssets;
+
         if (_stableDelta != amountIn) revert GeniusErrors.InvalidAmount();
 
         emit BridgeFunds(
