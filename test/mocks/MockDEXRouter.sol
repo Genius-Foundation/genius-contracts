@@ -29,9 +29,8 @@ contract MockDEXRouter {
         usdcAmountOut = _usdcAmount;
     }
 
-    function swapERC20ToStables(address tokenIn, address usdc, uint256 amountIn) external payable {
+    function swapERC20ToStables(address tokenIn, address usdc) external payable {
         require(tokenIn != usdc, "Cannot swap same token");
-
         uint256 _usdcBalance = IERC20(usdc).balanceOf(address(this));
         uint256 _usdcAmount = _usdcBalance / 2;
         IERC20(usdc).transfer(msg.sender, _usdcAmount);

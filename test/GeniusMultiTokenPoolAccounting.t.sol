@@ -384,7 +384,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Create the calldata for the tokenSwapAndDeposit function
         bytes memory calldataSwap = abi.encodeWithSignature(
-            "swapERC20ToStables(address,address,uint256)",
+            "swapERC20ToStables(address,address)",
             address(TOKEN1),
             address(USDC)
         );
@@ -494,7 +494,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Create the calldata for the tokenSwapAndDeposit function
         bytes memory calldataSwap = abi.encodeWithSignature(
-            "swapERC20ToStables(address,address,uint256)",
+            "swapERC20ToStables(address,address)",
             address(TOKEN1),
             address(USDC)
         );
@@ -709,13 +709,11 @@ contract GeniusMultiTokenPoolAccounting is Test {
         logValues("Initial State", initialEntries);
 
         // Check initial balances
-        uint256 initialToken1Balance = TOKEN1.balanceOf(address(POOL));
-        uint256 initialUSDCBalance = USDC.balanceOf(address(POOL));
         uint256 initialTotalStables = POOL.totalStables();
 
         // Create the calldata for the tokenSwapAndDeposit function
         bytes memory calldataSwap = abi.encodeWithSignature(
-            "swapERC20ToStables(address,address,uint256)",
+            "swapERC20ToStables(address,address)",
             address(TOKEN1),
             address(USDC)
         );

@@ -19,7 +19,7 @@ contract GeniusPoolAccounting is Test {
 
     // ============ External Contracts ============
     ERC20 public USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
-    ERC20 public testToken;
+    ERC20 public TEST_TOKEN;
     
     // ============ Internal Contracts ============
     GeniusPool public POOL;
@@ -119,7 +119,6 @@ contract GeniusPoolAccounting is Test {
 
         // Deploy contracts
         ERC20 usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
-        ERC20 testToken = ERC20(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
         POOL = new GeniusPool(address(usdc), OWNER);
         VAULT = new GeniusVault(address(usdc), OWNER);
         EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT), OWNER);
@@ -296,10 +295,9 @@ contract GeniusPoolAccounting is Test {
 
         // Create the calldata for the tokenSwapAndDeposit function
         bytes memory calldataSwap = abi.encodeWithSignature(
-            "swapERC20ToStables(address,address,uint256)",
-            address(testToken),  // Using testToken as the input token
-            address(USDC),
-            depositAmount
+            "swapERC20ToStables(address,address)",
+            address(TEST_TOKEN),  // Using testToken as the input token
+            address(USDC)
         );
 
         // Execute the tokenSwapAndDeposit function
@@ -375,10 +373,9 @@ contract GeniusPoolAccounting is Test {
 
         // Create the calldata for the tokenSwapAndDeposit function
         bytes memory calldataSwap = abi.encodeWithSignature(
-            "swapERC20ToStables(address,address,uint256)",
-            address(testToken),  // Using testToken as the input token
-            address(USDC),
-            depositAmount
+            "swapERC20ToStables(address,address)",
+            address(TEST_TOKEN),  // Using testToken as the input token
+            address(USDC)
         );
 
         // Execute the tokenSwapAndDeposit function
@@ -474,10 +471,9 @@ contract GeniusPoolAccounting is Test {
 
         // Create the calldata for the tokenSwapAndDeposit function
         bytes memory calldataSwap = abi.encodeWithSignature(
-            "swapERC20ToStables(address,address,uint256)",
-            address(testToken),  // Using testToken as the input token
-            address(USDC),
-            depositAmount
+            "swapERC20ToStables(address,address)",
+            address(TEST_TOKEN),  // Using testToken as the input token
+            address(USDC)
         );
 
         // Execute the tokenSwapAndDeposit function
@@ -585,10 +581,9 @@ contract GeniusPoolAccounting is Test {
 
         // Create the calldata for the tokenSwapAndDeposit function
         bytes memory calldataSwap = abi.encodeWithSignature(
-            "swapERC20ToStables(address,address,uint256)",
-            address(testToken),  // Using testToken as the input token
-            address(USDC),
-            depositAmount
+            "swapERC20ToStables(address,address)",
+            address(TEST_TOKEN),  // Using testToken as the input token
+            address(USDC)
         );
 
         // Execute the tokenSwapAndDeposit function

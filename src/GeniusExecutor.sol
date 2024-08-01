@@ -154,7 +154,6 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         bytes calldata signature,
         address owner
     ) external onlyOrchestrator nonReentrant {
-        console.log("GELLLO FROM EXECUTOR");
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
 
