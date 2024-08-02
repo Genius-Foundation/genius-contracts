@@ -84,6 +84,11 @@ library GeniusErrors {
     error DuplicateToken(address token);
 
     /**
+     * @dev Error thrown when a supported tokens balance is unexpectedly decreased.
+     */
+    error UnexpectedBalanceDecrease(address token, uint256 postBalance, uint256 preBalance);
+
+    /**
      * @dev Error thrown when the the balance of a token is unexpectedly changed.
      * @param token The address of the effected token.
      * @param expectedBalance The expected balance of the token.

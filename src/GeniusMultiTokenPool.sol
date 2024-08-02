@@ -37,9 +37,11 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     uint256 public availStableBalance; // totalStables - (totalStakedAssets * (1 + stableRebalanceThreshold) (in percentage)
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
     uint256 public stableRebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
+    uint256 public supportedTokensCount; // The total number of supported tokens
 
-    address[] public supportedTokens;
-    mapping(address token => uint256 isSupported) public isSupportedToken;
+    mapping(uint256 => address) public supportedTokensIndex;
+    mapping(address => TokenInfo) public tokenInfo;
+    mapping(address bridge => uint256 isSupported) public isSupportedBridge;
     mapping(address token => uint256 balance) public tokenBalances;
 
     // =============================================================
@@ -68,6 +70,18 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         address indexed trader,
         uint256 amountWithdrawn,
         uint256 newTotalDeposits
+    );
+
+    /**
+     * @dev Emitted when a swap is executed.
+     * @param token The address of the token that was swapped.
+     * @param amount The amount of tokens that were swapped.
+     * @param stableDelta The amount of stablecoins that were swapped.
+     */
+    event SwapExecuted(
+        address token,
+        uint256 amount,
+        uint256 stableDelta
     );
 
     /**
@@ -112,12 +126,52 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         uint16 chainId
     );
 
+    /**
+     * @dev Emitted when the balance of a token is updated due to token
+     *      swaps or liquidity additions.
+     * @param token The address of the token.
+     * @param oldBalance The previous balance of the token.
+     * @param newBalance The new balance of the token.
+     */
+    event BalanceUpdate(
+        address token,
+        uint256 oldBalance,
+        uint256 newBalance
+    );
+
+    /**
+     * @dev Emitted when there is an excess balance of a token.
+     * @param token The address of the token.
+     * @param excess The amount of excess tokens.
+     */
+    event ExcessBalance(
+        address token,
+        uint256 excess
+    );
+
+    /**
+     * @dev Emitted when there is an unexpected decrease in the balance of a token.
+     * @param token The address of the token.
+     * @param expectedBalance The new balance of the token.
+     * @param newBalance The previous balance of the token.
+     */
+    event UnexpectedBalanceChange(
+        address token,
+        uint256 expectedBalance,
+        uint256 newBalance
+    );
+
     // =============================================================
     //                            STRUCTS
     // =============================================================
 
     struct TokenBalance {
         address token;
+        uint256 balance;
+    }
+
+    struct TokenInfo {
+        bool isSupported;
         uint256 balance;
     }
 
@@ -138,6 +192,43 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         isPaused = 1;
     }
 
+    // =============================================================
+    //                        TOKEN MANAGEMENT
+    // =============================================================
+
+    /**
+    * @dev Manages (adds or removes) a token from the list of supported tokens.
+    * @param token The address of the token to be managed.
+    * @param isSupported True to add the token, false to remove it.
+    */
+    function manageToken(address token, bool isSupported) external onlyOwner {
+        if (isSupported) {
+            if (tokenInfo[token].isSupported) revert GeniusErrors.DuplicateToken(token);
+            
+            tokenInfo[token] = TokenInfo({isSupported: true, balance: 0});
+            supportedTokensIndex[supportedTokensCount] = token;
+            supportedTokensCount++;
+        } else {
+            if (!tokenInfo[token].isSupported) revert GeniusErrors.InvalidToken(token);
+            if (tokenInfo[token].balance != 0) revert GeniusErrors.RemainingBalance(tokenInfo[token].balance);
+            
+            delete tokenInfo[token];
+            for (uint256 i = 0; i < supportedTokensCount;) {
+                if (supportedTokensIndex[i] == token) {
+                    supportedTokensIndex[i] = supportedTokensIndex[supportedTokensCount - 1];
+                    delete supportedTokensIndex[supportedTokensCount - 1];
+                    supportedTokensCount--;
+                    break;
+                }
+                unchecked { ++i; }
+            }
+        }
+    }
+
+    // =============================================================
+    //                            INITIALIZE
+    // =============================================================
+
     /**
      * @dev Initializes the GeniusMultiTokenPool contract.
      * @param vaultAddress The address of the GeniusVault contract.
@@ -145,19 +236,27 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      * @notice This function can only be called once by the contract owner.
      * @notice Once initialized, the `VAULT` address cannot be changed.
      */
-    function initialize(address executor, address vaultAddress, address[] memory tokens) external onlyOwner {
+    function initialize(
+        address executor,
+        address vaultAddress,
+        address[] memory tokens,
+        address[] memory bridgeTargets
+    ) external onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
 
         VAULT = vaultAddress;
-        supportedTokens = tokens;
         _initializeExecutor(payable(executor));
 
         for (uint256 i = 0; i < tokens.length;) {
-
-            if (isSupportedToken[tokens[i]] == 1) revert GeniusErrors.DuplicateToken(tokens[i]);
             if (tokens[i] == address(STABLECOIN)) revert GeniusErrors.DuplicateToken(tokens[i]);
+            _addInitialToken(tokens[i]);
 
-            isSupportedToken[tokens[i]] = 1;
+            unchecked { i++; }
+        }
+
+        for (uint256 i = 0; i < bridgeTargets.length;) {
+            if (isSupportedBridge[bridgeTargets[i]] == 1) revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
+            isSupportedBridge[bridgeTargets[i]] = 1;
 
             unchecked { i++; }
         }
@@ -216,55 +315,69 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         _isPoolReady();
         _isAmountValid(amountIn);
         _checkNative(_sum(values));
+        _checkBridge(targets);
 
-        if (!_isBalanceWithinThreshold(totalStables - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            minStableBalance,
-            totalStables - amountIn
+        uint256 actualStableBalance = STABLECOIN.balanceOf(address(this));
+        if (actualStableBalance < totalStables) revert GeniusErrors.InsufficientBalance(
+            address(STABLECOIN),
+            totalStables,
+            actualStableBalance
         );
 
-        uint256 _initStableBalance = STABLECOIN.balanceOf(address(this));
-        
-        // Store pre-execution balances for all supported tokens
-        uint256 supportedTokensLength = supportedTokens.length;
-        uint256[] memory _preERC20Balances = new uint256[](supportedTokensLength);
-        for (uint256 i; i < supportedTokensLength;) {
-            _preERC20Balances[i] = supportedTokens[i] == NATIVE ? 
-                address(this).balance : 
-                IERC20(supportedTokens[i]).balanceOf(address(this));
+        if (!_isBalanceWithinThreshold(actualStableBalance - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
+            minStableBalance,
+            actualStableBalance - amountIn
+        );
 
-            unchecked { i++; }
+        // Store pre-execution balances for all supported tokens
+        TokenBalance[] memory preBalances = new TokenBalance[](supportedTokensCount);
+        for (uint256 i = 0; i < supportedTokensCount; i++) {
+            address token = supportedTokensIndex[i];
+            uint256 balance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
+            preBalances[i] = TokenBalance(token, balance);
         }
 
         // Effects
-        _updateStableBalance(amountIn, 0);
+        totalStables = actualStableBalance - amountIn;
         _updateAvailableAssets();
 
         // Interactions
         _batchExecution(targets, data, values);
 
         // Post-interaction checks
-        if (_initStableBalance - STABLECOIN.balanceOf(address(this)) != amountIn) revert GeniusErrors.InvalidAmount();
+        uint256 postStableBalance = STABLECOIN.balanceOf(address(this));
+        if (postStableBalance != totalStables) revert GeniusErrors.UnexpectedBalanceChange(
+            address(STABLECOIN),
+            postStableBalance,
+            totalStables
+        );
 
         // Check balances of all supported tokens
-        for (uint256 i; i < supportedTokensLength;) {
-            address token = supportedTokens[i];
-            uint256 _postBalance = token == NATIVE ? 
-                address(this).balance : 
-                IERC20(token).balanceOf(address(this));
+        for (uint256 i = 0; i < supportedTokensCount; i++) {
+            address token = supportedTokensIndex[i];
+            uint256 postBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
 
-            if (token != address(STABLECOIN) && _postBalance != _preERC20Balances[i]) {
-                revert GeniusErrors.UnexpectedBalanceChange(token, _postBalance, _preERC20Balances[i]);
+            // Allow for increases in balance due to potential direct transfers
+            if (postBalance < preBalances[i].balance) {
+                revert GeniusErrors.UnexpectedBalanceDecrease(
+                    token,
+                    postBalance,
+                    preBalances[i].balance
+                );
             }
 
             // Update internal balances to match actual balances
-            if (tokenBalances[token] != _preERC20Balances[i]) {
-                tokenBalances[token] = _preERC20Balances[i];
-            }
+            if (tokenInfo[token].balance != postBalance) {
+                emit BalanceUpdate(
+                    token,
+                    tokenInfo[token].balance,
+                    postBalance
+                );
 
-            unchecked { i++; }
+                tokenInfo[token].balance = postBalance;
+            }
         }
 
-        // Event emission
         emit BridgeFunds(amountIn, dstChainId);
     }
 
@@ -290,29 +403,47 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
+        uint256 preBalance;
+        uint256 postBalance;
+
         if (token == address(STABLECOIN)) {
-            _updateStableBalance(amount, 1);
-            _updateAvailableAssets();
-
+            preBalance = STABLECOIN.balanceOf(address(this));
             _transferERC20From(token, msg.sender, address(this), amount);
-        } else if (isSupportedToken[token] == 1) {
+            postBalance = STABLECOIN.balanceOf(address(this));
 
+            if (postBalance - preBalance != amount) revert GeniusErrors.UnexpectedBalanceChange(
+                token,
+                amount,
+                postBalance - preBalance
+            );
+
+            totalStables = postBalance;
+            _updateAvailableAssets();
+        } else if (tokenInfo[token].isSupported) {
             if (token == NATIVE) {
                 if (msg.value != amount) revert GeniusErrors.InvalidAmount();
+                preBalance = address(this).balance - msg.value;
+                postBalance = address(this).balance;
             } else {
+                preBalance = IERC20(token).balanceOf(address(this));
                 _transferERC20From(token, msg.sender, address(this), amount);
+                postBalance = IERC20(token).balanceOf(address(this));
             }
 
-            _updateTokenBalance(token);
+            if (postBalance - preBalance != amount) revert GeniusErrors.TransferFailed(token, amount);
+
+            tokenInfo[token].balance = postBalance;
         } else {
             revert GeniusErrors.InvalidToken(token);
         }
 
-        emit SwapDeposit(
-            trader,
-            token,
-            amount
-        );
+        // Check for and handle any pre-existing balance
+        if (preBalance > tokenInfo[token].balance) {
+            uint256 excess = preBalance - tokenInfo[token].balance;
+            emit ExcessBalance(token, excess);
+        }
+
+        emit SwapDeposit(trader, token, amount);
     }
 
     /**
@@ -384,70 +515,53 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         address target,
         bytes calldata data
     ) external onlyOrchestrator {
+        // Checks
         _isPoolReady();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        (bool isSufficient, TokenBalance memory tokenBalance) = _isBalanceSufficient(token, amount);
-        if (!isSufficient) revert GeniusErrors.InsufficientBalance(token, amount, tokenBalance.balance);
+        if (!tokenInfo[token].isSupported) revert GeniusErrors.InvalidToken(token);
+        if (tokenInfo[token].balance < amount) revert GeniusErrors.InsufficientBalance(token, amount, tokenInfo[token].balance);
 
-        // Store pre-swap balances
-        uint256 _preSwapStableBalance = STABLECOIN.balanceOf(address(this));
-        uint256[] memory _preSwapBalances = new uint256[](supportedTokens.length);
-        for (uint256 i = 0; i < supportedTokens.length;) {
-            _preSwapBalances[i] = supportedTokens[i] == NATIVE ?
-                address(this).balance :
-                IERC20(supportedTokens[i]).balanceOf(address(this));
+        uint256 preSwapStableBalance = STABLECOIN.balanceOf(address(this));
+        uint256 preSwapTokenBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
 
-            unchecked { ++i; }
-        }
-
+        // Effects
+        tokenInfo[token].balance -= amount;  // Decrease the balance of the swapped token
+        
         // Interactions
         _executeSwap(token, target, data, amount);
 
-        // Post-swap checks
-        uint256 _postSwapStableBalance = STABLECOIN.balanceOf(address(this));
-        uint256 _stableDelta = 
-        _postSwapStableBalance > _preSwapStableBalance ?
-        _postSwapStableBalance - _preSwapStableBalance : 0;
+        // Post-swap checks and effects
+        uint256 postSwapStableBalance = STABLECOIN.balanceOf(address(this));
+        uint256 postSwapTokenBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
 
-        if (_stableDelta == 0) revert GeniusErrors.InvalidDelta();
+        uint256 stableDelta = postSwapStableBalance - preSwapStableBalance;
+        uint256 actualTokenDelta = preSwapTokenBalance - postSwapTokenBalance;
 
-        // Check balances of all supported tokens
-        for (uint256 i = 0; i < supportedTokens.length;) {
-            uint256 _postBalance = supportedTokens[i] == NATIVE ?
-                address(this).balance :
-                IERC20(supportedTokens[i]).balanceOf(address(this));
+        if (stableDelta == 0 || actualTokenDelta < amount) revert GeniusErrors.InvalidDelta();
 
-            if (supportedTokens[i] == token) {
-                if (_postBalance != _preSwapBalances[i] - amount) {
-                    revert GeniusErrors.UnexpectedBalanceChange(
-                        supportedTokens[i],
-                        _postBalance,
-                        _preSwapBalances[i] - amount
-                    );
-                }
-            } else {
-                if (_postBalance != _preSwapBalances[i]) {
-                    revert GeniusErrors.UnexpectedBalanceChange(
-                        supportedTokens[i],
-                        _postBalance,
-                        _preSwapBalances[i]
-                    );
+        // Update balances
+        totalStables += stableDelta;
+        tokenInfo[token].balance = postSwapTokenBalance;  // Adjust for any discrepancies
+
+        // Check for unexpected balance changes in other tokens
+        for (uint256 i = 0; i < supportedTokensCount; i++) {
+            address currentToken = supportedTokensIndex[i];
+            if (currentToken != token && currentToken != address(STABLECOIN)) {
+                uint256 currentBalance = currentToken == NATIVE ? 
+                    address(this).balance : 
+                    IERC20(currentToken).balanceOf(address(this));
+                
+                if (currentBalance != tokenInfo[currentToken].balance) {
+                    emit UnexpectedBalanceChange(currentToken, tokenInfo[currentToken].balance, currentBalance);
+                    tokenInfo[currentToken].balance = currentBalance;
                 }
             }
-
-            // If there is a change in the balance, update internal balances
-            if (tokenBalances[supportedTokens[i]] != _postBalance) {
-                tokenBalances[supportedTokens[i]] = _postBalance;
-            }
-
-            unchecked { ++i; }
         }
-
-        // Update stablecoin balance
-        totalStables = _postSwapStableBalance;
 
         // Final effects
         _updateAvailableAssets();
+
+        emit SwapExecuted(token, amount, stableDelta);
     }
 
     // =============================================================
@@ -534,45 +648,24 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     }
 
     // =============================================================
-    //                        TOKEN MANAGEMENT
+    //                        BRIDGE MANAGEMENT
     // =============================================================
 
     /**
-     * @dev Adds a new token to the list of supported tokens.
-     * @param token The address of the token to be added.
-     * @notice This function can only be called by the contract owner.
-     * @notice The token must not already be supported.
-     */
-    function addToken(address token) external onlyOwner {
-        if(isSupportedToken[token] == 1) revert GeniusErrors.DuplicateToken(token);
-
-        supportedTokens.push(token);
-        isSupportedToken[token] = 1;
-    }
-
-    /**
-     * @dev Removes a token from the list of supported tokens.
-     * @param token The address of the token to be removed.
-     * @notice This function can only be called by the contract owner.
-     * @notice The token must be currently supported by the contract.
-     * @notice If the token is successfully removed, it will no longer be supported by the contract.
-     */
-    function removeToken(address token) external onlyOwner {
-        uint256 _tokenBalance = IERC20(token).balanceOf(address(this));
-
-        if (isSupportedToken[token] == 0) revert GeniusErrors.InvalidToken(token);
-        if (_tokenBalance != 0) revert GeniusErrors.RemainingBalance(_tokenBalance);
-
-        isSupportedToken[token] = 0;
-
-        for (uint256 i = 0; i < supportedTokens.length;) {
-            if (supportedTokens[i] == token) {
-                supportedTokens[i] = supportedTokens[supportedTokens.length - 1];
-                supportedTokens.pop();
-                break;
-            }
-
-            unchecked { i++; }
+    * @dev Authorizes or unauthorizes a bridge target.
+    * @param bridge The address of the bridge target to be managed.
+    * @param authorize True to authorize the bridge, false to unauthorize it.
+    * @notice This function can only be called by the contract owner.
+    * @notice When authorizing, the bridge must not already be authorized.
+    * @notice When unauthorizing, the bridge must be currently authorized.
+    */
+    function manageBridgeTarget(address bridge, bool authorize) external onlyOwner {
+        if (authorize) {
+            if (isSupportedBridge[bridge] == 1) revert GeniusErrors.InvalidTarget(bridge);
+            isSupportedBridge[bridge] = 1;
+        } else {
+            if (isSupportedBridge[bridge] == 0) revert GeniusErrors.InvalidTarget(bridge);
+            isSupportedBridge[bridge] = 0;
         }
     }
 
@@ -606,7 +699,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      * @return boolean indicating whether the token is supported or not.
      */
     function isTokenSupported(address token) public view returns (bool) {
-        return isSupportedToken[token] == 1;
+        return tokenInfo[token].isSupported;
     }
 
     /**
@@ -632,12 +725,13 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      * @return array of TokenBalance structs containing the token address and balance.
      */
     function supportedTokenBalances() public view returns (TokenBalance[] memory) {
-        TokenBalance[] memory _supportedTokenBalances = new TokenBalance[](supportedTokens.length);
+        TokenBalance[] memory _supportedTokenBalances = new TokenBalance[](supportedTokensCount);
 
-        for (uint256 i = 0; i < supportedTokens.length;) {
-            _supportedTokenBalances[i] = TokenBalance(supportedTokens[i], tokenBalances[supportedTokens[i]]);
+        for (uint256 i = 0; i < supportedTokensCount;) {
+            address token = supportedTokensIndex[i];
+            _supportedTokenBalances[i] = TokenBalance(token, tokenInfo[token].balance);
             
-            unchecked { i++; }
+            unchecked { ++i; }
         }
 
         return _supportedTokenBalances;
@@ -655,13 +749,25 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
     }
 
+    /**
+     * @dev Internal function to check if the given bridge targets are supported.
+     * @param bridgeTargets The array of bridge target addresses to check.
+     */
+    function _checkBridge(address[] memory bridgeTargets) internal view {
+        
+        for (uint256 i = 0; i < bridgeTargets.length;) {
+            if (isSupportedBridge[bridgeTargets[i]] == 0) revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
+            unchecked { i++; }
+        }
+
+    }
 
     /**
      * @dev Checks if the pool is ready for use.
      */
     function _isPoolReady() internal view {
-        if (isPaused == 1) revert GeniusErrors.Paused();
         if (initialized == 0) revert GeniusErrors.NotInitialized();
+        if (isPaused == 1) revert GeniusErrors.Paused();
     }
 
     /**
@@ -714,6 +820,18 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         }
 
         return (amount <= tokenBalance, TokenBalance(token, tokenBalance));
+    }
+
+    /**
+     * @dev Adds an initial token to the GeniusMultiTokenPool.
+     * @param token The address of the token to be added.
+     */
+    function _addInitialToken(address token) internal {
+        if (tokenInfo[token].isSupported) revert GeniusErrors.DuplicateToken(token);
+        
+        tokenInfo[token] = TokenInfo({isSupported: true, balance: 0});
+        supportedTokensIndex[supportedTokensCount] = token;
+        supportedTokensCount++;
     }
 
     /**

@@ -15,8 +15,6 @@ contract MockDEXRouter {
     uint256 public constant MINT_AMOUNT = 1000 * 10**18;
 
     function swapToStables(address usdc) external payable {
-        console.log("msg.value: %d", msg.value);
-        
         if (msg.value < 1 wei) {
             revert ("Must pay for USDC");
         }
@@ -27,6 +25,14 @@ contract MockDEXRouter {
         IERC20(usdc).transfer(msg.sender, _usdcAmount);
 
         usdcAmountOut = _usdcAmount;
+    }
+
+    function bridge(address usdc, uint256 amount) public {
+        console.log("hello");
+        // Check the allowance of the msg.sender
+        require(IERC20(usdc).allowance(msg.sender, address(this)) >= amount, "Insufficient allowance");
+
+        IERC20(usdc).transferFrom(msg.sender, address(this), amount);
     }
 
     function swapERC20ToStables(address tokenIn, address usdc) external payable {

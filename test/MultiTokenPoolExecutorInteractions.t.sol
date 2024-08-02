@@ -46,6 +46,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
     address public OWNER;
     address public TRADER;
     address public ORCHESTRATOR;
+    address public BRIDGE;
 
     // ============ Private Key ============
     uint256 P_KEY;
@@ -84,6 +85,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
         // Set up addresses
         OWNER = address(0x1);
         ORCHESTRATOR = address(0x3);
+        BRIDGE = address(0x4);
 
         (address traderAddress, uint256 traderKey) = makeAddrAndKey("trader");
         TRADER = traderAddress;
@@ -111,8 +113,11 @@ contract MultiTokenPoolExecutorInteractions is Test {
 
         address[] memory routers = new address[](1);
         routers[0] = address(ROUTER);
+
+        address[] memory bridges = new address[](1);
+        bridges[0] = BRIDGE;
         
-        MULTI_POOL.initialize(address(EXECUTOR), address(VAULT), supportedTokens);
+        MULTI_POOL.initialize(address(EXECUTOR), address(VAULT), supportedTokens, bridges);
         VAULT.initialize(address(MULTI_POOL));
         EXECUTOR.initialize(routers);
         
