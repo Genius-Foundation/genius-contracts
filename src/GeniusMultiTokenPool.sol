@@ -39,10 +39,11 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     uint256 public stableRebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
     uint256 public supportedTokensCount; // The total number of supported tokens
 
-    mapping(uint256 => address) public supportedTokensIndex;
-    mapping(address => TokenInfo) public tokenInfo;
-    mapping(address bridge => uint256 isSupported) public isSupportedBridge;
-    mapping(address token => uint256 balance) public tokenBalances;
+    mapping(address => TokenInfo) public tokenInfo; // Mapping of token addresses to TokenInfo structs
+    mapping(uint256 => address) public supportedTokensIndex; // Mapping of supported token index to token address
+    mapping(address token => uint256 balance) public tokenBalances; // Mapping of token address to balance
+    mapping(address bridge => uint256 isSupported) public supportedBridges; // Mapping of bridge address to support status
+    mapping(address router => uint256 isSupported) public supportedRouters; // Mapping of router address to support status
 
     // =============================================================
     //                          EVENTS
@@ -165,11 +166,21 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     //                            STRUCTS
     // =============================================================
 
+    /**
+     * @dev Struct representing the balance of a token in the GeniusMultiTokenPool.
+     * @param token The address of the token.
+     * @param balance The balance of the token.
+     */
     struct TokenBalance {
         address token;
         uint256 balance;
     }
 
+    /**
+     * @dev Struct to store information about a token.
+     * @param isSupported Boolean indicating if the token is supported.
+     * @param balance The balance of the token.
+     */
     struct TokenInfo {
         bool isSupported;
         uint256 balance;
@@ -187,6 +198,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         if (owner == address(0)) revert GeniusErrors.InvalidOwner();
 
         STABLECOIN = IERC20(stablecoin);
+        tokenInfo[stablecoin] = TokenInfo({isSupported: true, balance: STABLECOIN.balanceOf(address(this))});
 
         initialized = 0;
         isPaused = 1;
@@ -202,6 +214,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     * @param isSupported True to add the token, false to remove it.
     */
     function manageToken(address token, bool isSupported) external onlyOwner {
+        if (token == address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
         if (isSupported) {
             if (tokenInfo[token].isSupported) revert GeniusErrors.DuplicateToken(token);
             
@@ -240,13 +253,15 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         address executor,
         address vaultAddress,
         address[] memory tokens,
-        address[] memory bridgeTargets
+        address[] memory bridges,
+        address[] memory routers
     ) external onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
 
         VAULT = vaultAddress;
         _initializeExecutor(payable(executor));
 
+        // Add the initial supported tokens
         for (uint256 i = 0; i < tokens.length;) {
             if (tokens[i] == address(STABLECOIN)) revert GeniusErrors.DuplicateToken(tokens[i]);
             _addInitialToken(tokens[i]);
@@ -254,9 +269,18 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
             unchecked { i++; }
         }
 
-        for (uint256 i = 0; i < bridgeTargets.length;) {
-            if (isSupportedBridge[bridgeTargets[i]] == 1) revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
-            isSupportedBridge[bridgeTargets[i]] = 1;
+        // Add the initial supported bridges
+        for (uint256 i = 0; i < bridges.length;) {
+            if (supportedBridges[bridges[i]] == 1) revert GeniusErrors.InvalidTarget(bridges[i]);
+            supportedBridges[bridges[i]] = 1;
+
+            unchecked { i++; }
+        }
+
+        // Add the initial supported routers
+        for (uint256 i = 0; i < routers.length;) {
+            if (supportedRouters[routers[i]] == 1) revert GeniusErrors.DuplicateRouter(routers[i]);
+            _addInitialRouter(routers[i]);
 
             unchecked { i++; }
         }
@@ -535,9 +559,10 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         uint256 postSwapTokenBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
 
         uint256 stableDelta = postSwapStableBalance - preSwapStableBalance;
-        uint256 actualTokenDelta = preSwapTokenBalance - postSwapTokenBalance;
+        uint256 tokenDelta = preSwapTokenBalance - postSwapTokenBalance;
 
-        if (stableDelta == 0 || actualTokenDelta < amount) revert GeniusErrors.InvalidDelta();
+        if (stableDelta == 0) revert GeniusErrors.InvalidDelta();
+        if (tokenDelta > amount) revert GeniusErrors.UnexpectedBalanceChange(token, amount, tokenDelta);
 
         // Update balances
         totalStables += stableDelta;
@@ -659,13 +684,27 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     * @notice When authorizing, the bridge must not already be authorized.
     * @notice When unauthorizing, the bridge must be currently authorized.
     */
-    function manageBridgeTarget(address bridge, bool authorize) external onlyOwner {
+    function manageBridge(address bridge, bool authorize) external onlyOwner {
         if (authorize) {
-            if (isSupportedBridge[bridge] == 1) revert GeniusErrors.InvalidTarget(bridge);
-            isSupportedBridge[bridge] = 1;
+            if (supportedBridges[bridge] == 1) revert GeniusErrors.InvalidTarget(bridge);
+            supportedBridges[bridge] = 1;
         } else {
-            if (isSupportedBridge[bridge] == 0) revert GeniusErrors.InvalidTarget(bridge);
-            isSupportedBridge[bridge] = 0;
+            if (supportedBridges[bridge] == 0) revert GeniusErrors.InvalidTarget(bridge);
+            supportedBridges[bridge] = 0;
+        }
+    }
+
+    // =============================================================
+    //                        ROUTER MANAGEMENT
+    // =============================================================
+
+    function manageRouter(address router, bool authorize) external onlyOwner {
+        if (authorize) {
+            if (supportedRouters[router] == 1) revert GeniusErrors.DuplicateRouter(router);
+            supportedRouters[router] = 1;
+        } else {
+            if (supportedRouters[router] == 0) revert GeniusErrors.InvalidRouter(router);
+            supportedRouters[router] = 0;
         }
     }
 
@@ -756,7 +795,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     function _checkBridge(address[] memory bridgeTargets) internal view {
         
         for (uint256 i = 0; i < bridgeTargets.length;) {
-            if (isSupportedBridge[bridgeTargets[i]] == 0) revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
+            if (supportedBridges[bridgeTargets[i]] == 0) revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
             unchecked { i++; }
         }
 
@@ -832,6 +871,11 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         tokenInfo[token] = TokenInfo({isSupported: true, balance: 0});
         supportedTokensIndex[supportedTokensCount] = token;
         supportedTokensCount++;
+    }
+
+    function _addInitialRouter(address router) internal {
+        if (supportedRouters[router] == 1) revert GeniusErrors.DuplicateRouter(router);
+        supportedRouters[router] = 1;
     }
 
     /**

@@ -117,7 +117,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
         address[] memory bridges = new address[](1);
         bridges[0] = BRIDGE;
         
-        MULTI_POOL.initialize(address(EXECUTOR), address(VAULT), supportedTokens, bridges);
+        MULTI_POOL.initialize(address(EXECUTOR), address(VAULT), supportedTokens, bridges, routers);
         VAULT.initialize(address(MULTI_POOL));
         EXECUTOR.initialize(routers);
         

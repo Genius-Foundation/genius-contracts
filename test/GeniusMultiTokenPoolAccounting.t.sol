@@ -12,7 +12,7 @@ import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {Orchestrable} from "../src/access/Orchestrable.sol";
+import {Orchestrable, Ownable} from "../src/access/Orchestrable.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockSwapTarget} from "./mocks/MockSwapTarget.sol";
@@ -152,13 +152,17 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         address[] memory bridges = new address[](1);
         bridges[0] = address(DEX_ROUTER);
+
+        address[] memory routers = new address[](1);
+        routers[0] = address(DEX_ROUTER);
         
         VAULT.initialize(address(POOL));
         POOL.initialize(
             address(EXECUTOR),
             address(VAULT),
             supportedTokens,
-            bridges
+            bridges,
+            routers
         );
         
         // Add Orchestrator
@@ -759,23 +763,22 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InsufficientBalance.selector, address(TOKEN1), swapAmount * 2, swapAmount));
         POOL.swapToStables(address(TOKEN1), swapAmount * 2, address(DEX_ROUTER), calldataSwap);
 
-        // Test InvalidDelta error
-        bytes memory calldataSwapInvalid = abi.encodeWithSignature(
-            "swapERC20ToStables(address,address)",
-            address(TOKEN1),
-            address(USDC)
-        );
+        bytes memory calldataNoSwap = abi.encodeWithSignature(
+                "swapWithNoEffect(address,address)",
+                address(TOKEN1),
+                address(USDC)
+            );
+
         vm.expectRevert(GeniusErrors.InvalidDelta.selector);
-        POOL.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwapInvalid);
+        POOL.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataNoSwap);
 
         // Test ExternalCallFailed error
         bytes memory calldataSwapFail = abi.encodeWithSignature(
             "nonExistentFunction()"
         );
-
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.ExternalCallFailed.selector, address(DEX_ROUTER), 0));
         POOL.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwapFail);
-
+         
         vm.stopPrank();
     }
 
@@ -912,28 +915,60 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.stopPrank();
 
         // Assert total stables increased correctly
-        assertEq(POOL.totalStables(), initialTotalStables + bridgeAmount, "Total stables should increase by bridge amount");
+        assertEq(
+            POOL.totalStables(),
+            initialTotalStables + bridgeAmount,
+            "Total stables should increase by bridge amount"
+        );
 
         // Assert available stable balance increased
-        assertEq(POOL.availStableBalance(), initialAvailStableBalance + bridgeAmount, "Available stable balance should increase by bridge amount");
+        assertEq(
+            POOL.availStableBalance(),
+            initialAvailStableBalance + bridgeAmount,
+            "Available stable balance should increase by bridge amount"
+        );
 
         // Assert min stable balance remains unchanged
-        assertEq(POOL.minStableBalance(), initialMinStableBalance, "Minimum stable balance should remain unchanged");
+        assertEq(
+            POOL.minStableBalance(),
+            initialMinStableBalance,
+            "Minimum stable balance should remain unchanged"
+        );
 
         // Assert balances for all supported tokens
         GeniusMultiTokenPool.TokenBalance[] memory finalBalances = POOL.supportedTokenBalances();
-        assertEq(finalBalances.length, initialBalances.length, "Number of supported tokens should remain the same");
+        assertEq(
+            finalBalances.length,
+            initialBalances.length,
+            "Number of supported tokens should remain the same"
+        );
 
         for (uint i = 0; i < finalBalances.length; i++) {
             if (finalBalances[i].token == address(USDC)) {
-                assertEq(finalBalances[i].balance, initialBalances[i].balance + bridgeAmount, "USDC balance should increase by bridge amount");
+
+                assertEq(
+                    finalBalances[i].balance,
+                    initialBalances[i].balance + bridgeAmount,
+                    "USDC balance should increase by bridge amount"
+                );
+
             } else {
-                assertEq(finalBalances[i].balance, initialBalances[i].balance, "Non-USDC token balances should remain unchanged");
+
+                assertEq(
+                    finalBalances[i].balance,
+                    initialBalances[i].balance,
+                    "Non-USDC token balances should remain unchanged"
+                );
+
             }
         }
 
         // Verify USDC transfer
-        assertEq(USDC.balanceOf(address(POOL)), initialBalances[0].balance + bridgeAmount, "USDC balance in pool should increase by bridge amount");
+        assertEq(
+            USDC.balanceOf(address(POOL)),
+            initialBalances[0].balance + bridgeAmount,
+            "USDC balance in pool should increase by bridge amount"
+        );
 
         // Additional Step: Simulate a donation to the pool
 
@@ -950,15 +985,247 @@ contract GeniusMultiTokenPoolAccounting is Test {
         GeniusMultiTokenPool.TokenBalance[] memory postDonationBalances = POOL.supportedTokenBalances();
         for (uint i = 0; i < postDonationBalances.length; i++) {
             if (postDonationBalances[i].token == address(USDC)) {
-                assertEq(postDonationBalances[i].balance, finalBalances[i].balance + 10 ether, "USDC balance should include donation amount");
+                
+                assertEq(
+                    postDonationBalances[i].balance,
+                    finalBalances[i].balance + 10 ether,
+                    "USDC balance should include donation amount"
+                );
+
             } else {
-                assertEq(postDonationBalances[i].balance, finalBalances[i].balance, "Non-USDC token balances should remain unchanged");
+
+                assertEq(
+                    postDonationBalances[i].balance,
+                    finalBalances[i].balance,
+                    "Non-USDC token balances should remain unchanged"
+                );
+
             }
         }
 
         // Verify USDC balance in the pool contract
-        assertEq(USDC.balanceOf(address(POOL)), initialBalances[0].balance + bridgeAmount + 10 ether, "USDC balance in pool should include donation amount");
+        assertEq(
+            USDC.balanceOf(address(POOL)),
+            initialBalances[0].balance + bridgeAmount + 10 ether,
+            "USDC balance in pool should include donation amount"
+        );
     }
 
+
+    /**
+     * @dev Tests the manageToken function
+     */
+    function testManageToken() public {
+        // Setup: Deploy a new test token
+        MockERC20 newToken = new MockERC20("New Token", "NTK", 18);
+
+        // Initial checks
+        assertFalse(POOL.isTokenSupported(address(newToken)), "New token should not be supported initially");
+        uint256 initialSupportedTokensCount = POOL.supportedTokensCount();
+
+        // Test adding a new token
+        vm.prank(OWNER);
+        POOL.manageToken(address(newToken), true);
+
+        assertTrue(POOL.isTokenSupported(address(newToken)), "New token should now be supported");
+        assertEq(POOL.supportedTokensCount(), initialSupportedTokensCount + 1, "Supported tokens count should increase");
+
+        // Test adding a duplicate token (should revert)
+        vm.prank(OWNER);
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.DuplicateToken.selector, address(newToken)));
+        POOL.manageToken(address(newToken), true);
+
+        // Test removing the token
+        vm.prank(OWNER);
+        POOL.manageToken(address(newToken), false);
+
+        assertFalse(POOL.isTokenSupported(address(newToken)), "New token should no longer be supported");
+        assertEq(POOL.supportedTokensCount(), initialSupportedTokensCount, "Supported tokens count should be back to initial value");
+
+        // Test removing a token that's not supported (should revert)
+        vm.prank(OWNER);
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidToken.selector, address(newToken)));
+        POOL.manageToken(address(newToken), false);
+
+        // Test removing a token with non-zero balance (should revert)
+        // First, add the token back and simulate some balance
+        vm.prank(OWNER);
+        POOL.manageToken(address(newToken), true);
+
+        deal(address(newToken), address(EXECUTOR), 100 ether);
+        vm.startPrank(address(EXECUTOR));
+        newToken.approve(address(POOL), 100 ether);
+        POOL.addLiquiditySwap(TRADER, address(newToken), 100 ether);
+
+        vm.startPrank(OWNER);
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.RemainingBalance.selector, 100 ether));
+        POOL.manageToken(address(newToken), false);
+
+        // Test managing STABLECOIN (should revert)
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidToken.selector, address(USDC)));
+        POOL.manageToken(address(USDC), false);
+
+        // Test calling from non-owner address (should revert)
+        vm.startPrank(TRADER);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, TRADER));
+        POOL.manageToken(address(newToken), false);
+    }
+
+    function testManageBridge() public {
+        address newBridge = makeAddr("newBridge");
+
+        // Initial check
+        assertEq(POOL.supportedBridges(newBridge), 0, "Bridge should not be supported initially");
+
+        // Test authorizing a new bridge
+        vm.prank(OWNER);
+        POOL.manageBridge(newBridge, true);
+        assertEq(POOL.supportedBridges(newBridge), 1, "Bridge should be supported after authorization");
+
+        // Test authorizing an already authorized bridge (should revert)
+        vm.prank(OWNER);
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, newBridge));
+        POOL.manageBridge(newBridge, true);
+
+        // Test unauthorizing the bridge
+        vm.prank(OWNER);
+        POOL.manageBridge(newBridge, false);
+        assertEq(POOL.supportedBridges(newBridge), 0, "Bridge should not be supported after unauthorized");
+
+        // Test unauthorizing an already unauthorized bridge (should revert)
+        vm.prank(OWNER);
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, newBridge));
+        POOL.manageBridge(newBridge, false);
+
+        // Test calling from non-owner address (should revert)
+        vm.prank(TRADER);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, TRADER));
+        POOL.manageBridge(newBridge, true);
+
+        // Test with address(0) as bridge address
+        vm.prank(OWNER);
+        POOL.manageBridge(address(0), true);
+        assertEq(POOL.supportedBridges(address(0)), 1, "Zero address should be allowed as a bridge");
+
+        vm.prank(OWNER);
+        POOL.manageBridge(address(0), false);
+        assertEq(POOL.supportedBridges(address(0)), 0, "Zero address should be removable as a bridge");
+
+        // Test multiple authorizations and unauthorizations
+        address[] memory bridges = new address[](3);
+        bridges[0] = makeAddr("bridge1");
+        bridges[1] = makeAddr("bridge2");
+        bridges[2] = makeAddr("bridge3");
+
+        vm.startPrank(OWNER);
+        for (uint i = 0; i < bridges.length; i++) {
+            POOL.manageBridge(bridges[i], true);
+            assertEq(POOL.supportedBridges(bridges[i]), 1, "Bridge should be supported after authorization");
+        }
+
+        for (uint i = 0; i < bridges.length; i++) {
+            POOL.manageBridge(bridges[i], false);
+            assertEq(POOL.supportedBridges(bridges[i]), 0, "Bridge should not be supported after unauthorized");
+        }
+        vm.stopPrank();
+    }
+
+    function testManageRouter() public {
+        MockDEXRouter UNAUTHORIZED_ROUTER = new MockDEXRouter();
+        address unRouter = address(UNAUTHORIZED_ROUTER);
+
+        // Initial check
+        assertEq(POOL.supportedRouters(unRouter), 0, "Router should not be supported initially");
+
+        // Test authorizing a new router
+        vm.prank(OWNER);
+        POOL.manageRouter(unRouter, true);
+        assertEq(POOL.supportedRouters(unRouter), 1, "Router should be supported after authorization");
+
+        // Test authorizing an already authorized router (should revert)
+        vm.prank(OWNER);
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.DuplicateRouter.selector, unRouter));
+        POOL.manageRouter(unRouter, true);
+
+        // Test unauthorizing the router
+        vm.prank(OWNER);
+        POOL.manageRouter(unRouter, false);
+        assertEq(POOL.supportedRouters(unRouter), 0, "Router should not be supported after unauthorized");
+
+        // Test unauthorizing an already unauthorized router (should revert)
+        vm.prank(OWNER);
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidRouter.selector, unRouter));
+        POOL.manageRouter(unRouter, false);
+
+        // Test calling from non-owner address (should revert)
+        vm.prank(TRADER);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, TRADER));
+        POOL.manageRouter(unRouter, true);
+
+        // Test with address(0) as router address
+        vm.prank(OWNER);
+        POOL.manageRouter(address(0), true);
+        assertEq(POOL.supportedRouters(address(0)), 1, "Zero address should be allowed as a router");
+
+        vm.prank(OWNER);
+        POOL.manageRouter(address(0), false);
+        assertEq(POOL.supportedRouters(address(0)), 0, "Zero address should be removable as a router");
+
+        // Test multiple authorizations and unauthorizations
+        address[] memory routers = new address[](3);
+        routers[0] = makeAddr("router1");
+        routers[1] = makeAddr("router2");
+        routers[2] = makeAddr("router3");
+
+        vm.startPrank(OWNER);
+        for (uint i = 0; i < routers.length; i++) {
+            POOL.manageRouter(routers[i], true);
+            assertEq(POOL.supportedRouters(routers[i]), 1, "Router should be supported after authorization");
+        }
+
+        for (uint i = 0; i < routers.length; i++) {
+            POOL.manageRouter(routers[i], false);
+            assertEq(POOL.supportedRouters(routers[i]), 0, "Router should not be supported after unauthorized");
+        }
+        vm.stopPrank();
+
+        // Test interaction with swapToStables function
+        MockERC20 mockToken = new MockERC20("Mock Token", "MTK", 18);
+        uint256 amount = 100 ether;
+        deal(address(USDC), address(DEX_ROUTER), amount);
+        bytes memory data = abi.encodeWithSignature("swapToStables(address)", address(USDC));
+
+        // Add mockToken as a supported token
+        vm.prank(OWNER);
+        POOL.manageToken(address(mockToken), true);
+
+        // Attempt to swap with an unauthorized router (should revert)
+        vm.prank(ORCHESTRATOR);
+        console.log("MAN WHAT THE HELL");
+        deal(address(mockToken), address(EXECUTOR), amount);
+        vm.expectRevert(); // The exact error will depend on how swapToStables is implemented
+        POOL.swapToStables(address(mockToken), amount, address(UNAUTHORIZED_ROUTER), data);
+        console.log("BOOMBACLOT");
+
+        vm.prank(OWNER);
+        POOL.manageRouter(unRouter, true);
+
+        deal(address(mockToken), ORCHESTRATOR, amount);
+        deal(address(USDC), address(UNAUTHORIZED_ROUTER), amount);
+        vm.startPrank(address(EXECUTOR));
+        mockToken.approve(address(POOL), amount);
+        POOL.addLiquiditySwap(TRADER, address(mockToken), amount);
+
+
+
+        amount = 100 ether;
+        deal(address(USDC), address(DEX_ROUTER), amount);
+        data = abi.encodeWithSignature("swapERC20ToStables(address,address)", address(mockToken), address(USDC));
+
+
+        vm.startPrank(ORCHESTRATOR);
+        console.log("Mock Token balance in POOL before swap: ", mockToken.balanceOf(address(POOL)));
+        POOL.swapToStables(address(mockToken), amount, address(DEX_ROUTER), data);
+    }
 
 }

@@ -28,18 +28,23 @@ contract MockDEXRouter {
     }
 
     function bridge(address usdc, uint256 amount) public {
-        console.log("hello");
         // Check the allowance of the msg.sender
         require(IERC20(usdc).allowance(msg.sender, address(this)) >= amount, "Insufficient allowance");
 
         IERC20(usdc).transferFrom(msg.sender, address(this), amount);
     }
 
+    function swapWithNoEffect(address, address) external pure {
+        // Do nothing, simulating a swap that doesn't change balances
+    }
+
     function swapERC20ToStables(address tokenIn, address usdc) external payable {
         require(tokenIn != usdc, "Cannot swap same token");
         uint256 _usdcBalance = IERC20(usdc).balanceOf(address(this));
         uint256 _usdcAmount = _usdcBalance / 2;
+        console.log("msg.sender: ", msg.sender);
         IERC20(usdc).transfer(msg.sender, _usdcAmount);
+        console.log("USDC amount out: ", _usdcAmount);
     }
 
     function swap(address tokenIn, address tokenOut, uint256 amountIn) external payable returns (uint256 amountOut) {
