@@ -83,7 +83,7 @@ contract GeniusPoolTest is Test {
     function testEmergencyLock() public {
         vm.startPrank(OWNER);
         POOL.emergencyLock();
-        assertEq(POOL.isPaused(), 1, "GeniusPool should be paused");
+        assertEq(POOL.paused(), true, "GeniusPool should be paused");
         vm.stopPrank();
     }
 
@@ -167,11 +167,11 @@ contract GeniusPoolTest is Test {
     function testEmergencyUnlock() public {
         vm.startPrank(OWNER);
         POOL.emergencyLock();
-        assertEq(POOL.isPaused(), 1, "GeniusPool should be paused");
+        assertEq(POOL.paused(), true, "GeniusPool should be paused");
 
         vm.startPrank(OWNER);
         POOL.emergencyUnlock();
-        assertEq(POOL.isPaused(), 0, "GeniusPool should be unpaused");
+        assertEq(POOL.paused(), false, "GeniusPool should be unpaused");
     }
 
     function testRevertWhenAlreadyInitialized() public {
