@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
 import {Executable} from "./access/Executable.sol";
@@ -18,7 +19,7 @@ import {GeniusExecutor} from "./GeniusExecutor.sol";
  *         and other Genius related activities.
  */
 
-contract GeniusPool is Orchestrable, Executable {
+contract GeniusPool is Orchestrable, Executable, Pausable {
 
     // =============================================================
     //                          IMMUTABLES
@@ -33,7 +34,6 @@ contract GeniusPool is Orchestrable, Executable {
     // =============================================================
 
     uint256 public initialized; // Flag to check if the contract has been initialized
-    uint256 public isPaused; // Flag to check if the contract is paused
 
     uint256 public totalAssets; // The total amount of stablecoin assets in the contract
     uint256 public minAssetBalance; // The minimum amount of assets that must be in the contract
@@ -124,7 +124,7 @@ contract GeniusPool is Orchestrable, Executable {
         STABLECOIN = IERC20(stablecoin);
 
         initialized = 0;
-        isPaused = 1;
+        _pause();
     }
 
     /**
@@ -138,7 +138,7 @@ contract GeniusPool is Orchestrable, Executable {
         _initializeExecutor(payable(executor));
 
         initialized = 1;
-        isPaused = 0;
+        _unpause();
     }
 
     // =============================================================
@@ -196,13 +196,12 @@ contract GeniusPool is Orchestrable, Executable {
             totalAssets - amountIn
         );
 
-        uint256 _initStableValue = totalAssets;
+        uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
         _updateBalance(amountIn, 0);
         _updateAvailableAssets();
 
         _batchExecution(targets, data, values);
-
         uint256 _stableDelta = _initStableValue - totalAssets;
 
         if (_stableDelta != amountIn) revert GeniusErrors.InvalidAmount();
@@ -379,18 +378,18 @@ contract GeniusPool is Orchestrable, Executable {
 
     /**
      * @dev Pauses the contract and locks all functionality in case of an emergency.
-     * This function sets the `isPaused` state to 1, preventing all contract operations.
+     * This function sets the `Paused` state to true, preventing all contract operations.
      */
     function emergencyLock() external onlyOwner {
-        isPaused = 1;
+        _pause();
     }
 
     /**
      * @dev Allows the owner to emergency unlock the contract.
-     * This function sets the `isPaused` state to 0, allowing normal contract operations to resume.
+     * This function sets the `Paused` state to true, allowing normal contract operations to resume.
      */
     function emergencyUnlock() external onlyOwner {
-        isPaused = 0;
+        _unpause();
     }
 
     // =============================================================
@@ -427,7 +426,7 @@ contract GeniusPool is Orchestrable, Executable {
      * @dev Checks if the pool is ready for use.
      */
     function _isPoolReady() internal view {
-        if (isPaused == 1) revert GeniusErrors.Paused();
+        if (paused()) revert GeniusErrors.Paused();
         if (initialized == 0) revert GeniusErrors.NotInitialized();
     }
 
