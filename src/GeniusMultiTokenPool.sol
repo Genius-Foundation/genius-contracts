@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
 import {Executable} from "./access/Executable.sol";
@@ -14,7 +15,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
  *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
-contract GeniusMultiTokenPool is Orchestrable, Executable {
+contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
 
     // =============================================================
     //                          IMMUTABLES
@@ -30,7 +31,6 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
     // =============================================================
 
     uint256 public initialized; // Flag to check if the contract has been initialized
-    uint256 public isPaused; // Flag to check if the contract is paused
 
     uint256 public totalStables; // The total amount of stablecoin assets in the contract
     uint256 public minStableBalance; // The minimum amount of stablecoin assets needed to maintain liquidity
@@ -201,7 +201,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         tokenInfo[stablecoin] = TokenInfo({isSupported: true, balance: STABLECOIN.balanceOf(address(this))});
 
         initialized = 0;
-        isPaused = 1;
+        _pause();
     }
 
     // =============================================================
@@ -286,7 +286,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
         }
 
         initialized = 1;
-        isPaused = 0;
+        _unpause();
     }
 
     // =============================================================
@@ -714,18 +714,18 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
 
     /**
      * @dev Pauses the contract and locks all functionality in case of an emergency.
-     * This function sets the `isPaused` state to 1, preventing all contract operations.
+     * This function sets the `paused` state to true, preventing all contract operations.
      */
     function emergencyLock() external onlyOwner {
-        isPaused = 1;
+        _pause();
     }
 
     /**
      * @dev Allows the owner to emergency unlock the contract.
-     * This function sets the `isPaused` state to 0, allowing normal contract operations to resume.
+     * This function sets the `paused` state to false, allowing normal contract operations to resume.
      */
     function emergencyUnlock() external onlyOwner {
-        isPaused = 0;
+        _unpause();
     }
 
     // =============================================================
@@ -806,7 +806,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable {
      */
     function _isPoolReady() internal view {
         if (initialized == 0) revert GeniusErrors.NotInitialized();
-        if (isPaused == 1) revert GeniusErrors.Paused();
+        if (paused()) revert GeniusErrors.Paused();
     }
 
     /**

@@ -731,7 +731,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         POOL.emergencyLock();
         vm.stopPrank();
 
-        assertEq(POOL.isPaused() == 1, true, "Contract should be paused");
+        assertEq(POOL.paused(), true, "Contract should be paused");
 
         vm.startPrank(ORCHESTRATOR);
         vm.expectRevert(GeniusErrors.Paused.selector);
