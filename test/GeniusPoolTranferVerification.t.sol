@@ -122,9 +122,6 @@ contract GeniusPoolTransferVerificationTest is Test {
         vm.expectRevert();
         POOL.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
         vm.stopPrank();
-
-        // Verify that the funds have been transferred
-        assertEq(USDC.balanceOf(recipient), amountToRemove);
     }
 
     function testWrongTransferOnRemoveBridgeLiquidityMULTIPOOL() public {
