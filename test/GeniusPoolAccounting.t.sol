@@ -545,7 +545,7 @@ contract GeniusPoolAccounting is Test {
         vm.stopPrank();
 
         // Initial donation
-        donateAndAssert(0, 0 ether, 0 ether, 0);
+        donateAndAssert(0, 10 ether, 10 ether, 0);
 
         // =================== DEPOSIT THROUGH VAULT ===================
         vm.startPrank(TRADER);
@@ -560,8 +560,8 @@ contract GeniusPoolAccounting is Test {
         assertEq(POOL.availableAssets(), 85 ether, "#1 Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
-        // Donate before adding liquidity
-        donateAndAssert(100 ether, 110 ether, 85 ether, 25 ether);
+        // Donate +10 before adding liquidity
+        donateAndAssert(100 ether, 120 ether, 95 ether, 25 ether);
 
         // =================== SWAP AND DEPOSIT ===================
         vm.startPrank(ORCHESTRATOR);
@@ -603,8 +603,8 @@ contract GeniusPoolAccounting is Test {
         assertEq(POOL.availableAssets(), 145 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
-        // Donate before changing threshold
-        donateAndAssert(100 ether, 170 ether, 145 ether, 25 ether);
+        // Donate + 10 before changing threshold
+        donateAndAssert(100 ether, 180 ether, 155 ether, 25 ether);
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
@@ -616,8 +616,8 @@ contract GeniusPoolAccounting is Test {
         assertEq(POOL.availableAssets(), 90 ether, "Available assets mismatch");
         assertEq(POOL.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
 
-        // Donate before withdrawing
-        donateAndAssert(100 ether, 180 ether, 90 ether, 90 ether);
+        // Donate +10 before withdrawing
+        donateAndAssert(100 ether, 190 ether, 100 ether, 90 ether);
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);

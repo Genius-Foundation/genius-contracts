@@ -13,6 +13,8 @@ import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+
 
 contract GeniusPoolTest is Test {
     uint256 avalanche;
@@ -87,16 +89,6 @@ contract GeniusPoolTest is Test {
         vm.stopPrank();
     }
 
-    function testSetRebalanceThresholdWhenPaused() public {
-        vm.startPrank(OWNER);
-        POOL.emergencyLock();
-
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.Paused.selector));
-        POOL.setRebalanceThreshold(5);
-        vm.stopPrank();
-
-    }
-
     function testAddBridgeLiquidityWhenPaused() public {
         vm.startPrank(OWNER);
         POOL.emergencyLock();
@@ -104,7 +96,7 @@ contract GeniusPoolTest is Test {
 
         vm.startPrank(ORCHESTRATOR);
         deal(address(USDC), ORCHESTRATOR, 1_000 ether);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.Paused.selector));
+        vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
         POOL.addBridgeLiquidity(1_000 ether, targetChainId);
         vm.stopPrank();
     }
@@ -129,7 +121,7 @@ contract GeniusPoolTest is Test {
         vm.stopPrank();
 
         vm.startPrank(ORCHESTRATOR);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.Paused.selector));
+        vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
         POOL.removeBridgeLiquidity(0.5 ether, targetChainId, tokens, amounts, data);
         vm.stopPrank();
     }
@@ -140,7 +132,7 @@ contract GeniusPoolTest is Test {
         vm.stopPrank();
 
         vm.startPrank(address(EXECUTOR));
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.Paused.selector));
+        vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
         POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether);
     }
 
@@ -150,7 +142,7 @@ contract GeniusPoolTest is Test {
         vm.stopPrank();
 
         vm.startPrank(address(EXECUTOR));
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.Paused.selector));
+        vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
         POOL.removeLiquiditySwap(TRADER, 1_000 ether);
     }
 
@@ -160,7 +152,7 @@ contract GeniusPoolTest is Test {
         vm.stopPrank();
 
         vm.startPrank(address(ORCHESTRATOR));
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.Paused.selector));
+        vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
         POOL.removeRewardLiquidity(1_000 ether);
     }
 
@@ -369,9 +361,9 @@ contract GeniusPoolTest is Test {
         totalStakedAssets = POOL.totalStakedAssets();
         traderBalance = USDC.balanceOf(TRADER);
 
-        assertEq(totalAssets, 1_000 ether, "Total assets should be 1,500 ether");
+        assertEq(totalAssets, 1_500 ether, "Total assets should be 1,500 ether");
         assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
-        assertEq(availableAssets, 750 ether, "Available assets should be 100 ether");
+        assertEq(availableAssets, 1250 ether, "Available assets should be 100 ether");
         assertEq(traderBalance, 500 ether, "Trader balance should be 500 ether");
 
         vm.startPrank(TRADER);

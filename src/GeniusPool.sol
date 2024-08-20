@@ -35,9 +35,6 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
 
     uint256 public initialized; // Flag to check if the contract has been initialized
 
-    uint256 public totalAssets; // The total amount of stablecoin assets in the contract
-    uint256 public minAssetBalance; // The minimum amount of assets that must be in the contract
-    uint256 public availableAssets; // totalAssets - (totalStakedAssets * (1 + rebalanceThreshold) (in percentage)
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
     uint256 public rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
 
@@ -127,6 +124,16 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
         _pause();
     }
 
+    // =============================================================
+    //                          MODIFIERS
+    // =============================================================
+    
+    modifier whenReady() {
+        if (initialized == 0) revert GeniusErrors.NotInitialized();
+        _requireNotPaused();
+        _;
+    }
+
     /**
      * @dev Initializes the GeniusVault contract.
      * @param vaultAddress The address of the GeniusPool contract.
@@ -141,6 +148,27 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
         _unpause();
     }
 
+    function totalAssets() public view returns (uint256) {
+        return STABLECOIN.balanceOf(address(this));
+    }
+
+    function minAssetBalance() public view returns (uint256) {
+        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
+        /**
+          * Calculate the liquidity needed as the staked assets minus the reduction
+          * Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
+         */
+        return totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
+    }
+
+    function availableAssets() public view returns (uint256) {
+        uint256 _totalAssets = totalAssets();
+        uint256 _neededLiquidity = minAssetBalance();
+        
+        return _availableAssets(_totalAssets, _neededLiquidity);
+    }
+
+
     // =============================================================
     //                 BRIDGE LIQUIDITY REBALANCING
     // =============================================================
@@ -151,13 +179,8 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
      * @param chainId The chain ID of the bridge.
      * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
      */
-    function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator {
-        _isPoolReady();
-
+    function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator whenReady {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-
-        _updateBalance(amount, 1);
-        _updateAvailableAssets();
 
         _transferERC20From(
             address(STABLECOIN),
@@ -186,23 +209,22 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
-    ) public onlyOrchestrator payable {
-        _isPoolReady();
-        _isAmountValid(amountIn);
+    ) public payable onlyOrchestrator whenReady {
+        // Gas saving
+        uint256 totalAssetsBeforeTransfer = totalAssets();
+        uint256 neededLiquidty_ = minAssetBalance();
+
+        _isAmountValid(amountIn, _availableAssets(totalAssetsBeforeTransfer, neededLiquidty_));
         _checkNative(_sum(values));
 
-        if (!_isBalanceWithinThreshold(totalAssets - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            minAssetBalance,
-            totalAssets - amountIn
+        if (!_isBalanceWithinThreshold(totalAssetsBeforeTransfer - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
+            neededLiquidty_,
+            totalAssetsBeforeTransfer - amountIn
         );
 
-        uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
-
-        _updateBalance(amountIn, 0);
-        _updateAvailableAssets();
-
         _batchExecution(targets, data, values);
-        uint256 _stableDelta = _initStableValue - totalAssets;
+
+        uint256 _stableDelta = totalAssetsBeforeTransfer - totalAssets();
 
         if (_stableDelta != amountIn) revert GeniusErrors.InvalidAmount();
 
@@ -226,15 +248,10 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
         address trader,
         address token,
         uint256 amount
-    ) external onlyExecutor {
-        _isPoolReady();
-
+    ) external onlyExecutor whenReady {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
-
-        _updateBalance(amount, 1);
-        _updateAvailableAssets();
 
         _transferERC20From(address(STABLECOIN), msg.sender,  address(this), amount);
 
@@ -254,18 +271,18 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
     function removeLiquiditySwap(
         address trader,
         uint256 amount
-    ) external onlyExecutor {
-        _isPoolReady();
-        _isAmountValid(amount);
+    ) external onlyExecutor whenReady {
+        // Gas saving
+        uint256 _totalAssets = totalAssets();
+        uint256 _neededLiquidity = minAssetBalance();
+
+        _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
 
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (!_isBalanceWithinThreshold(totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
-            minAssetBalance,
-            totalAssets - amount
+        if (!_isBalanceWithinThreshold(_totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
+            _neededLiquidity,
+            _totalAssets - amount
         );
-
-        _updateBalance(amount, 0);
-        _updateAvailableAssets();
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
         
@@ -280,17 +297,17 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
      * @dev Removes reward liquidity from the GeniusPool contract.
      * @param amount The amount of reward liquidity to remove.
      */
-    function removeRewardLiquidity(uint256 amount) external onlyOrchestrator {
-        _isPoolReady();
-        _isAmountValid(amount);
+    function removeRewardLiquidity(uint256 amount) external onlyOrchestrator whenReady {
+        // Gas saving
+        uint256 _totalAssets = totalAssets();
+        uint256 _neededLiquidity = minAssetBalance();
 
-        if (!_isBalanceWithinThreshold(totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
-            minAssetBalance,
-            totalAssets - amount
+        _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
+
+        if (!_isBalanceWithinThreshold(_totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
+            _neededLiquidity,
+            _totalAssets - amount
         );
-
-        _updateBalance(amount, 0);
-        _updateAvailableAssets();
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
     }
@@ -304,17 +321,13 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
      * @param trader The address of the trader who is staking the liquidity tokens.
      * @param amount The amount of liquidity tokens to stake.
      */
-    function stakeLiquidity(address trader, uint256 amount) external {
-        _isPoolReady();
-
+    function stakeLiquidity(address trader, uint256 amount) external whenReady {
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        _updateBalance(amount, 1);
-        _updateStakedBalance(amount, 1);
-        _updateAvailableAssets();
-
         _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
+
+        _updateStakedBalance(amount, 1);
 
         emit Stake(
             trader,
@@ -328,25 +341,22 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
      * @param trader The address of the trader who wants to remove liquidity.
      * @param amount The amount of liquidity to be removed.
      */
-    function removeStakedLiquidity(address trader, uint256 amount) external {
-        _isPoolReady();
-
+    function removeStakedLiquidity(address trader, uint256 amount) external whenReady {
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > totalAssets) revert GeniusErrors.InvalidAmount();
+        if (amount > totalAssets()) revert GeniusErrors.InvalidAmount();
         if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
             address(STABLECOIN),
             amount,
             totalStakedAssets
         );
 
-        _updateBalance(amount, 0);
-        _updateStakedBalance(amount, 0);
-        _updateAvailableAssets();
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
+
+        _updateStakedBalance(amount, 0);
 
         emit Unstake(
             trader,
@@ -364,12 +374,7 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
      * @param threshold The new rebalance threshold to be set.
      */
     function setRebalanceThreshold(uint256 threshold) external onlyOwner {
-        _isPoolReady();
-
         rebalanceThreshold = threshold;
-
-        _updateBalance(0, 0);   
-        _updateAvailableAssets();
     }
 
     // =============================================================
@@ -404,8 +409,8 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
      */
     function assets() public view returns (uint256, uint256, uint256) {
         return (
-            totalAssets,
-            availableAssets,
+            totalAssets(),
+            availableAssets(),
             totalStakedAssets
         );
     }
@@ -422,30 +427,25 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
         if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
     }
 
-    /**
-     * @dev Checks if the pool is ready for use.
-     */
-    function _isPoolReady() internal view {
-        if (paused()) revert GeniusErrors.Paused();
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
+    function _availableAssets(uint256 _totalAssets, uint256 _neededLiquidity) internal pure returns (uint256) {
+        if (_totalAssets < _neededLiquidity) {
+            return 0;
+        }
+
+        return _totalAssets - _neededLiquidity;
     }
 
     /**
      * @dev Checks if the given amount is valid for a transaction.
-     * @param amount The amount to be checked.
+     * @param amount_ The amount to be checked.
+     * @param availableAssets_ The available balance of STABLECOIN in the pool.
      */
-    function _isAmountValid(uint256 amount) internal view {
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
+    function _isAmountValid(uint256 amount_, uint256 availableAssets_) internal pure {
+        if (amount_ == 0) revert GeniusErrors.InvalidAmount();
 
-        if (amount > totalAssets) revert GeniusErrors.InsufficientBalance(
-            address(STABLECOIN),
-            amount,
-            totalAssets
-        );
-
-        if (amount > availableAssets) revert GeniusErrors.InsufficientLiquidity(
-            availableAssets,
-            amount
+        if (amount_ > availableAssets_) revert GeniusErrors.InsufficientLiquidity(
+            availableAssets_,
+            amount_
         );
     }
 
@@ -461,17 +461,6 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
     }
 
     /**
-     * @dev Updates the balance of the contract by fetching the total assets of the STABLECOIN token.
-     * This function is internal and can only be called from within the contract.
-     */
-    function _updateBalance(uint256 amount, uint256 add) internal {
-        totalAssets = 
-        add == 0 ?
-        STABLECOIN.balanceOf(address(this)) - amount :
-        STABLECOIN.balanceOf(address(this)) + amount;
-    }
-
-    /**
      * @dev Updates the staked balance of the contract.
      * @param amount The amount to update the staked balance by.
      * @param add 0 to subtract, 1 to add.
@@ -482,27 +471,6 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
         } else {
             totalStakedAssets -= amount;
         }
-    }
-
-    /**
-     * @dev Updates the available assets by calculating the liquidity needed based on the staked assets and the rebalance threshold.
-     * If the total assets exceed the needed liquidity, the available assets are updated accordingly.
-     */
-    function _updateAvailableAssets() internal {
-        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-        /**
-          * Calculate the liquidity needed as the staked assets minus the reduction
-          * Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
-         */
-        uint256 neededLiquidity = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
-        
-        if (totalAssets > neededLiquidity) {
-            availableAssets = totalAssets - neededLiquidity;
-        } else {
-            availableAssets = 0;
-        }
-
-        minAssetBalance = neededLiquidity;
     }
 
     /**
