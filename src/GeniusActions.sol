@@ -62,45 +62,46 @@ contract GeniusActions is AccessControl {
      * @dev Adds a new action with the given IPFS hash.
      * @param ipfsHash The IPFS hash of the action.
      */
-    function addAction(bytes32 actionLabel, string memory ipfsHash) public onlyAdmin {
+    function addAction(bytes32 actionLabel, string memory ipfsHash) external onlyAdmin {
         bytes32 actionHash = getActionHashFromIpfsHash(ipfsHash);
         require(labelToId[actionLabel] == 0, "Label already exists");
         require(hashToId[actionHash] == 0, "IPFS hash already exists");
+        require(bytes(ipfsHash).length >= 40, "incorrect IPFS hash");
         _newAction(actionLabel, actionHash, ipfsHash);
     }
 
-    function updateActionStatusByHash(bytes32 actionHash, bool active) public onlyAdmin {
+    function updateActionStatusByHash(bytes32 actionHash, bool active) external onlyAdmin {
         uint256 actionId = hashToId[actionHash];
         _updateActionStatus(actionId, active);
     }
 
-    function updateActionStatusByLabel(bytes32 actionLabel, bool active) public onlyAdmin {
+    function updateActionStatusByLabel(bytes32 actionLabel, bool active) external onlyAdmin {
         uint256 actionId = labelToId[actionLabel];
         _updateActionStatus(actionId, active);
     }
 
-    function emergencyDisableActionById(uint256 actionId) public onlySentinel {
+    function emergencyDisableActionById(uint256 actionId) external onlySentinel {
         _updateActionStatus(actionId, false);
     }
 
-    function emergencyDisableActionByHash(bytes32 actionHash) public onlySentinel {
+    function emergencyDisableActionByHash(bytes32 actionHash) external onlySentinel {
         uint256 actionId = hashToId[actionHash];
         _updateActionStatus(actionId, false);
     }
 
-    function emergencyDisableActionByLabel(bytes32 actionLabel) public onlySentinel {
+    function emergencyDisableActionByLabel(bytes32 actionLabel) external onlySentinel {
         uint256 actionId = labelToId[actionLabel];
         _updateActionStatus(actionId, false);
     }
 
-    function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) public onlyAdmin {
+    function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) external onlyAdmin {
         uint256 actionId = hashToId[actionHash];
         require(actionId != 0, "Action does not exist");
         
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
-    function updateActionIpfsHashByLabel(bytes32 actionLabel, string memory newIpfsHash) public onlyAdmin {
+    function updateActionIpfsHashByLabel(bytes32 actionLabel, string memory newIpfsHash) external onlyAdmin {
         uint256 actionId = labelToId[actionLabel];
         require(actionId != 0, "Action does not exist");
 
@@ -109,7 +110,7 @@ contract GeniusActions is AccessControl {
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
-    function getActionByIpfsHash(string memory _ipfsHash) public view returns (Action memory) {
+    function getActionByIpfsHash(string memory _ipfsHash) external view returns (Action memory) {
         return getActionByActionHash(getActionHashFromIpfsHash(_ipfsHash));
     }
 
@@ -119,13 +120,13 @@ contract GeniusActions is AccessControl {
         return action;
     }
 
-    function getActionByActionLabel(bytes32 _actionLabel) public view returns (Action memory) {
+    function getActionByActionLabel(bytes32 _actionLabel) external view returns (Action memory) {
         Action memory action = idToAction[labelToId[_actionLabel]];
         require(bytes(action.ipfsHash).length != 0, "Action does not exist");
         return action;
     }
 
-    function getActiveActions() public view returns (Action[] memory) {
+    function getActiveActions() external view returns (Action[] memory) {
         Action[] memory result = new Action[](activeCount());
         uint256 activeIndex = 0;
 
@@ -140,7 +141,7 @@ contract GeniusActions is AccessControl {
         return result;
     }
 
-    function getInactiveActions() public view returns (Action[] memory) {
+    function getInactiveActions() external view returns (Action[] memory) {
         Action[] memory result = new Action[](inactiveCount);
         uint256 inactiveIndex = 0;
 
@@ -165,6 +166,7 @@ contract GeniusActions is AccessControl {
 
     function _updateActionIpfsHash(uint256 actionId, bytes32 prevActionHash, string memory newIpfsHash) internal {
         bytes32 newActionHash = getActionHashFromIpfsHash(newIpfsHash);
+        require(prevActionHash != newActionHash, "New IPFS hash is the same as the old one");
         require(hashToId[newActionHash] == 0, "New IPFS hash already exists");
 
         hashToId[prevActionHash] = 0;
@@ -184,7 +186,7 @@ contract GeniusActions is AccessControl {
         emit ActionLabelUpdated(actionId, newLabel);
     }
 
-    function _newAction(bytes32 label, bytes32 actionHash, string memory ipfsHash) internal returns (uint256) {
+    function _newAction(bytes32 label, bytes32 actionHash, string memory ipfsHash) internal {
         uint256 actionId = nextActionId;
         idToAction[actionId] = Action(label, ipfsHash, true);
         labelToId[label] = actionId;
@@ -196,9 +198,8 @@ contract GeniusActions is AccessControl {
     }
 
     function _updateActionStatus(uint256 id, bool active) internal {
-        require(id != 0, "Action does not exist");
-
         Action storage action = idToAction[id];
+        require(bytes(action.ipfsHash).length != 0, "Action does not exist");
 
         require(action.active != active, "Status is already set to this value");
         
