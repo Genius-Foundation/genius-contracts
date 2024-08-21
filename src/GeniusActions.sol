@@ -9,22 +9,16 @@ pragma solidity ^0.8.13;
  * @notice A contract for managing Genius Protocol actions and their associated IPFS hashes.
  */
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract GeniusActions is Ownable {
+contract GeniusActions is AccessControl {
 
+    // Structs
     struct Action {
         bytes32 label;
         string ipfsHash;
         bool active;
     }
-
-    uint256 nextActionId = 1;
-    uint256 inactiveCount = 0;
-
-    mapping(uint256 => Action) public idToAction;
-    mapping(bytes32 => uint256) public hashToId;
-    mapping(bytes32 => uint256) public labelToId;
 
     // Events
     event ActionAdded(uint256 indexed actionId, bytes32 indexed label, string ipfsHash);
@@ -32,49 +26,91 @@ contract GeniusActions is Ownable {
     event ActionIpfsHashUpdated(uint256 indexed actionId, string newIpfsHash);
     event ActionLabelUpdated(uint256 indexed actionId, bytes32 newLabel);
 
-    constructor(address initialOwner) Ownable(initialOwner) {
-        require(initialOwner != msg.sender, "Initial owner cannot be the contract deployer");
+    // Constants
+    bytes32 public constant SENTINEL_ROLE = keccak256("SENTINEL_ROLE");
+
+    // State variables
+    uint256 nextActionId = 1;
+    uint256 inactiveCount = 0;
+
+    mapping(uint256 => Action) public idToAction;
+    mapping(bytes32 => uint256) public hashToId;
+    mapping(bytes32 => uint256) public labelToId;
+
+    constructor(address initialAdmin) {
+        require(initialAdmin != msg.sender, "Initial owner cannot be the contract deployer");
+        _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
+        _grantRole(SENTINEL_ROLE, initialAdmin);
+    }
+
+    // Modifiers
+
+    /**
+    * @dev Modifier for checking whether the caller is an admin.
+    */
+    modifier onlyAdmin() {
+        require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "OwnablePausable: access denied");
+        _;
+    }
+
+    modifier onlySentinel() {
+        require(hasRole(SENTINEL_ROLE, msg.sender), "OwnablePausable: access denied");
+        _;
     }
 
     /**
      * @dev Adds a new action with the given IPFS hash.
      * @param ipfsHash The IPFS hash of the action.
      */
-    function addAction(bytes32 actionLabel, string memory ipfsHash) public onlyOwner {
-        bytes32 actionHash = _getActionHashFromIpfsHash(ipfsHash);
+    function addAction(bytes32 actionLabel, string memory ipfsHash) public onlyAdmin {
+        bytes32 actionHash = getActionHashFromIpfsHash(ipfsHash);
         require(labelToId[actionLabel] == 0, "Label already exists");
         require(hashToId[actionHash] == 0, "IPFS hash already exists");
         _newAction(actionLabel, actionHash, ipfsHash);
     }
 
-    function updateActionStatusByHash(bytes32 actionHash, bool active) public onlyOwner {
+    function updateActionStatusByHash(bytes32 actionHash, bool active) public onlyAdmin {
         uint256 actionId = hashToId[actionHash];
         _updateActionStatus(actionId, active);
     }
 
-    function updateActionStatusByLabel(bytes32 actionLabel, bool active) public onlyOwner {
+    function updateActionStatusByLabel(bytes32 actionLabel, bool active) public onlyAdmin {
         uint256 actionId = labelToId[actionLabel];
         _updateActionStatus(actionId, active);
     }
 
-    function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) public onlyOwner {
+    function emergencyDisableActionById(uint256 actionId) public onlySentinel {
+        _updateActionStatus(actionId, false);
+    }
+
+    function emergencyDisableActionByHash(bytes32 actionHash) public onlySentinel {
+        uint256 actionId = hashToId[actionHash];
+        _updateActionStatus(actionId, false);
+    }
+
+    function emergencyDisableActionByLabel(bytes32 actionLabel) public onlySentinel {
+        uint256 actionId = labelToId[actionLabel];
+        _updateActionStatus(actionId, false);
+    }
+
+    function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) public onlyAdmin {
         uint256 actionId = hashToId[actionHash];
         require(actionId != 0, "Action does not exist");
         
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
-    function updateActionIpfsHashByLabel(bytes32 actionLabel, string memory newIpfsHash) public onlyOwner {
+    function updateActionIpfsHashByLabel(bytes32 actionLabel, string memory newIpfsHash) public onlyAdmin {
         uint256 actionId = labelToId[actionLabel];
         require(actionId != 0, "Action does not exist");
 
-        bytes32 actionHash = _getActionHashFromIpfsHash(idToAction[actionId].ipfsHash);
+        bytes32 actionHash = getActionHashFromIpfsHash(idToAction[actionId].ipfsHash);
         
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
     function getActionByIpfsHash(string memory _ipfsHash) public view returns (Action memory) {
-        return getActionByActionHash(_getActionHashFromIpfsHash(_ipfsHash));
+        return getActionByActionHash(getActionHashFromIpfsHash(_ipfsHash));
     }
 
     function getActionByActionHash(bytes32 _actionHash) public view returns (Action memory) {
@@ -123,8 +159,12 @@ contract GeniusActions is Ownable {
         return nextActionId - 1 - inactiveCount;
     }
 
+    function getActionHashFromIpfsHash(string memory ipfsHash) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(ipfsHash));
+    }
+
     function _updateActionIpfsHash(uint256 actionId, bytes32 prevActionHash, string memory newIpfsHash) internal {
-        bytes32 newActionHash = _getActionHashFromIpfsHash(newIpfsHash);
+        bytes32 newActionHash = getActionHashFromIpfsHash(newIpfsHash);
         require(hashToId[newActionHash] == 0, "New IPFS hash already exists");
 
         hashToId[prevActionHash] = 0;
@@ -170,9 +210,5 @@ contract GeniusActions is Ownable {
 
         action.active = active;
         emit ActionStatusUpdated(id, active);
-    }
-
-    function _getActionHashFromIpfsHash(string memory ipfsHash) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(ipfsHash));
     }
 }
