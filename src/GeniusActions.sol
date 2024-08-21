@@ -5,8 +5,8 @@ pragma solidity ^0.8.13;
 /**
  * @title GeniusActions
  * @author looter
- *
  * @notice A contract for managing Genius Protocol actions and their associated IPFS hashes.
+ * @dev This contract inherits from OpenZeppelin's AccessControl for role-based access control.
  */
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -37,6 +37,11 @@ contract GeniusActions is AccessControl {
     mapping(bytes32 => uint256) public hashToId;
     mapping(bytes32 => uint256) public labelToId;
 
+    /**
+     * @notice Initializes the contract with an initial admin
+     * @dev Sets up the initial admin with both DEFAULT_ADMIN_ROLE and SENTINEL_ROLE
+     * @param initialAdmin Address of the initial admin
+     */
     constructor(address initialAdmin) {
         require(initialAdmin != msg.sender, "Initial owner cannot be the contract deployer");
         _grantRole(DEFAULT_ADMIN_ROLE, initialAdmin);
@@ -46,21 +51,26 @@ contract GeniusActions is AccessControl {
     // Modifiers
 
     /**
-    * @dev Modifier for checking whether the caller is an admin.
-    */
+     * @dev Modifier for checking whether the caller is an admin.
+     */
     modifier onlyAdmin() {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "OwnablePausable: access denied");
         _;
     }
 
+    /**
+     * @dev Modifier for checking whether the caller has the SENTINEL_ROLE.
+     */
     modifier onlySentinel() {
         require(hasRole(SENTINEL_ROLE, msg.sender), "OwnablePausable: access denied");
         _;
     }
 
     /**
-     * @dev Adds a new action with the given IPFS hash.
-     * @param ipfsHash The IPFS hash of the action.
+     * @notice Adds a new action with the given label and IPFS hash
+     * @dev Only callable by admin
+     * @param actionLabel The label for the new action
+     * @param ipfsHash The IPFS hash of the action
      */
     function addAction(bytes32 actionLabel, string memory ipfsHash) external onlyAdmin {
         bytes32 actionHash = getActionHashFromIpfsHash(ipfsHash);
@@ -70,30 +80,63 @@ contract GeniusActions is AccessControl {
         _newAction(actionLabel, actionHash, ipfsHash);
     }
 
+    /**
+     * @notice Updates the status of an action identified by its hash
+     * @dev Only callable by admin
+     * @param actionHash The hash of the action to update
+     * @param active The new status of the action
+     */
     function updateActionStatusByHash(bytes32 actionHash, bool active) external onlyAdmin {
         uint256 actionId = hashToId[actionHash];
         _updateActionStatus(actionId, active);
     }
 
+    /**
+     * @notice Updates the status of an action identified by its label
+     * @dev Only callable by admin
+     * @param actionLabel The label of the action to update
+     * @param active The new status of the action
+     */
     function updateActionStatusByLabel(bytes32 actionLabel, bool active) external onlyAdmin {
         uint256 actionId = labelToId[actionLabel];
         _updateActionStatus(actionId, active);
     }
 
+    /**
+     * @notice Emergency function to disable an action by its ID
+     * @dev Only callable by accounts with SENTINEL_ROLE
+     * @param actionId The ID of the action to disable
+     */
     function emergencyDisableActionById(uint256 actionId) external onlySentinel {
         _updateActionStatus(actionId, false);
     }
 
+    /**
+     * @notice Emergency function to disable an action by its hash
+     * @dev Only callable by accounts with SENTINEL_ROLE
+     * @param actionHash The hash of the action to disable
+     */
     function emergencyDisableActionByHash(bytes32 actionHash) external onlySentinel {
         uint256 actionId = hashToId[actionHash];
         _updateActionStatus(actionId, false);
     }
 
+    /**
+     * @notice Emergency function to disable an action by its label
+     * @dev Only callable by accounts with SENTINEL_ROLE
+     * @param actionLabel The label of the action to disable
+     */
     function emergencyDisableActionByLabel(bytes32 actionLabel) external onlySentinel {
         uint256 actionId = labelToId[actionLabel];
         _updateActionStatus(actionId, false);
     }
 
+    /**
+     * @notice Updates the IPFS hash of an action identified by its hash
+     * @dev Only callable by admin
+     * @param actionHash The current hash of the action
+     * @param newIpfsHash The new IPFS hash for the action
+     */
     function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) external onlyAdmin {
         uint256 actionId = hashToId[actionHash];
         require(actionId != 0, "Action does not exist");
@@ -101,6 +144,12 @@ contract GeniusActions is AccessControl {
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
+    /**
+     * @notice Updates the IPFS hash of an action identified by its label
+     * @dev Only callable by admin
+     * @param actionLabel The label of the action
+     * @param newIpfsHash The new IPFS hash for the action
+     */
     function updateActionIpfsHashByLabel(bytes32 actionLabel, string memory newIpfsHash) external onlyAdmin {
         uint256 actionId = labelToId[actionLabel];
         require(actionId != 0, "Action does not exist");
@@ -110,22 +159,41 @@ contract GeniusActions is AccessControl {
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
+    /**
+     * @notice Retrieves an action by its IPFS hash
+     * @param _ipfsHash The IPFS hash of the action
+     * @return Action struct containing the action details
+     */
     function getActionByIpfsHash(string memory _ipfsHash) external view returns (Action memory) {
         return getActionByActionHash(getActionHashFromIpfsHash(_ipfsHash));
     }
 
+    /**
+     * @notice Retrieves an action by its action hash
+     * @param _actionHash The action hash
+     * @return Action struct containing the action details
+     */
     function getActionByActionHash(bytes32 _actionHash) public view returns (Action memory) {
         Action memory action = idToAction[hashToId[_actionHash]];
         require(bytes(action.ipfsHash).length != 0, "Action does not exist");
         return action;
     }
 
+    /**
+     * @notice Retrieves an action by its label
+     * @param _actionLabel The label of the action
+     * @return Action struct containing the action details
+     */
     function getActionByActionLabel(bytes32 _actionLabel) external view returns (Action memory) {
         Action memory action = idToAction[labelToId[_actionLabel]];
         require(bytes(action.ipfsHash).length != 0, "Action does not exist");
         return action;
     }
 
+    /**
+     * @notice Retrieves all active actions
+     * @return An array of Action structs representing all active actions
+     */
     function getActiveActions() external view returns (Action[] memory) {
         Action[] memory result = new Action[](activeCount());
         uint256 activeIndex = 0;
@@ -141,6 +209,10 @@ contract GeniusActions is AccessControl {
         return result;
     }
 
+    /**
+     * @notice Retrieves all inactive actions
+     * @return An array of Action structs representing all inactive actions
+     */
     function getInactiveActions() external view returns (Action[] memory) {
         Action[] memory result = new Action[](inactiveCount);
         uint256 inactiveIndex = 0;
@@ -156,14 +228,29 @@ contract GeniusActions is AccessControl {
         return result;
     }
 
+    /**
+     * @notice Returns the count of active actions
+     * @return The number of active actions
+     */
     function activeCount() public view returns (uint256) {
         return nextActionId - 1 - inactiveCount;
     }
 
+    /**
+     * @notice Generates an action hash from an IPFS hash
+     * @param ipfsHash The IPFS hash to convert
+     * @return The generated action hash
+     */
     function getActionHashFromIpfsHash(string memory ipfsHash) public pure returns (bytes32) {
         return keccak256(abi.encodePacked(ipfsHash));
     }
 
+    /**
+     * @dev Internal function to update an action's IPFS hash
+     * @param actionId The ID of the action to update
+     * @param prevActionHash The previous action hash
+     * @param newIpfsHash The new IPFS hash
+     */
     function _updateActionIpfsHash(uint256 actionId, bytes32 prevActionHash, string memory newIpfsHash) internal {
         bytes32 newActionHash = getActionHashFromIpfsHash(newIpfsHash);
         require(prevActionHash != newActionHash, "New IPFS hash is the same as the old one");
@@ -176,6 +263,12 @@ contract GeniusActions is AccessControl {
         emit ActionIpfsHashUpdated(actionId, newIpfsHash);
     }
 
+    /**
+     * @dev Internal function to update an action's label
+     * @param actionId The ID of the action to update
+     * @param oldLabel The current label of the action
+     * @param newLabel The new label for the action
+     */
     function _updateActionLabel(uint256 actionId, bytes32 oldLabel, bytes32 newLabel) internal {
         require(labelToId[newLabel] == 0, "New label already exists");
 
@@ -186,6 +279,12 @@ contract GeniusActions is AccessControl {
         emit ActionLabelUpdated(actionId, newLabel);
     }
 
+    /**
+     * @dev Internal function to create a new action
+     * @param label The label for the new action
+     * @param actionHash The hash of the new action
+     * @param ipfsHash The IPFS hash of the new action
+     */
     function _newAction(bytes32 label, bytes32 actionHash, string memory ipfsHash) internal {
         uint256 actionId = nextActionId;
         idToAction[actionId] = Action(label, ipfsHash, true);
@@ -197,6 +296,11 @@ contract GeniusActions is AccessControl {
         nextActionId++;
     }
 
+    /**
+     * @dev Internal function to update an action's status
+     * @param id The ID of the action to update
+     * @param active The new status of the action
+     */
     function _updateActionStatus(uint256 id, bool active) internal {
         Action storage action = idToAction[id];
         require(bytes(action.ipfsHash).length != 0, "Action does not exist");
