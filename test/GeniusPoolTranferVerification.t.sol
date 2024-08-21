@@ -94,8 +94,7 @@ contract GeniusPoolTransferVerificationTest is Test {
     function testWrongTranferAmountOnRemoveBridgeLiquidity() public {
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.approve(address(POOL), 500 ether);
-        POOL.addBridgeLiquidity(500 ether, targetChainId);
+        USDC.transfer(address(POOL), 500 ether);
         vm.stopPrank();
 
         // Prepare removal of bridge liquidity

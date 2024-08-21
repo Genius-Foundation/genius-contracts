@@ -89,18 +89,6 @@ contract GeniusPoolTest is Test {
         vm.stopPrank();
     }
 
-    function testAddBridgeLiquidityWhenPaused() public {
-        vm.startPrank(OWNER);
-        POOL.emergencyLock();
-        vm.stopPrank();
-
-        vm.startPrank(ORCHESTRATOR);
-        deal(address(USDC), ORCHESTRATOR, 1_000 ether);
-        vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
-        POOL.addBridgeLiquidity(1_000 ether, targetChainId);
-        vm.stopPrank();
-    }
-
     function testRemoveBridgeLiquidityWhenPaused() public {
         vm.startPrank(OWNER);
         POOL.emergencyLock();
@@ -181,8 +169,7 @@ contract GeniusPoolTest is Test {
 
     function testAddBridgeLiquidity() public {
         vm.startPrank(ORCHESTRATOR);
-        USDC.approve(address(POOL), 1_000 ether);
-        POOL.addBridgeLiquidity(1_000 ether, targetChainId);
+        USDC.transfer(address(POOL), 1_000 ether);
 
         assertEq(USDC.balanceOf(address(POOL)), 1_000 ether, "GeniusPool balance should be 1,000 ether");
 
@@ -386,8 +373,7 @@ contract GeniusPoolTest is Test {
 
         // Add bridge liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.approve(address(POOL), 1_000 ether);
-        POOL.addBridgeLiquidity(500 ether, targetChainId);
+        USDC.transfer(address(POOL), 500 ether);
 
         assertEq(USDC.balanceOf(address(POOL)), 500 ether, "GeniusPool balance should be 500 ether");
         assertEq(USDC.balanceOf(ORCHESTRATOR), initialOrchestratorBalance - 500 ether, "Orchestrator balance should be -500 ether");
