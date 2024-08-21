@@ -194,8 +194,8 @@ contract MultiTokenPoolExecutorInteractions is Test {
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
         assertEq(USDC.balanceOf(address(MULTI_POOL)), 5 ether, "MULTI_POOL should have 5 test tokens");
-        assertEq(MULTI_POOL.totalStables(), 5 ether, "MULTI_POOL should have 5 test tokens available");
-        assertEq(MULTI_POOL.availStableBalance(), 5 ether, "MULTI_POOL should have 90% of test tokens available");
+        assertEq(MULTI_POOL.totalAssets(), 5 ether, "MULTI_POOL should have 5 test tokens available");
+        assertEq(MULTI_POOL.availableAssets(), 5 ether, "MULTI_POOL should have 90% of test tokens available");
         assertEq(MULTI_POOL.totalStakedAssets(), 0, "MULTI_POOL should have 0 test tokens staked");
 
     }
@@ -276,8 +276,8 @@ contract MultiTokenPoolExecutorInteractions is Test {
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
         assertEq(USDC.balanceOf(address(MULTI_POOL)), 10 ether, "MULTI_POOL should have 10 test tokens");
-        assertEq(MULTI_POOL.totalStables(), 10 ether, "MULTI_POOL should have 10 test tokens available");
-        assertEq(MULTI_POOL.availStableBalance(), 10 ether, "MULTI_POOL should have 90% of test tokens available");
+        assertEq(MULTI_POOL.totalAssets(), 10 ether, "MULTI_POOL should have 10 test tokens available");
+        assertEq(MULTI_POOL.availableAssets(), 10 ether, "MULTI_POOL should have 90% of test tokens available");
         assertEq(MULTI_POOL.totalStakedAssets(), 0, "MULTI_POOL should have 0 test tokens staked ");
     }
 
@@ -307,8 +307,8 @@ contract MultiTokenPoolExecutorInteractions is Test {
         LogEntry[] memory entries = new LogEntry[](6);
         entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
         entries[1] = LogEntry("MULTI_POOL USDC balance", USDC.balanceOf(address(MULTI_POOL)), swapAmount / 2);
-        entries[2] = LogEntry("MULTI_POOL totalStables", MULTI_POOL.totalStables(), swapAmount / 2);
-        entries[3] = LogEntry("MULTI_POOL availStableBalance", MULTI_POOL.availStableBalance(), swapAmount / 2);
+        entries[2] = LogEntry("MULTI_POOL totalAssets", MULTI_POOL.totalAssets(), swapAmount / 2);
+        entries[3] = LogEntry("MULTI_POOL availableAssets", MULTI_POOL.availableAssets(), swapAmount / 2);
         entries[4] = LogEntry("MULTI_POOL totalStakedAssets", MULTI_POOL.totalStakedAssets(), 0);
         entries[5] = LogEntry("TRADER ETH balance change", initialBalance - TRADER.balance, swapAmount);
 

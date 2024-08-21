@@ -94,8 +94,7 @@ contract GeniusPoolDOSTest is Test {
     function testDOSAttackOnRemoveBridgeLiquidity() public {
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.approve(address(POOL), 500 ether);
-        POOL.addBridgeLiquidity(500 ether, targetChainId);
+        USDC.transfer(address(POOL), 500 ether);
         vm.stopPrank();
 
         // Simulate a donation to the pool
@@ -137,13 +136,12 @@ contract GeniusPoolDOSTest is Test {
 
     // Add initial liquidity
     vm.startPrank(ORCHESTRATOR);
-    USDC.approve(address(MULTIPOOL), initialLiquidity);
-    MULTIPOOL.addBridgeLiquidity(initialLiquidity, targetChainId);
+    USDC.transfer(address(MULTIPOOL), initialLiquidity);
     vm.stopPrank();
 
     // Record initial state
-    uint256 initialTotalStables = MULTIPOOL.totalStables();
-    uint256 initialAvailStableBalance = MULTIPOOL.availStableBalance();
+    uint256 initialtotalAssets = MULTIPOOL.totalAssets();
+    uint256 initialavailableAssets = MULTIPOOL.availableAssets();
 
     // Simulate a donation to the pool
     deal(address(USDC), address(MULTIPOOL), initialLiquidity + donationAmount);
@@ -181,17 +179,17 @@ contract GeniusPoolDOSTest is Test {
     assertEq(USDC.balanceOf(recipient), removalAmount, "Recipient should receive the removed amount");
 
     // Verify the state changes in the pool
-    assertEq(MULTIPOOL.totalStables(), initialTotalStables + donationAmount - removalAmount, "Total stables should be updated correctly");
-    assertEq(MULTIPOOL.availStableBalance(), initialAvailStableBalance + donationAmount - removalAmount, "Available stable balance should be updated correctly");
+    assertEq(MULTIPOOL.totalAssets(), initialtotalAssets + donationAmount - removalAmount, "Total stables should be updated correctly");
+    assertEq(MULTIPOOL.availableAssets(), initialavailableAssets + donationAmount - removalAmount, "Available stable balance should be updated correctly");
 
     // Try to remove more than the available balance (should revert)
     vm.startPrank(ORCHESTRATOR);
-    uint256 excessiveAmount = MULTIPOOL.availStableBalance() + 1 ether;
+    uint256 excessiveAmount = MULTIPOOL.availableAssets() + 1 ether;
     vm.expectRevert();
     MULTIPOOL.removeBridgeLiquidity(excessiveAmount, targetChainId, targets, values, data);
     vm.stopPrank();
 
     // Verify that the total balance matches the contract's actual balance
-    assertEq(USDC.balanceOf(address(MULTIPOOL)), MULTIPOOL.totalStables(), "Contract balance should match totalStables");
+    assertEq(USDC.balanceOf(address(MULTIPOOL)), MULTIPOOL.totalAssets(), "Contract balance should match totalAssets");
     }
 }
