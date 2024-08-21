@@ -22,9 +22,15 @@ contract GeniusActions is Ownable {
     uint256 nextActionId = 1;
     uint256 inactiveCount = 0;
 
-    mapping(uint256 => Action) private idToAction;
-    mapping(bytes32 => uint256) private hashToId;
-    mapping(bytes32 => uint256) private labelToId;
+    mapping(uint256 => Action) public idToAction;
+    mapping(bytes32 => uint256) public hashToId;
+    mapping(bytes32 => uint256) public labelToId;
+
+    // Events
+    event ActionAdded(uint256 indexed actionId, bytes32 indexed label, string ipfsHash);
+    event ActionStatusUpdated(uint256 indexed actionId, bool active);
+    event ActionIpfsHashUpdated(uint256 indexed actionId, string newIpfsHash);
+    event ActionLabelUpdated(uint256 indexed actionId, bytes32 newLabel);
 
     constructor(address initialOwner) Ownable(initialOwner) {
         require(initialOwner != msg.sender, "Initial owner cannot be the contract deployer");
@@ -43,37 +49,19 @@ contract GeniusActions is Ownable {
 
     function updateActionStatusByHash(bytes32 actionHash, bool active) public onlyOwner {
         uint256 actionId = hashToId[actionHash];
-        require(actionId != 0, "Action does not exist");
-        require(idToAction[actionId].active != active, "Status is already set to this value");
-        
-        if (active) {
-            inactiveCount--;
-        } else {
-            inactiveCount++;
-        }
-
-        idToAction[actionId].active = active;
+        _updateActionStatus(actionId, active);
     }
 
     function updateActionStatusByLabel(bytes32 actionLabel, bool active) public onlyOwner {
         uint256 actionId = labelToId[actionLabel];
-        require(actionId != 0, "Action does not exist");
-        require(idToAction[actionId].active != active, "Status is already set to this value");
-        
-        if (active) {
-            inactiveCount--;
-        } else {
-            inactiveCount++;
-        }
-
-        idToAction[actionId].active = active;
+        _updateActionStatus(actionId, active);
     }
 
     function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) public onlyOwner {
         uint256 actionId = hashToId[actionHash];
         require(actionId != 0, "Action does not exist");
         
-        _updateActionIpfsHash(actionHash, actionId, newIpfsHash);
+        _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
     function updateActionIpfsHashByLabel(bytes32 actionLabel, string memory newIpfsHash) public onlyOwner {
@@ -82,7 +70,7 @@ contract GeniusActions is Ownable {
 
         bytes32 actionHash = _getActionHashFromIpfsHash(idToAction[actionId].ipfsHash);
         
-        _updateActionIpfsHash(actionHash, actionId, newIpfsHash);
+        _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
     function getActionByIpfsHash(string memory _ipfsHash) public view returns (Action memory) {
@@ -135,20 +123,53 @@ contract GeniusActions is Ownable {
         return nextActionId - 1 - inactiveCount;
     }
 
-    function _updateActionIpfsHash(bytes32 actionHash, uint256 actionId, string memory newIpfsHash) internal {
+    function _updateActionIpfsHash(uint256 actionId, bytes32 prevActionHash, string memory newIpfsHash) internal {
         bytes32 newActionHash = _getActionHashFromIpfsHash(newIpfsHash);
         require(hashToId[newActionHash] == 0, "New IPFS hash already exists");
 
-        hashToId[actionHash] = 0;
+        hashToId[prevActionHash] = 0;
         hashToId[newActionHash] = actionId;      
         idToAction[actionId].ipfsHash = newIpfsHash;
+                
+        emit ActionIpfsHashUpdated(actionId, newIpfsHash);
     }
 
-    function _newAction(bytes32 label, bytes32 actionHash, string memory ipfsHash) internal {
-        idToAction[nextActionId] = Action(label, ipfsHash, true);
-        labelToId[label] = nextActionId;
-        hashToId[actionHash] = nextActionId;
+    function _updateActionLabel(uint256 actionId, bytes32 oldLabel, bytes32 newLabel) internal {
+        require(labelToId[newLabel] == 0, "New label already exists");
+
+        labelToId[oldLabel] = 0;
+        labelToId[newLabel] = actionId;
+        idToAction[actionId].label = newLabel;
+
+        emit ActionLabelUpdated(actionId, newLabel);
+    }
+
+    function _newAction(bytes32 label, bytes32 actionHash, string memory ipfsHash) internal returns (uint256) {
+        uint256 actionId = nextActionId;
+        idToAction[actionId] = Action(label, ipfsHash, true);
+        labelToId[label] = actionId;
+        hashToId[actionHash] = actionId;
+
+        emit ActionAdded(actionId, label, ipfsHash);
+
         nextActionId++;
+    }
+
+    function _updateActionStatus(uint256 id, bool active) internal {
+        require(id != 0, "Action does not exist");
+
+        Action storage action = idToAction[id];
+
+        require(action.active != active, "Status is already set to this value");
+        
+        if (active) {
+            inactiveCount--;
+        } else {
+            inactiveCount++;
+        }
+
+        action.active = active;
+        emit ActionStatusUpdated(id, active);
     }
 
     function _getActionHashFromIpfsHash(string memory ipfsHash) internal pure returns (bytes32) {
