@@ -31,11 +31,11 @@ contract GeniusActions is AccessControl {
 
     // State variables
     uint256 nextActionId = 1;
-    uint256 inactiveCount = 0;
 
-    mapping(uint256 => Action) public idToAction;
-    mapping(bytes32 => uint256) public hashToId;
-    mapping(bytes32 => uint256) public labelToId;
+    mapping(uint256 => Action) internal idToAction;
+    mapping(bytes32 => uint256) internal hashToId;
+    mapping(bytes32 => uint256) internal labelToId;
+    mapping(address => bool) internal authorizedOrchestrators;
 
     /**
      * @notice Initializes the contract with an initial admin
@@ -64,6 +64,26 @@ contract GeniusActions is AccessControl {
     modifier onlySentinel() {
         require(hasRole(SENTINEL_ROLE, msg.sender), "OwnablePausable: access denied");
         _;
+    }
+
+    /**
+     * @notice Changes the authorization status of an orchestrator
+     * @param _orchestrator the address of the orchestrator
+     * @param _authorized the new authorization status
+     */
+    function setOrchestratorAuthorized(address _orchestrator, bool _authorized) external onlyAdmin {
+        authorizedOrchestrators[_orchestrator] = _authorized;
+    }
+
+    /**
+     * @notice Changes the authorization status of a mutliple orchestrators
+     * @param _orchestrators the array of orchestrators to set the authorization status for
+     * @param _authorized the new authorization status for all the orchestrators
+     */
+    function setBatchOrchestratorAuthorized(address[] calldata _orchestrators, bool _authorized) external onlyAdmin {
+        for (uint256 i = 0; i < _orchestrators.length; i++) {
+            authorizedOrchestrators[_orchestrators[i]] = _authorized;
+        }
     }
 
     /**
@@ -103,6 +123,34 @@ contract GeniusActions is AccessControl {
     }
 
     /**
+     * @notice Updates the IPFS hash of an action identified by its hash
+     * @dev Only callable by admin
+     * @param actionHash The current hash of the action
+     * @param newIpfsHash The new IPFS hash for the action
+     */
+    function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) external onlyAdmin {
+        uint256 actionId = hashToId[actionHash];
+        require(actionId != 0, "Action does not exist");
+        
+        _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
+    }
+
+    /**
+     * @notice Updates the IPFS hash of an action identified by its label
+     * @dev Only callable by admin
+     * @param actionLabel The label of the action
+     * @param newIpfsHash The new IPFS hash for the action
+     */
+    function updateActionIpfsHashByLabel(bytes32 actionLabel, string memory newIpfsHash) external onlyAdmin {
+        uint256 actionId = labelToId[actionLabel];
+        require(actionId != 0, "Action does not exist");
+
+        bytes32 actionHash = getActionHashFromIpfsHash(idToAction[actionId].ipfsHash);
+        
+        _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
+    }
+
+        /**
      * @notice Emergency function to disable an action by its ID
      * @dev Only callable by accounts with SENTINEL_ROLE
      * @param actionId The ID of the action to disable
@@ -132,31 +180,30 @@ contract GeniusActions is AccessControl {
     }
 
     /**
-     * @notice Updates the IPFS hash of an action identified by its hash
-     * @dev Only callable by admin
-     * @param actionHash The current hash of the action
-     * @param newIpfsHash The new IPFS hash for the action
+     * @notice Emergency function to disable an orchestrator
+     * @dev Only callable by accounts with SENTINEL_ROLE
+     * @param _orchestrator The address of the orchestrator
      */
-    function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) external onlyAdmin {
-        uint256 actionId = hashToId[actionHash];
-        require(actionId != 0, "Action does not exist");
-        
-        _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
+    function emergencyDisableOrchestrator(address _orchestrator) external onlySentinel {
+        authorizedOrchestrators[_orchestrator] = false;
     }
 
     /**
-     * @notice Updates the IPFS hash of an action identified by its label
-     * @dev Only callable by admin
-     * @param actionLabel The label of the action
-     * @param newIpfsHash The new IPFS hash for the action
+     * @notice Checks wether an orchestrator is authorized or not
+     * @param _orchestrator The address of the orchestrator
+     * @return whether the orchestrator is authorized or not
      */
-    function updateActionIpfsHashByLabel(bytes32 actionLabel, string memory newIpfsHash) external onlyAdmin {
-        uint256 actionId = labelToId[actionLabel];
-        require(actionId != 0, "Action does not exist");
+    function isAuthorizedOrchestrator(address _orchestrator) external view returns (bool) {
+        return authorizedOrchestrators[_orchestrator];
+    }
 
-        bytes32 actionHash = getActionHashFromIpfsHash(idToAction[actionId].ipfsHash);
-        
-        _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
+    /**
+     * @notice Verify if an action is active or not
+     * @param _ipfsHash The IPFS hash of the action
+     * @return whether the action is active or not
+     */
+    function isActionActive(string memory _ipfsHash) external view returns (bool) {
+        return idToAction[hashToId[getActionHashFromIpfsHash(_ipfsHash)]].active;
     }
 
     /**
@@ -188,52 +235,6 @@ contract GeniusActions is AccessControl {
         Action memory action = idToAction[labelToId[_actionLabel]];
         require(bytes(action.ipfsHash).length != 0, "Action does not exist");
         return action;
-    }
-
-    /**
-     * @notice Retrieves all active actions
-     * @return An array of Action structs representing all active actions
-     */
-    function getActiveActions() external view returns (Action[] memory) {
-        Action[] memory result = new Action[](activeCount());
-        uint256 activeIndex = 0;
-
-        for (uint256 i = 1; i < nextActionId; i++) {
-            Action memory action = idToAction[i];
-            if (action.active) {
-                result[activeIndex] = action;
-                activeIndex++;
-            }
-        }
-
-        return result;
-    }
-
-    /**
-     * @notice Retrieves all inactive actions
-     * @return An array of Action structs representing all inactive actions
-     */
-    function getInactiveActions() external view returns (Action[] memory) {
-        Action[] memory result = new Action[](inactiveCount);
-        uint256 inactiveIndex = 0;
-
-        for (uint256 i = 1; i < nextActionId; i++) {
-            Action memory action = idToAction[i];
-            if (!action.active) {
-                result[inactiveIndex] = action;
-                inactiveIndex++;
-            }
-        }
-
-        return result;
-    }
-
-    /**
-     * @notice Returns the count of active actions
-     * @return The number of active actions
-     */
-    function activeCount() public view returns (uint256) {
-        return nextActionId - 1 - inactiveCount;
     }
 
     /**
@@ -306,12 +307,6 @@ contract GeniusActions is AccessControl {
         require(bytes(action.ipfsHash).length != 0, "Action does not exist");
 
         require(action.active != active, "Status is already set to this value");
-        
-        if (active) {
-            inactiveCount--;
-        } else {
-            inactiveCount++;
-        }
 
         action.active = active;
         emit ActionStatusUpdated(id, active);

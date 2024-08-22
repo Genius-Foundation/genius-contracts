@@ -9,6 +9,8 @@ contract GeniusActionsTest is Test {
     address public admin = makeAddr("admin");
     address public sentinel = makeAddr("sentinel");
     address public user = makeAddr("user");
+    address public orchestrator1 = makeAddr("orchestrator1");
+    address public orchestrator2 = makeAddr("orchestrator2");
 
     GeniusActions public geniusActions;
 
@@ -149,68 +151,6 @@ contract GeniusActionsTest is Test {
         vm.stopPrank();
     }
 
-    function testGetActiveActions() public {
-        vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        geniusActions.addAction("action2", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
-        geniusActions.updateActionStatusByLabel("action2", false);
-        vm.stopPrank();
-
-        GeniusActions.Action[] memory activeActions = geniusActions.getActiveActions();
-        assertEq(activeActions.length, 1);
-        assertEq(activeActions[0].label, "action1");
-    }
-
-    function testGetInactiveActions() public {
-        vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        geniusActions.addAction("action2", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
-        geniusActions.updateActionStatusByLabel("action2", false);
-        vm.stopPrank();
-
-        GeniusActions.Action[] memory inactiveActions = geniusActions.getInactiveActions();
-        assertEq(inactiveActions.length, 1);
-        assertEq(inactiveActions[0].label, "action2");
-    }
-
-    function testActiveCount() public {
-        vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        geniusActions.addAction("action2", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
-        geniusActions.updateActionStatusByLabel("action2", false);
-        vm.stopPrank();
-
-        assertEq(geniusActions.activeCount(), 1);
-    }
-
-    function testComplexScenario() public {
-        vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        geniusActions.addAction("action2", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
-        geniusActions.addAction("action3", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd73");
-        geniusActions.updateActionStatusByLabel("action2", false);
-
-        assertEq(geniusActions.activeCount(), 2);
-
-        geniusActions.emergencyDisableActionByLabel("action1");
-
-        assertEq(geniusActions.activeCount(), 1);
-
-        geniusActions.updateActionStatusByLabel("action2", true);
-
-        assertEq(geniusActions.activeCount(), 2);
-
-        GeniusActions.Action[] memory activeActions = geniusActions.getActiveActions();
-        assertEq(activeActions.length, 2);
-        assertEq(activeActions[0].label, "action2");
-        assertEq(activeActions[1].label, "action3");
-
-        GeniusActions.Action[] memory inactiveActions = geniusActions.getInactiveActions();
-        assertEq(inactiveActions.length, 1);
-        assertEq(inactiveActions[0].label, "action1");
-        vm.stopPrank();
-    }
-
     function testGetActionByIpfsHash() public {
         vm.prank(admin);
         geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
@@ -225,5 +165,103 @@ contract GeniusActionsTest is Test {
         bytes32 expectedHash = 0xd264059aba5c9a50a24fa7a025939025c7f5289aa94b6ffa8f8abe41eeacbb81;
         bytes32 actualHash = geniusActions.getActionHashFromIpfsHash("QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
         assertEq(actualHash, expectedHash);
+    }
+
+    function testSetOrchestratorAuthorized() public {
+        vm.prank(admin);
+        geniusActions.setOrchestratorAuthorized(orchestrator1, true);
+        
+        assertTrue(geniusActions.isAuthorizedOrchestrator(orchestrator1));
+    }
+
+    function testSetOrchestratorAuthorizedByNonAdmin() public {
+        vm.prank(user);
+        vm.expectRevert("OwnablePausable: access denied");
+        geniusActions.setOrchestratorAuthorized(orchestrator1, true);
+    }
+
+    function testSetBatchOrchestratorAuthorized() public {
+        address[] memory orchestrators = new address[](2);
+        orchestrators[0] = orchestrator1;
+        orchestrators[1] = orchestrator2;
+
+        vm.prank(admin);
+        geniusActions.setBatchOrchestratorAuthorized(orchestrators, true);
+
+        assertTrue(geniusActions.isAuthorizedOrchestrator(orchestrator1));
+        assertTrue(geniusActions.isAuthorizedOrchestrator(orchestrator2));
+    }
+
+    function testSetBatchOrchestratorAuthorizedByNonAdmin() public {
+        address[] memory orchestrators = new address[](2);
+        orchestrators[0] = orchestrator1;
+        orchestrators[1] = orchestrator2;
+
+        vm.prank(user);
+        vm.expectRevert("OwnablePausable: access denied");
+        geniusActions.setBatchOrchestratorAuthorized(orchestrators, true);
+    }
+
+    function testIsAuthorizedOrchestratorFalse() public {
+        assertFalse(geniusActions.isAuthorizedOrchestrator(orchestrator1));
+    }
+
+    function testEmergencyDisableOrchestrator() public {
+        vm.startPrank(admin);
+        geniusActions.setOrchestratorAuthorized(orchestrator1, true);
+        assertTrue(geniusActions.isAuthorizedOrchestrator(orchestrator1));
+
+        geniusActions.grantRole(geniusActions.SENTINEL_ROLE(), sentinel);
+        vm.stopPrank();
+
+        vm.prank(sentinel);
+        geniusActions.emergencyDisableOrchestrator(orchestrator1);
+
+        assertFalse(geniusActions.isAuthorizedOrchestrator(orchestrator1));
+    }
+
+    function testEmergencyDisableOrchestratorByNonSentinel() public {
+        vm.prank(admin);
+        geniusActions.setOrchestratorAuthorized(orchestrator1, true);
+
+        vm.prank(user);
+        vm.expectRevert("OwnablePausable: access denied");
+        geniusActions.emergencyDisableOrchestrator(orchestrator1);
+    }
+
+    function testComplexOrchestratorScenario() public {
+        vm.startPrank(admin);
+        
+        // Set up orchestrators
+        address[] memory orchestrators = new address[](3);
+        orchestrators[0] = orchestrator1;
+        orchestrators[1] = orchestrator2;
+        orchestrators[2] = user;
+        geniusActions.setBatchOrchestratorAuthorized(orchestrators, true);
+
+        // Verify all are authorized
+        assertTrue(geniusActions.isAuthorizedOrchestrator(orchestrator1));
+        assertTrue(geniusActions.isAuthorizedOrchestrator(orchestrator2));
+        assertTrue(geniusActions.isAuthorizedOrchestrator(user));
+
+        // Disable one orchestrator
+        geniusActions.setOrchestratorAuthorized(user, false);
+
+        // Verify the disabled orchestrator
+        assertFalse(geniusActions.isAuthorizedOrchestrator(user));
+
+        // Set up sentinel
+        geniusActions.grantRole(geniusActions.SENTINEL_ROLE(), sentinel);
+        vm.stopPrank();
+
+        // Emergency disable by sentinel
+        vm.prank(sentinel);
+        geniusActions.emergencyDisableOrchestrator(orchestrator1);
+
+        // Verify the emergency disabled orchestrator
+        assertFalse(geniusActions.isAuthorizedOrchestrator(orchestrator1));
+
+        // Verify the still active orchestrator
+        assertTrue(geniusActions.isAuthorizedOrchestrator(orchestrator2));
     }
 }
