@@ -354,7 +354,11 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
             address target = targets[i];
             
             if (target == address(POOL) || target == address(VAULT)) {
-                revert GeniusErrors.InvalidTarget(target);
+
+                if (!orchestrator(msg.sender)) {
+                    revert GeniusErrors.InvalidTarget(target);
+                }
+
             }
             
             if (allowedTargets[target] == 0 && target != owner) {

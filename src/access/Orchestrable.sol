@@ -70,7 +70,7 @@ abstract contract Orchestrable is Ownable {
         emit OrchestratorRemoved(_orchestrator);
     }
 
-    function orchestrator(address _orchestrator) external view returns (bool) {
+    function orchestrator(address _orchestrator) public view returns (bool) {
         return isOrchestrator[_orchestrator] == Status.AUTHORIZED;
     }
 
