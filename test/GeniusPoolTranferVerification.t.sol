@@ -133,10 +133,6 @@ contract GeniusPoolTransferVerificationTest is Test {
         USDC.transfer(address(MULTIPOOL), initialLiquidity);
         vm.stopPrank();
 
-        // Record initial state
-        uint256 initialtotalAssets = MULTIPOOL.totalAssets();
-        uint256 initialavailableAssets = MULTIPOOL.availableAssets();
-
         // Prepare removal of bridge liquidity
         vm.startPrank(OWNER);
         // Ensure the USDC token is a valid target for bridge operations

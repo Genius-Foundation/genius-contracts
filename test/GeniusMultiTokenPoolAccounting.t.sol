@@ -786,7 +786,6 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
     function testAddBridgeLiquidity() public {
         uint256 bridgeAmount = 100 ether;
-        uint16 testChainId = 1; // Example chain ID
 
         // Setup: Fund the ORCHESTRATOR with USDC
         deal(address(USDC), ORCHESTRATOR, bridgeAmount);
@@ -895,7 +894,6 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
     function testAddBridgeLiquidityWithDonations() public {
         uint256 bridgeAmount = 100 ether;
-        uint16 testChainId = 1; // Example chain ID
 
         // Setup: Fund the ORCHESTRATOR with USDC
         deal(address(USDC), ORCHESTRATOR, bridgeAmount);
