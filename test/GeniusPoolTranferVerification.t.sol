@@ -94,8 +94,7 @@ contract GeniusPoolTransferVerificationTest is Test {
     function testWrongTranferAmountOnRemoveBridgeLiquidity() public {
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.approve(address(POOL), 500 ether);
-        POOL.addBridgeLiquidity(500 ether, targetChainId);
+        USDC.transfer(address(POOL), 500 ether);
         vm.stopPrank();
 
         // Prepare removal of bridge liquidity
@@ -131,13 +130,12 @@ contract GeniusPoolTransferVerificationTest is Test {
 
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.approve(address(MULTIPOOL), initialLiquidity);
-        MULTIPOOL.addBridgeLiquidity(initialLiquidity, targetChainId);
+        USDC.transfer(address(MULTIPOOL), initialLiquidity);
         vm.stopPrank();
 
         // Record initial state
-        uint256 initialTotalStables = MULTIPOOL.totalStables();
-        uint256 initialAvailStableBalance = MULTIPOOL.availStableBalance();
+        uint256 initialtotalAssets = MULTIPOOL.totalAssets();
+        uint256 initialavailableAssets = MULTIPOOL.availableAssets();
 
         // Prepare removal of bridge liquidity
         vm.startPrank(OWNER);

@@ -97,16 +97,6 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
         uint16 chainId
     );
 
-    /**
-     * @dev Emitted when the contract receives funds from a bridge.
-     * @param amount The amount of funds received.
-     * @param chainId The chain ID that funds are received from.
-     */
-    event ReceiveBridgeFunds(
-        uint256 amount,
-        uint16 chainId
-    );
-
     // =============================================================
     //                          CONSTRUCTOR
     // =============================================================
@@ -172,28 +162,6 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
     // =============================================================
     //                 BRIDGE LIQUIDITY REBALANCING
     // =============================================================
-
-    /**
-     * @dev Adds liquidity to the bridge pool.
-     * @param amount The amount of stablecoin to add as liquidity.
-     * @param chainId The chain ID of the bridge.
-     * @notice Emits a `ReceiveBridgeFunds` event with the amount and chain ID.
-     */
-    function addBridgeLiquidity(uint256 amount, uint16 chainId) public onlyOrchestrator whenReady {
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-
-        _transferERC20From(
-            address(STABLECOIN),
-            msg.sender,
-            address(this),
-            amount
-        );
-
-        emit ReceiveBridgeFunds(
-            amount,
-            chainId
-        );
-    }
 
     /**
      * @dev Removes liquidity from a bridge pool and swaps it to the destination chain.
