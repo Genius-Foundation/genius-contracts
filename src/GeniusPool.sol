@@ -194,7 +194,8 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
 
         uint256 _stableDelta = totalAssetsBeforeTransfer - totalAssets();
 
-        if (_stableDelta != amountIn) revert GeniusErrors.InvalidAmount();
+        // TODO: Change this error name, which can be confused with amountIn == 0
+        if (_stableDelta != amountIn) revert GeniusErrors.AmountInAndDeltaMismatch(amountIn, _stableDelta);
 
         emit BridgeFunds(
             amountIn,
