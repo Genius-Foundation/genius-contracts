@@ -25,6 +25,8 @@ contract GeniusActions is AccessControl {
     event ActionStatusUpdated(uint256 indexed actionId, bool active);
     event ActionIpfsHashUpdated(uint256 indexed actionId, string newIpfsHash);
     event ActionLabelUpdated(uint256 indexed actionId, bytes32 newLabel);
+    event OrchestratorAuthorized(address indexed orchestrator, bool authorized);
+    event CommitHashAuthorized(bytes32 indexed commitHash, bool authorized);
 
     // Constants
     bytes32 public constant SENTINEL_ROLE = keccak256("SENTINEL_ROLE");
@@ -36,6 +38,8 @@ contract GeniusActions is AccessControl {
     mapping(bytes32 => uint256) internal hashToId;
     mapping(bytes32 => uint256) internal labelToId;
     mapping(address => bool) internal authorizedOrchestrators;
+    // commit Hash is bytes32(commitHash) => bool
+    mapping(bytes32 => bool) internal authorizedCommitHashes;
 
     /**
      * @notice Initializes the contract with an initial admin
@@ -73,6 +77,7 @@ contract GeniusActions is AccessControl {
      */
     function setOrchestratorAuthorized(address _orchestrator, bool _authorized) external onlyAdmin {
         authorizedOrchestrators[_orchestrator] = _authorized;
+        emit OrchestratorAuthorized(_orchestrator, _authorized);
     }
 
     /**
@@ -83,7 +88,39 @@ contract GeniusActions is AccessControl {
     function setBatchOrchestratorAuthorized(address[] calldata _orchestrators, bool _authorized) external onlyAdmin {
         for (uint256 i = 0; i < _orchestrators.length; i++) {
             authorizedOrchestrators[_orchestrators[i]] = _authorized;
+            emit OrchestratorAuthorized(_orchestrators[i], _authorized);
         }
+    }
+
+    /**
+     * @notice Changes the authorization status of a commit hash
+     * @param _commitHash the commit hash to authorize or deauthorize
+     * @param _authorized the new authorization status
+     */
+    function setCommitHashAuthorized(bytes32 _commitHash, bool _authorized) external onlyAdmin {
+        authorizedCommitHashes[_commitHash] = _authorized;
+        emit CommitHashAuthorized(_commitHash, _authorized);
+    }
+
+    /**
+     * @notice Changes the authorization status of multiple commit hashes
+     * @param _commitHashes the array of commit hashes to set the authorization status for
+     * @param _authorized the new authorization status for all the commit hashes
+     */
+    function setBatchCommitHashAuthorized(bytes32[] calldata _commitHashes, bool _authorized) external onlyAdmin {
+        for (uint256 i = 0; i < _commitHashes.length; i++) {
+            authorizedCommitHashes[_commitHashes[i]] = _authorized;
+            emit CommitHashAuthorized(_commitHashes[i], _authorized);
+        }
+    }
+
+    /**
+     * @notice Checks whether a commit hash is authorized or not
+     * @param _commitHash The commit hash to check
+     * @return whether the commit hash is authorized or not
+     */
+    function isAuthorizedCommitHash(bytes32 _commitHash) external view returns (bool) {
+        return authorizedCommitHashes[_commitHash];
     }
 
     /**
@@ -131,7 +168,7 @@ contract GeniusActions is AccessControl {
     function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) external onlyAdmin {
         uint256 actionId = hashToId[actionHash];
         require(actionId != 0, "Action does not exist");
-        
+
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
@@ -146,11 +183,11 @@ contract GeniusActions is AccessControl {
         require(actionId != 0, "Action does not exist");
 
         bytes32 actionHash = getActionHashFromIpfsHash(idToAction[actionId].ipfsHash);
-        
+
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
-        /**
+    /**
      * @notice Emergency function to disable an action by its ID
      * @dev Only callable by accounts with SENTINEL_ROLE
      * @param actionId The ID of the action to disable
@@ -186,6 +223,17 @@ contract GeniusActions is AccessControl {
      */
     function emergencyDisableOrchestrator(address _orchestrator) external onlySentinel {
         authorizedOrchestrators[_orchestrator] = false;
+        emit OrchestratorAuthorized(_orchestrator, false);
+    }
+
+    /**
+     * @notice Emergency function to disable a commit hash
+     * @dev Only callable by accounts with SENTINEL_ROLE
+     * @param _commitHash The commit hash to disable
+     */
+    function emergencyDisableCommitHash(bytes32 _commitHash) external onlySentinel {
+        authorizedCommitHashes[_commitHash] = false;
+        emit CommitHashAuthorized(_commitHash, false);
     }
 
     /**
@@ -260,7 +308,7 @@ contract GeniusActions is AccessControl {
         hashToId[prevActionHash] = 0;
         hashToId[newActionHash] = actionId;      
         idToAction[actionId].ipfsHash = newIpfsHash;
-                
+
         emit ActionIpfsHashUpdated(actionId, newIpfsHash);
     }
 
