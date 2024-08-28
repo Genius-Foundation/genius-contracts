@@ -152,7 +152,9 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
-        address owner
+        address owner,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
@@ -187,7 +189,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
             _depositAmount
         );
 
-        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
+        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
 
         _sweepERC20s(permitBatch, owner);
     }
@@ -208,7 +210,9 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
-        address owner
+        address owner,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external payable nonReentrant {
         if (
             targets.length != data.length ||
@@ -235,7 +239,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
 
         if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
-        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
+        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
 
         _sweepERC20s(permitBatch, owner);
         if (msg.value > 0) _sweepNative(msg.sender);
@@ -251,7 +255,9 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     function nativeSwapAndDeposit(
         address target,
         bytes calldata data,
-        uint256 value
+        uint256 value,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external payable {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
@@ -276,7 +282,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
             _depositAmount
         );
 
-        POOL.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount);
+        POOL.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
 
         if (msg.value > 0) _sweepNative(msg.sender);
     }

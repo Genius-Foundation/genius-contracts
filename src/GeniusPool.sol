@@ -21,6 +21,25 @@ import {GeniusExecutor} from "./GeniusExecutor.sol";
 
 contract GeniusPool is Orchestrable, Executable, Pausable {
 
+
+    // Use order hashing so no need to store order
+    enum OrderStatus {
+        Unexistant,
+        Created,
+        Filled,
+        Reverted
+    }
+
+    struct Order {
+        uint256 amountIn;
+        uint32 orderId;
+        address trader;
+        uint16 srcChainId;
+        uint16 destChainId;
+        uint32 fillDeadline; 
+        address tokenIn;
+    }
+
     // =============================================================
     //                          IMMUTABLES
     // =============================================================
@@ -37,6 +56,9 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
 
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
     uint256 public rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
+
+    uint32 public totalOrders;
+    mapping(bytes32 => OrderStatus) public orderStatus;
 
     // =============================================================
     //                          EVENTS
@@ -68,23 +90,28 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
 
     /**
      * @dev Emitted when a swap deposit is made.
-     * @param trader The address of the trader who made the deposit.
-     * @param amountDeposited The amount of tokens deposited.
      */
     event SwapDeposit(
+        uint32 indexed orderId,
         address indexed trader,
-        address token,
-        uint256 amountDeposited
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 destChainId,
+        uint32 fillDeadline
     );
 
     /**
      * @dev Emitted when a swap withdrawal occurs.
-     * @param trader The address of the trader who made the withdrawal.
-     * @param amountWithdrawn The amount that was withdrawn.
      */
     event SwapWithdrawal(
+        uint32 indexed orderId,
         address indexed trader,
-        uint256 amountWithdrawn
+        address tokenOut,
+        uint256 amountOut,
+        uint16 srcChainId,
+        uint16 destChainId,
+        uint32 fillDeadline
     );
 
     /**
@@ -208,53 +235,83 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
 
     /**
      * @notice Deposits tokens into the vault
-     * @param trader The address of the trader that tokens are being deposited for
-     * @param amount The amount of tokens to deposit
      * @notice Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
      */
     function addLiquiditySwap(
-        address trader,
-        address token,
-        uint256 amount
-    ) external onlyExecutor whenReady {
-        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
+            address trader,
+            address tokenIn,
+            uint256 amountIn,
+            uint16 destChainId,
+            uint32 fillDeadline
+        ) external onlyExecutor whenReady {
+        Order memory order = Order({
+            trader: trader,
+            amountIn: amountIn,
+            orderId: totalOrders++,
+            srcChainId: uint16(_currentChainId()),
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            tokenIn: tokenIn
+        });
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Unexistant) revert GeniusErrors.InvalidOrderStatus();
 
-        _transferERC20From(address(STABLECOIN), msg.sender,  address(this), amount);
+        if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
+        if (order.tokenIn != address(STABLECOIN)) revert GeniusErrors.InvalidToken(order.tokenIn);
+
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), order.amountIn);
+
+        orderStatus[orderHash_] = OrderStatus.Created;        
 
         emit SwapDeposit(
-            trader,
-            token,
-            amount
+            order.orderId,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
         );
     }
 
     /**
      * @dev Removes liquidity from the GeniusPool contract by swapping stablecoins for the specified amount.
      *      Only the orchestrator can call this function.
-     * @param trader The address of the trader to use for 
-     * @param amount The amount of tokens to withdraw
      */
     function removeLiquiditySwap(
-        address trader,
-        uint256 amount
+        Order memory order
     ) external onlyExecutor whenReady {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Unexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
+        if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidChainId(order.destChainId);     
+        if (order.fillDeadline < _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(order.fillDeadline); 
+
         // Gas saving
         uint256 _totalAssets = totalAssets();
         uint256 _neededLiquidity = minAssetBalance();
 
-        _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
+        _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
 
-        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (!_isBalanceWithinThreshold(_totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
+        if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (!_isBalanceWithinThreshold(_totalAssets - order.amountIn)) revert GeniusErrors.ThresholdWouldExceed(
             _neededLiquidity,
-            _totalAssets - amount
+            _totalAssets - order.amountIn
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
+        orderStatus[orderHash_] = OrderStatus.Filled;
+
+        _transferERC20(address(STABLECOIN), msg.sender, order.amountIn);
         
-        emit SwapWithdrawal(trader, amount);
+        emit SwapWithdrawal(
+            order.orderId,
+            order.trader,
+            address(STABLECOIN),
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
+        );
     }
 
     // =============================================================
@@ -333,6 +390,38 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
         );
     }
 
+    function setOrderAsFilled(Order memory order) external onlyOrchestrator {
+        bytes32 orderHash_ = orderHash(order);
+
+        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidChainId(order.srcChainId);
+
+        orderStatus[orderHash_] = OrderStatus.Filled;
+    }
+
+    function revertOrder(
+        Order memory order, 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
+    ) external onlyOrchestrator {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidChainId(order.srcChainId);
+        if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
+
+        uint256 _totalAssetsPreRevert = totalAssets();
+
+        _batchExecution(targets, data, values);
+
+        uint256 _totalAssetsPostRevert = totalAssets();
+        uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
+
+        if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
+
+        orderStatus[orderHash_] = OrderStatus.Reverted;
+    }
+
     // =============================================================
     //                     REBALANCE THRESHOLD
     // =============================================================
@@ -381,6 +470,10 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
             availableAssets(),
             totalStakedAssets
         );
+    }
+
+    function orderHash(Order memory order) public pure returns (bytes32) {
+        return keccak256(abi.encode(order));
     }
 
     // =============================================================
@@ -503,4 +596,11 @@ contract GeniusPool is Orchestrable, Executable, Pausable {
         }
     }
 
+    function _currentChainId() internal view returns (uint256) {
+        return block.chainid;
+    }
+
+    function _currentTimeStamp() internal view returns (uint256) {
+        return block.timestamp;
+    }
 }

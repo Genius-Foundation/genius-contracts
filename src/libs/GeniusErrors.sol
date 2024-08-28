@@ -58,6 +58,11 @@ library GeniusErrors {
     */
     error InvalidPermitBatchLength();
 
+    error InvalidOrderStatus();
+
+    error InvalidOrderId();
+
+
     /**
     * @dev Error thrown thrown when the msg.value is not sufficient.
     */
@@ -171,4 +176,11 @@ library GeniusErrors {
      */
     error ThresholdWouldExceed(uint256 threshBal, uint256 attemptedThreshBal);
 
+    error OrderAlreadyFilled(bytes32 srcOrderHash);
+
+    error InvalidChainId(uint256 chainId);
+
+    error DeadlinePassed(uint256 deadline);
+
+    error DeadlineNotPassed(uint256 deadline);
 }
