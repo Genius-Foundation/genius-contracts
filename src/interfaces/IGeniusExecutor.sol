@@ -82,7 +82,9 @@ interface IGeniusExecutor {
         bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
-        address owner
+        address owner,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external;
 
     /**
@@ -100,7 +102,9 @@ interface IGeniusExecutor {
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
-        address owner
+        address owner,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external payable;
 
     /**
@@ -112,7 +116,9 @@ interface IGeniusExecutor {
     function nativeSwapAndDeposit(
         address target,
         bytes calldata data,
-        uint256 value
+        uint256 value,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external payable;
 
     /**

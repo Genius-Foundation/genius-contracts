@@ -47,171 +47,6 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable
     mapping(bytes32 => OrderStatus) public orderStatus;
 
     // =============================================================
-    //                          EVENTS
-    // =============================================================
-
-    /**
-     * @dev Emitted when a trader stakes their funds in the GeniusPool contract.
-     * @param trader The address of the trader who is staking their funds.
-     * @param amountDeposited The amount of funds being deposited by the trader.
-     * @param newTotalDeposits The new total amount of funds deposited in the GeniusPool contract after the stake.
-     */
-    event Stake(
-        address indexed trader,
-        uint256 amountDeposited,
-        uint256 newTotalDeposits
-    );
-
-    /**
-     * @dev Emitted when a trader unstakes their funds from the GeniusPool contract.
-     * @param trader The address of the trader who unstaked their funds.
-     * @param amountWithdrawn The amount of funds that were withdrawn by the trader.
-     * @param newTotalDeposits The new total amount of deposits in the GeniusPool contract after the withdrawal.
-     */
-    event Unstake(
-        address indexed trader,
-        uint256 amountWithdrawn,
-        uint256 newTotalDeposits
-    );
-
-    /**
-     * @dev Emitted when a swap is executed.
-     * @param token The address of the token that was swapped.
-     * @param amount The amount of tokens that were swapped.
-     * @param stableDelta The amount of stablecoins that were swapped.
-     */
-    event SwapExecuted(
-        address token,
-        uint256 amount,
-        uint256 stableDelta
-    );
-
-    /**
-     * @dev Emitted when a swap deposit is made.
-     */
-    event SwapDeposit(
-        uint32 indexed orderId,
-        address indexed trader,
-        address tokenIn,
-        uint256 amountIn,
-        uint16 srcChainId,
-        uint16 indexed destChainId,
-        uint32 fillDeadline
-    );
-
-    /**
-     * @dev Emitted when a swap withdrawal occurs.
-     */
-    event SwapWithdrawal(
-        uint32 indexed orderId,
-        address indexed trader,
-        address tokenOut,
-        uint256 amountOut,
-        uint16 indexed srcChainId,
-        uint16 destChainId,
-        uint32 fillDeadline
-    );
-
-    event OrderFilled(
-        uint32 indexed orderId,
-        address indexed trader,
-        address tokenIn,
-        uint256 amountIn,
-        uint16 srcChainId,
-        uint16 indexed destChainId,
-        uint32 fillDeadline
-    );
-
-    event OrderReverted(
-        uint32 indexed orderId,
-        address indexed trader,
-        address tokenIn,
-        uint256 amountIn,
-        uint16 srcChainId,
-        uint16 indexed destChainId,
-        uint32 fillDeadline
-    );
-
-    /**
-     * @dev Emitted when funds are bridged to another chain.
-     * @param amount The amount of funds being bridged.
-     * @param chainId The ID of the chain where the funds are being bridged to.
-     */
-    event BridgeFunds(
-        uint256 amount,
-        uint16 chainId
-    );
-
-    /**
-     * @dev Emitted when the contract receives funds from a bridge.
-     * @param amount The amount of funds received.
-     * @param chainId The chain ID that funds are received from.
-     */
-    event ReceiveBridgeFunds(
-        uint256 amount,
-        uint16 chainId
-    );
-
-    /**
-     * @dev Emitted when the balance of a token is updated due to token
-     *      swaps or liquidity additions.
-     * @param token The address of the token.
-     * @param oldBalance The previous balance of the token.
-     * @param newBalance The new balance of the token.
-     */
-    event BalanceUpdate(
-        address token,
-        uint256 oldBalance,
-        uint256 newBalance
-    );
-
-    /**
-     * @dev Emitted when there is an excess balance of a token.
-     * @param token The address of the token.
-     * @param excess The amount of excess tokens.
-     */
-    event ExcessBalance(
-        address token,
-        uint256 excess
-    );
-
-    /**
-     * @dev Emitted when there is an unexpected decrease in the balance of a token.
-     * @param token The address of the token.
-     * @param expectedBalance The new balance of the token.
-     * @param newBalance The previous balance of the token.
-     */
-    event UnexpectedBalanceChange(
-        address token,
-        uint256 expectedBalance,
-        uint256 newBalance
-    );
-
-    // =============================================================
-    //                            STRUCTS
-    // =============================================================
-
-    /**
-     * @dev Struct representing the balance of a token in the GeniusMultiTokenPool.
-     * @param token The address of the token.
-     * @param balance The balance of the token.
-     */
-    struct TokenBalance {
-        address token;
-        uint256 balance;
-    }
-
-    /**
-     * @dev Struct to store information about a token.
-     * @param isSupported Boolean indicating if the token is supported.
-     * @param balance The balance of the token.
-     */
-    struct TokenInfo {
-        bool isSupported;
-        uint256 balance;
-    }
-
-    // =============================================================
     //                          CONSTRUCTOR
     // =============================================================
 
@@ -542,6 +377,67 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable
         );
     }
 
+    /**
+     * @dev See {IGeniusMultiTokenPool-setOrderAsFilled}.
+     */
+    function setOrderAsFilled(
+        Order memory order
+    ) external override onlyOrchestrator whenReady {
+        bytes32 orderHash_ = orderHash(order);
+
+        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+
+        orderStatus[orderHash_] = OrderStatus.Filled;
+
+        emit OrderFilled(
+            order.orderId,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
+        );
+    }
+
+    /**
+     * @dev See {IGeniusMultiTokenPool-revertOrder}.
+     */
+    function revertOrder(
+        Order memory order, 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
+    ) external override onlyOrchestrator whenReady {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+        if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
+
+        uint256 _totalAssetsPreRevert = totalAssets();
+
+        _batchExecution(targets, data, values);
+
+        uint256 _totalAssetsPostRevert = totalAssets();
+        uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
+
+        if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
+
+        orderStatus[orderHash_] = OrderStatus.Reverted;
+
+        emit OrderReverted(
+            order.orderId,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
+        );
+    }
+
+
     // =============================================================
     //                     REWARD LIQUIDITY
     // =============================================================
@@ -671,58 +567,6 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable
             trader,
             amount,
             totalStakedAssets
-        );
-    }
-
-    function setOrderAsFilled(Order memory order) external onlyOrchestrator whenReady {
-        bytes32 orderHash_ = orderHash(order);
-
-        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-
-        orderStatus[orderHash_] = OrderStatus.Filled;
-
-        emit OrderFilled(
-            order.orderId,
-            order.trader,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline
-        );
-    }
-
-    function revertOrder(
-        Order memory order, 
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values
-    ) external onlyOrchestrator whenReady {
-        bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-        if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
-
-        uint256 _totalAssetsPreRevert = totalAssets();
-
-        _batchExecution(targets, data, values);
-
-        uint256 _totalAssetsPostRevert = totalAssets();
-        uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
-
-        if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
-
-        orderStatus[orderHash_] = OrderStatus.Reverted;
-
-        emit OrderReverted(
-            order.orderId,
-            order.trader,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline
         );
     }
 

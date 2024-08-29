@@ -12,6 +12,25 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *         and other Genius related activities.
  */
 interface IGeniusPool {
+
+    // Use order hashing so no need to store order
+    enum OrderStatus {
+        Unexistant,
+        Created,
+        Filled,
+        Reverted
+    }
+
+    struct Order {
+        uint256 amountIn;
+        uint32 orderId;
+        address trader;
+        uint16 srcChainId;
+        uint16 destChainId;
+        uint32 fillDeadline; 
+        address tokenIn;
+    }
+
     // =============================================================
     //                          EVENTS
     // =============================================================
@@ -42,23 +61,48 @@ interface IGeniusPool {
 
     /**
      * @dev Emitted when a swap deposit is made.
-     * @param trader The address of the trader who made the deposit.
-     * @param amountDeposited The amount of tokens deposited.
      */
     event SwapDeposit(
+        uint32 indexed orderId,
         address indexed trader,
-        address token,
-        uint256 amountDeposited
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
     );
 
     /**
      * @dev Emitted when a swap withdrawal occurs.
-     * @param trader The address of the trader who made the withdrawal.
-     * @param amountWithdrawn The amount that was withdrawn.
      */
     event SwapWithdrawal(
+        uint32 indexed orderId,
         address indexed trader,
-        uint256 amountWithdrawn
+        address tokenOut,
+        uint256 amountOut,
+        uint16 indexed srcChainId,
+        uint16 destChainId,
+        uint32 fillDeadline
+    );
+
+    event OrderFilled(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    event OrderReverted(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
     );
 
     /**
@@ -104,27 +148,29 @@ interface IGeniusPool {
         bytes[] memory data
     ) external payable;
 
-    /**
-     * @notice Deposits tokens into the vault
-     * @param trader The address of the trader that tokens are being deposited for
-     * @param amount The amount of tokens to deposit
-     * @notice Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
-     */
     function addLiquiditySwap(
         address trader,
-        address token,
-        uint256 amount
+        address tokenIn,
+        uint256 amountIn,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external;
 
     /**
      * @dev Removes liquidity from the GeniusPool contract by swapping stablecoins for the specified amount.
      *      Only the orchestrator can call this function.
-     * @param trader The address of the trader to use for 
-     * @param amount The amount of tokens to withdraw
      */
     function removeLiquiditySwap(
-        address trader,
-        uint256 amount
+        Order memory order
+    ) external;
+
+    function setOrderAsFilled(Order memory order) external;
+
+    function revertOrder(
+        Order calldata order, 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
     ) external;
 
     /**
@@ -172,6 +218,8 @@ interface IGeniusPool {
      * @return totalStakedAssets The total number of assets currently staked in the pool.
      */
     function assets() external view returns (uint256, uint256, uint256);
+
+    function orderHash(Order memory order) external pure returns (bytes32);
 
     // =============================================================
     //                          VARIABLES

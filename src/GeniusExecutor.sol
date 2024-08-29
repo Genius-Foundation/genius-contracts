@@ -49,7 +49,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
     /**
      * @dev See {IGeniusExecutor-initialize}.
      */
-    function initialize(address[] calldata routers) external onlyOwner {
+    function initialize(address[] calldata routers) external override onlyOwner {
         uint256 length = routers.length;
         for (uint256 i = 0; i < length;) {
             address router = routers[i];
@@ -67,7 +67,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
     /**
      * @dev See {IGeniusExecutor-setAllowedTarget}.
      */
-    function setAllowedTarget(address target, bool isAllowed) external onlyOwner {
+    function setAllowedTarget(address target, bool isAllowed) external override onlyOwner {
         allowedTargets[target] = isAllowed ? 1 : 0;
     }
 
@@ -81,7 +81,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external payable nonReentrant {
+    ) external override payable nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
@@ -101,7 +101,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values
-    ) external payable nonReentrant {
+    ) external payable override nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();        
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
         _checkTargets(targets, emptyPermitDetails, msg.sender);
@@ -122,7 +122,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         address owner,
         uint16 destChainId,
         uint32 fillDeadline
-    ) external onlyOrchestrator nonReentrant {
+    ) external override onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
 
@@ -173,7 +173,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         address owner,
         uint16 destChainId,
         uint32 fillDeadline
-    ) external payable nonReentrant {
+    ) external override payable nonReentrant {
         if (
             targets.length != data.length ||
             data.length != values.length
@@ -214,7 +214,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         uint256 value,
         uint16 destChainId,
         uint32 fillDeadline
-    ) external payable {
+    ) external override payable {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
@@ -250,7 +250,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external onlyOrchestrator nonReentrant {
+    ) external override onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.ArrayLengthsMismatch();
         if (permitBatch.details[0].token != address(STABLECOIN)) {
@@ -269,7 +269,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external onlyOrchestrator nonReentrant {
+    ) external override onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details[0].token != address(VAULT)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);

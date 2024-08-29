@@ -11,12 +11,40 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
 interface IGeniusMultiTokenPool {
-    // Structs
+
+    // Use order hashing so no need to store order
+    enum OrderStatus {
+        Unexistant,
+        Created,
+        Filled,
+        Reverted
+    }
+
+    struct Order {
+        uint256 amountIn;
+        uint32 orderId;
+        address trader;
+        uint16 srcChainId;
+        uint16 destChainId;
+        uint32 fillDeadline; 
+        address tokenIn;
+    }
+
+    /**
+     * @dev Struct representing the balance of a token in the GeniusMultiTokenPool.
+     * @param token The address of the token.
+     * @param balance The balance of the token.
+     */
     struct TokenBalance {
         address token;
         uint256 balance;
     }
 
+    /**
+     * @dev Struct to store information about a token.
+     * @param isSupported Boolean indicating if the token is supported.
+     * @param balance The balance of the token.
+     */
     struct TokenInfo {
         bool isSupported;
         uint256 balance;
@@ -61,24 +89,48 @@ interface IGeniusMultiTokenPool {
 
     /**
      * @dev Emitted when a swap deposit is made.
-     * @param trader The address of the trader who made the deposit.
-     * @param token The address of the token deposited.
-     * @param amountDeposited The amount of tokens deposited.
      */
     event SwapDeposit(
+        uint32 indexed orderId,
         address indexed trader,
-        address token,
-        uint256 amountDeposited
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
     );
 
     /**
      * @dev Emitted when a swap withdrawal occurs.
-     * @param trader The address of the trader who made the withdrawal.
-     * @param amountWithdrawn The amount that was withdrawn.
      */
     event SwapWithdrawal(
+        uint32 indexed orderId,
         address indexed trader,
-        uint256 amountWithdrawn
+        address tokenOut,
+        uint256 amountOut,
+        uint16 indexed srcChainId,
+        uint16 destChainId,
+        uint32 fillDeadline
+    );
+
+    event OrderFilled(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    event OrderReverted(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
     );
 
     /**
@@ -198,24 +250,29 @@ interface IGeniusMultiTokenPool {
 
     /**
      * @dev Adds liquidity to the GeniusMultiTokenPool contract by swapping tokens.
-     * @param trader The address of the trader who is adding liquidity.
-     * @param token The address of the token being swapped.
-     * @param amount The amount of tokens being swapped.
      */
     function addLiquiditySwap(
         address trader,
-        address token,
-        uint256 amount
+        address tokenIn,
+        uint256 amountIn,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external payable;
 
     /**
      * @dev Removes liquidity from the GeniusMultiTokenPool contract by swapping stablecoins for the specified amount.
-     * @param trader The address of the trader who wants to remove liquidity.
-     * @param amount The amount of stablecoins to be swapped and transferred to the caller.
      */
     function removeLiquiditySwap(
-        address trader,
-        uint256 amount
+        Order memory order
+    ) external;
+
+    function setOrderAsFilled(Order memory order) external;
+
+    function revertOrder(
+        Order memory order, 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
     ) external;
 
     /**

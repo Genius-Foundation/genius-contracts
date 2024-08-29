@@ -7,6 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {GeniusPool} from "../src/GeniusPool.sol";
+import {IGeniusPool} from "../src/interfaces/IGeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
@@ -136,8 +137,8 @@ contract GeniusPoolTest is Test {
 
         vm.startPrank(address(EXECUTOR));
         vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
-        GeniusPool.Order memory order = 
-            GeniusPool.Order({
+        IGeniusPool.Order memory order = 
+            IGeniusPool.Order({
                 amountIn: 1_000 ether,
                 orderId: 1,
                 trader: TRADER,
@@ -240,8 +241,8 @@ contract GeniusPoolTest is Test {
 
         assertEq(USDC.balanceOf(address(POOL)), 1_000 ether, "GeniusPool balance should be 1,000 ether");
 
-        GeniusPool.Order memory order = 
-            GeniusPool.Order({
+        IGeniusPool.Order memory order = 
+            IGeniusPool.Order({
                 amountIn: 1_000 ether,
                 orderId: POOL.totalOrders(),
                 trader: TRADER,
@@ -464,7 +465,7 @@ contract GeniusPoolTest is Test {
 
         assertEq(POOL.totalOrders(), 1, "Total orders should be 1");
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -475,7 +476,7 @@ contract GeniusPoolTest is Test {
         });
 
         bytes32 orderHash = POOL.orderHash(order);
-        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(GeniusPool.OrderStatus.Created), "Order status should be Created");
+        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(IGeniusPool.OrderStatus.Created), "Order status should be Created");
     }
 
     function testRemoveLiquiditySwapOrderFulfillment() public {
@@ -484,7 +485,7 @@ contract GeniusPoolTest is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(POOL), 1_000 ether);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -497,7 +498,7 @@ contract GeniusPoolTest is Test {
         POOL.removeLiquiditySwap(order);
 
         bytes32 orderHash = POOL.orderHash(order);
-        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(GeniusPool.OrderStatus.Filled), "Order status should be Filled");
+        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(IGeniusPool.OrderStatus.Filled), "Order status should be Filled");
     }
 
     function testSetOrderAsFilled() public {
@@ -509,7 +510,7 @@ contract GeniusPoolTest is Test {
         USDC.approve(address(POOL), 1_000 ether);
         POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -523,7 +524,7 @@ contract GeniusPoolTest is Test {
         POOL.setOrderAsFilled(order);
 
         bytes32 orderHash = POOL.orderHash(order);
-        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(GeniusPool.OrderStatus.Filled), "Order status should be Filled");
+        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(IGeniusPool.OrderStatus.Filled), "Order status should be Filled");
     }
 
     function testRevertOrder() public {
@@ -535,7 +536,7 @@ contract GeniusPoolTest is Test {
         USDC.approve(address(POOL), 1_000 ether);
         POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -566,7 +567,7 @@ contract GeniusPoolTest is Test {
         uint256 postBalance = USDC.balanceOf(TRADER);
 
         bytes32 orderHash = POOL.orderHash(order);
-        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(GeniusPool.OrderStatus.Reverted), "Order status should be Reverted");
+        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(IGeniusPool.OrderStatus.Reverted), "Order status should be Reverted");
         assertEq(postBalance - prevBalance, 1_000 ether, "Trader should receive refunded amount");
     }
 
@@ -579,7 +580,7 @@ contract GeniusPoolTest is Test {
         USDC.approve(address(POOL), 1_000 ether);
         POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -646,7 +647,7 @@ contract GeniusPoolTest is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(POOL), 1_000 ether);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -672,7 +673,7 @@ contract GeniusPoolTest is Test {
         USDC.approve(address(POOL), 1_000 ether);
         POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -696,7 +697,7 @@ contract GeniusPoolTest is Test {
         USDC.approve(address(POOL), 1_000 ether);
         POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -722,7 +723,7 @@ contract GeniusPoolTest is Test {
         USDC.approve(address(POOL), 1_000 ether);
         POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -759,7 +760,7 @@ contract GeniusPoolTest is Test {
         USDC.approve(address(POOL), 1_000 ether);
         POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
@@ -796,7 +797,7 @@ contract GeniusPoolTest is Test {
         USDC.approve(address(POOL), 1_000 ether);
         POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
-        GeniusPool.Order memory order = GeniusPool.Order({
+        IGeniusPool.Order memory order = IGeniusPool.Order({
             amountIn: 1_000 ether,
             orderId: 0,
             trader: TRADER,
