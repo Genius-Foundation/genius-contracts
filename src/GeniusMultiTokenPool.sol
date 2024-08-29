@@ -225,7 +225,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable
             }
         }
 
-        emit BridgeFunds(amountIn, dstChainId);
+        emit RemovedLiquidity(amountIn, dstChainId);
     }
 
     /**
@@ -286,7 +286,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable
             tokenIn: tokenIn
         });
         bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Unexistant) revert GeniusErrors.InvalidOrderStatus();
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.InvalidOrderStatus();
 
         uint256 preBalance;
         uint256 postBalance;
@@ -345,7 +345,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable
         Order memory order
     ) external override onlyExecutor whenReady {
         bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Unexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
         if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
         if (order.fillDeadline < _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(order.fillDeadline); 
         if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);

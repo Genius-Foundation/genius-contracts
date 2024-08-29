@@ -121,7 +121,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
 
         if (_stableDelta != amountIn) revert GeniusErrors.AmountInAndDeltaMismatch(amountIn, _stableDelta);
 
-        emit BridgeFunds(
+        emit RemovedLiquidity(
             amountIn,
             dstChainId
         );
@@ -153,7 +153,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
             tokenIn: tokenIn
         });
         bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Unexistant) revert GeniusErrors.InvalidOrderStatus();
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.InvalidOrderStatus();
 
         _transferERC20From(address(STABLECOIN), msg.sender, address(this), order.amountIn);
 
@@ -177,7 +177,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
         Order memory order
     ) external override onlyExecutor whenReady {
         bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Unexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
         if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
         if (order.fillDeadline < _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(order.fillDeadline); 
         if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
