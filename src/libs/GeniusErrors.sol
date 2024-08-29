@@ -178,7 +178,9 @@ library GeniusErrors {
 
     error OrderAlreadyFilled(bytes32 srcOrderHash);
 
-    error InvalidChainId(uint256 chainId);
+    error InvalidDestChainId(uint256 chainId);
+
+    error InvalidSourceChainId(uint256 chainId);
 
     error DeadlinePassed(uint256 deadline);
 

@@ -463,7 +463,7 @@ contract GeniusExecutorDrain is Test {
             permitBatch,
             signature,
             trader,
-            43114,
+            42,
             uint32(block.timestamp + 1000)
         );
 
@@ -486,7 +486,7 @@ contract GeniusExecutorDrain is Test {
      * 8. Calls the `multiSwapAndDeposit` function with mismatched array length, permit batch, signature, and trader address.
      */
     function testMultiSwapAndDepositArrayLengthMismatch() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         vm.startPrank(OWNER);
@@ -558,7 +558,7 @@ contract GeniusExecutorDrain is Test {
             permitBatch,
             signature,
             trader,
-            43114,
+            42,
             uint32(block.timestamp + 1000)
         );
     }
@@ -617,15 +617,12 @@ contract GeniusExecutorDrain is Test {
             permitBatch,
             signature,
             trader,
-            43114,
+            42,
             uint32(block.timestamp + 1000)
         );
     }
 
     function testNativeSwapAndDeposit() public {
-        uint16 destChainId = 43114;
-        uint32 fillDeadline = uint32(block.timestamp + 1000);
-
         // Setup
         vm.startPrank(OWNER);
         address[] memory initialRouters = new address[](1);
@@ -654,8 +651,8 @@ contract GeniusExecutorDrain is Test {
             address(DEX_ROUTER),
             swapData,
             1 ether,
-            destChainId,
-            fillDeadline
+            42,
+            uint32(block.timestamp + 1000)
         );
 
         // Assert final balances
@@ -670,8 +667,8 @@ contract GeniusExecutorDrain is Test {
             invalidTarget,
             swapData,
             1 ether,
-            destChainId,
-            fillDeadline
+            42,
+            uint32(block.timestamp + 1000)
         );
 
         // 2. External call failed
@@ -687,8 +684,8 @@ contract GeniusExecutorDrain is Test {
             address(DEX_ROUTER),
             invalidSwapData,
             1 ether,
-            destChainId,
-            fillDeadline
+            42,
+            uint32(block.timestamp + 1000)
         );
 
         // 3. Insufficient ETH sent
@@ -698,8 +695,8 @@ contract GeniusExecutorDrain is Test {
             address(DEX_ROUTER),
             swapData,
             1 ether,
-            destChainId,
-            fillDeadline
+            42,
+            uint32(block.timestamp + 1000)
         );
     }
 }

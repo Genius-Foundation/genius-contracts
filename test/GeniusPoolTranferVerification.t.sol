@@ -15,7 +15,7 @@ import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
 contract GeniusPoolTransferVerificationTest is Test {
     uint256 avalanche;
-    uint16 constant targetChainId = 43114;
+    uint16 constant targetChainId = 42;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
     address OWNER;

@@ -149,7 +149,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
 
 
     function testTokenSwapAndDeposit() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         bytes memory swapCalldata = abi.encodeWithSelector(
@@ -276,7 +276,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
             permitBatch,
             signature,
             TRADER,
-            43114,
+            42,
             uint32(block.timestamp + 1000)
         );
 
@@ -288,7 +288,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
     }
 
     function testNativeSwapAndDeposit() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 initialBalance = TRADER.balance;
         uint256 swapAmount = 1 ether;

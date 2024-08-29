@@ -115,7 +115,7 @@ contract GeniusPoolTest is Test {
     }
 
     function testAddLiquiditySwapWhenPaused() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         vm.startPrank(OWNER);
@@ -128,7 +128,7 @@ contract GeniusPoolTest is Test {
     }
 
     function testRemoveLiquiditySwapWhenPaused() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
         vm.startPrank(OWNER);
         POOL.emergencyLock();
@@ -201,7 +201,7 @@ contract GeniusPoolTest is Test {
     }
 
     function testAddLiquiditySwapNative() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
         deal(address(USDC), address(DEX_ROUTER), 1_000 ether);
         bytes memory swapData = abi.encodeWithSelector(
@@ -233,13 +233,10 @@ contract GeniusPoolTest is Test {
     }
 
     function testRemoveLiquiditySwap() public {
-        uint16 destChainId = 43114;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(POOL), 1_000 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
+        deal(address(USDC), address(POOL), 1_000 ether);
 
         assertEq(USDC.balanceOf(address(POOL)), 1_000 ether, "GeniusPool balance should be 1,000 ether");
 
@@ -248,8 +245,8 @@ contract GeniusPoolTest is Test {
                 amountIn: 1_000 ether,
                 orderId: POOL.totalOrders(),
                 trader: TRADER,
-                srcChainId: uint16(block.chainid),
-                destChainId: destChainId,
+                srcChainId: 42,
+                destChainId: uint16(block.chainid),
                 fillDeadline: fillDeadline,
                 tokenIn: address(USDC)
             });
@@ -270,7 +267,7 @@ contract GeniusPoolTest is Test {
     }
 
     function removeRewardLiquidity() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 initialOrchestatorBalance = USDC.balanceOf(ORCHESTRATOR);
 
@@ -454,5 +451,156 @@ contract GeniusPoolTest is Test {
         assertEq(totalAssets, 400 ether, "Total assets should be 400 ether");
         assertEq(totalStakedAssets, 0, "Total staked assets should be 0 ether");
         assertEq(availableAssets, 400 ether, "Available assets should be 400 ether");
+    }
+
+    function testAddLiquiditySwapOrderCreation() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
+        vm.startPrank(address(EXECUTOR));
+        deal(address(USDC), address(EXECUTOR), 1_000 ether);
+        USDC.approve(address(POOL), 1_000 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
+
+        assertEq(POOL.totalOrders(), 1, "Total orders should be 1");
+
+        GeniusPool.Order memory order = GeniusPool.Order({
+            amountIn: 1_000 ether,
+            orderId: 0,
+            trader: TRADER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            tokenIn: address(USDC)
+        });
+
+        bytes32 orderHash = POOL.orderHash(order);
+        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(GeniusPool.OrderStatus.Created), "Order status should be Created");
+    }
+
+    function testRemoveLiquiditySwapOrderFulfillment() public {
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
+        vm.startPrank(address(EXECUTOR));
+        deal(address(USDC), address(POOL), 1_000 ether);
+
+        GeniusPool.Order memory order = GeniusPool.Order({
+            amountIn: 1_000 ether,
+            orderId: 0,
+            trader: TRADER,
+            srcChainId: 42,
+            destChainId: uint16(block.chainid),
+            fillDeadline: fillDeadline,
+            tokenIn: address(USDC)
+        });
+
+        POOL.removeLiquiditySwap(order);
+
+        bytes32 orderHash = POOL.orderHash(order);
+        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(GeniusPool.OrderStatus.Filled), "Order status should be Filled");
+    }
+
+    function testSetOrderAsFilled() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
+        vm.startPrank(address(EXECUTOR));
+        deal(address(USDC), address(EXECUTOR), 1_000 ether);
+        USDC.approve(address(POOL), 1_000 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
+
+        GeniusPool.Order memory order = GeniusPool.Order({
+            amountIn: 1_000 ether,
+            orderId: 0,
+            trader: TRADER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            tokenIn: address(USDC)
+        });
+
+        vm.startPrank(ORCHESTRATOR);
+        POOL.setOrderAsFilled(order);
+
+        bytes32 orderHash = POOL.orderHash(order);
+        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(GeniusPool.OrderStatus.Filled), "Order status should be Filled");
+    }
+
+    function testRevertOrder() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 100);
+
+        vm.startPrank(address(EXECUTOR));
+        deal(address(USDC), address(EXECUTOR), 1_000 ether);
+        USDC.approve(address(POOL), 1_000 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
+
+        GeniusPool.Order memory order = GeniusPool.Order({
+            amountIn: 1_000 ether,
+            orderId: 0,
+            trader: TRADER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            tokenIn: address(USDC)
+        });
+
+        // Advance time past the fillDeadline
+        vm.warp(block.timestamp + 200);
+
+        vm.startPrank(ORCHESTRATOR);
+        
+        address[] memory targets = new address[](1);
+        targets[0] = address(USDC);
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(USDC.transfer.selector, TRADER, 1_000 ether);
+
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+
+        uint256 prevBalance = USDC.balanceOf(TRADER);
+
+        POOL.revertOrder(order, targets, data, values);
+
+        uint256 postBalance = USDC.balanceOf(TRADER);
+
+        bytes32 orderHash = POOL.orderHash(order);
+        assertEq(uint256(POOL.orderStatus(orderHash)), uint256(GeniusPool.OrderStatus.Reverted), "Order status should be Reverted");
+        assertEq(postBalance - prevBalance, 1_000 ether, "Trader should receive refunded amount");
+    }
+
+    function testCannotRevertOrderBeforeDeadline() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
+        vm.startPrank(address(EXECUTOR));
+        deal(address(USDC), address(EXECUTOR), 1_000 ether);
+        USDC.approve(address(POOL), 1_000 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
+
+        GeniusPool.Order memory order = GeniusPool.Order({
+            amountIn: 1_000 ether,
+            orderId: 0,
+            trader: TRADER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            tokenIn: address(USDC)
+        });
+
+        vm.startPrank(ORCHESTRATOR);
+        
+        address[] memory targets = new address[](1);
+        targets[0] = address(USDC);
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = abi.encodeWithSelector(USDC.transfer.selector, TRADER, 1_000 ether);
+
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.DeadlineNotPassed.selector, fillDeadline));
+        POOL.revertOrder(order, targets, data, values);
     }
 }

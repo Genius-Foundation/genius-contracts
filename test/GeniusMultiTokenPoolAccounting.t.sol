@@ -307,7 +307,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
     }
 
     function testFullCycle() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         // =================== DEPOSIT THROUGH VAULT ===================
@@ -406,7 +406,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
     }
 
     function testFullCycleWithDonations() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
         
         // =================== SETUP ===================
@@ -580,7 +580,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
     }
 
     function testNativeLiquiditySwap() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
@@ -686,7 +686,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
             permitBatch,
             signature,
             TRADER,
-            43114,
+            42,
             uint32(block.timestamp + 1000)
         );
 

@@ -112,7 +112,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         address tokenIn,
         uint256 amountIn,
         uint16 srcChainId,
-        uint16 destChainId,
+        uint16 indexed destChainId,
         uint32 fillDeadline
     );
 
@@ -124,8 +124,28 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         address indexed trader,
         address tokenOut,
         uint256 amountOut,
-        uint16 srcChainId,
+        uint16 indexed srcChainId,
         uint16 destChainId,
+        uint32 fillDeadline
+    );
+
+    event OrderFilled(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    event OrderReverted(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
         uint32 fillDeadline
     );
 
@@ -436,6 +456,11 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         uint16 destChainId,
         uint32 fillDeadline
     ) external payable onlyExecutor whenReady {
+        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (amountIn == 0) revert GeniusErrors.InvalidAmount();
+        if (destChainId == _currentChainId()) revert GeniusErrors.InvalidDestChainId(destChainId);
+        if (fillDeadline <= _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(fillDeadline);
+
         Order memory order = Order({
             trader: trader,
             amountIn: amountIn,
@@ -447,9 +472,6 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         });
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Unexistant) revert GeniusErrors.InvalidOrderStatus();
-
-        if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
 
         uint256 preBalance;
         uint256 postBalance;
@@ -510,8 +532,9 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     ) external onlyExecutor whenReady {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Unexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
-        if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidChainId(order.destChainId);     
+        if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
         if (order.fillDeadline < _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(order.fillDeadline); 
+        if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         // Gas saving
         uint256 _totalAssets = totalAssets();
@@ -683,13 +706,23 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         );
     }
 
-    function setOrderAsFilled(Order memory order) external onlyOrchestrator {
+    function setOrderAsFilled(Order memory order) external onlyOrchestrator whenReady {
         bytes32 orderHash_ = orderHash(order);
 
         if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidChainId(order.srcChainId);
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         orderStatus[orderHash_] = OrderStatus.Filled;
+
+        emit OrderFilled(
+            order.orderId,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
+        );
     }
 
     function revertOrder(
@@ -697,10 +730,10 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values
-    ) external onlyOrchestrator {
+    ) external onlyOrchestrator whenReady {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidChainId(order.srcChainId);
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
         if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
 
         uint256 _totalAssetsPreRevert = totalAssets();
@@ -713,6 +746,16 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
 
         orderStatus[orderHash_] = OrderStatus.Reverted;
+
+        emit OrderReverted(
+            order.orderId,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
+        );
     }
 
     // =============================================================

@@ -115,7 +115,7 @@ contract GeniusExecutorReentrancy is Test {
     }
 
 function testReentrancyMultiSwapAndDeposit() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         vm.startPrank(OWNER);

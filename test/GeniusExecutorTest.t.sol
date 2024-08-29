@@ -297,7 +297,7 @@ contract GeniusExecutorTest is Test {
 
 
     function testTokenSwapAndDeposit() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         uint160 transferAmount = 10 ether;  // Define the amount of WAVAX to swap
@@ -359,7 +359,7 @@ contract GeniusExecutorTest is Test {
     }
 
     function testNativeSwapAndDeposit() public {
-        uint16 destChainId = 43114;
+        uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         vm.startPrank(OWNER);
@@ -475,7 +475,7 @@ contract GeniusExecutorTest is Test {
             permitBatch,
             signature,
             TRADER,
-            43114,
+            42,
             uint32(block.timestamp + 1000)
         );
 
