@@ -264,4 +264,111 @@ contract GeniusActionsTest is Test {
         // Verify the still active orchestrator
         assertTrue(geniusActions.isAuthorizedOrchestrator(orchestrator2));
     }
+
+    function testSetCommitHashAuthorized() public {
+        bytes32 commitHash = keccak256("test commit hash");
+        
+        vm.prank(admin);
+        geniusActions.setCommitHashAuthorized(commitHash, true);
+
+        assertTrue(geniusActions.isAuthorizedCommitHash(commitHash));
+    }
+
+    function testSetCommitHashAuthorizedByNonAdmin() public {
+        bytes32 commitHash = keccak256("test commit hash");
+        
+        vm.prank(user);
+        vm.expectRevert("OwnablePausable: access denied");
+        geniusActions.setCommitHashAuthorized(commitHash, true);
+    }
+
+    function testSetBatchCommitHashAuthorized() public {
+        bytes32[] memory commitHashes = new bytes32[](2);
+        commitHashes[0] = keccak256("test commit hash 1");
+        commitHashes[1] = keccak256("test commit hash 2");
+
+        vm.prank(admin);
+        geniusActions.setBatchCommitHashAuthorized(commitHashes, true);
+
+        assertTrue(geniusActions.isAuthorizedCommitHash(commitHashes[0]));
+        assertTrue(geniusActions.isAuthorizedCommitHash(commitHashes[1]));
+    }
+
+    function testSetBatchCommitHashAuthorizedByNonAdmin() public {
+        bytes32[] memory commitHashes = new bytes32[](2);
+        commitHashes[0] = keccak256("test commit hash 1");
+        commitHashes[1] = keccak256("test commit hash 2");
+
+        vm.prank(user);
+        vm.expectRevert("OwnablePausable: access denied");
+        geniusActions.setBatchCommitHashAuthorized(commitHashes, true);
+    }
+
+    function testIsAuthorizedCommitHashFalse() public {
+        bytes32 commitHash = keccak256("test commit hash");
+        assertFalse(geniusActions.isAuthorizedCommitHash(commitHash));
+    }
+
+    function testEmergencyDisableCommitHash() public {
+        bytes32 commitHash = keccak256("test commit hash");
+        
+        vm.startPrank(admin);
+        geniusActions.setCommitHashAuthorized(commitHash, true);
+        assertTrue(geniusActions.isAuthorizedCommitHash(commitHash));
+
+        geniusActions.grantRole(geniusActions.SENTINEL_ROLE(), sentinel);
+        vm.stopPrank();
+
+        vm.prank(sentinel);
+        geniusActions.emergencyDisableCommitHash(commitHash);
+
+        assertFalse(geniusActions.isAuthorizedCommitHash(commitHash));
+    }
+
+    function testEmergencyDisableCommitHashByNonSentinel() public {
+        bytes32 commitHash = keccak256("test commit hash");
+        
+        vm.prank(admin);
+        geniusActions.setCommitHashAuthorized(commitHash, true);
+
+        vm.prank(user);
+        vm.expectRevert("OwnablePausable: access denied");
+        geniusActions.emergencyDisableCommitHash(commitHash);
+    }
+
+    function testComplexCommitHashScenario() public {
+        vm.startPrank(admin);
+
+        // Set up commit hashes
+        bytes32[] memory commitHashes = new bytes32[](3);
+        commitHashes[0] = keccak256("test commit hash 1");
+        commitHashes[1] = keccak256("test commit hash 2");
+        commitHashes[2] = keccak256("test commit hash 3");
+        geniusActions.setBatchCommitHashAuthorized(commitHashes, true);
+
+        // Verify all are authorized
+        assertTrue(geniusActions.isAuthorizedCommitHash(commitHashes[0]));
+        assertTrue(geniusActions.isAuthorizedCommitHash(commitHashes[1]));
+        assertTrue(geniusActions.isAuthorizedCommitHash(commitHashes[2]));
+
+        // Disable one commit hash
+        geniusActions.setCommitHashAuthorized(commitHashes[2], false);
+
+        // Verify the disabled commit hash
+        assertFalse(geniusActions.isAuthorizedCommitHash(commitHashes[2]));
+
+        // Set up sentinel
+        geniusActions.grantRole(geniusActions.SENTINEL_ROLE(), sentinel);
+        vm.stopPrank();
+
+        // Emergency disable by sentinel
+        vm.prank(sentinel);
+        geniusActions.emergencyDisableCommitHash(commitHashes[0]);
+
+        // Verify the emergency disabled commit hash
+        assertFalse(geniusActions.isAuthorizedCommitHash(commitHashes[0]));
+
+        // Verify the still active commit hash
+        assertTrue(geniusActions.isAuthorizedCommitHash(commitHashes[1]));
+    }
 }

@@ -171,4 +171,12 @@ library GeniusErrors {
      */
     error ThresholdWouldExceed(uint256 threshBal, uint256 attemptedThreshBal);
 
+    /**
+     * @dev Thrown when the delta obtained from calculating the balances 
+     * before and after arbitrary calls, doesn't match the expected amountIn.
+     * @param amountIn The expected amount.
+     * @param delta The calculated delta.
+     */
+    error AmountInAndDeltaMismatch(uint256 amountIn, uint256 delta);
+
 }

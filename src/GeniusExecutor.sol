@@ -7,37 +7,28 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 
-import { GeniusPool } from "./GeniusPool.sol";
-import { GeniusVault } from "./GeniusVault.sol";
+import { IGeniusPool } from "./interfaces/IGeniusPool.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
 import { Orchestrable, Ownable } from "./access/Orchestrable.sol";
+import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
 
-/**
- * @title GeniusExecutor
- * @author looter
- * 
- * @notice Contract that allows for efficient aggregation of multiple calls
- *         in a single transaction. Additionally, this contract also allows
- *         for the aggregation of multiple token transfers and permits
- *         utilizing the Permit2 contract, as well facilitating interactions
- *         with the GeniusVault contract and the GeniusPool contract.
- */
-contract GeniusExecutor is Orchestrable, ReentrancyGuard {
+contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
 
     // =============================================================
     //                           VARIABLES
     // =============================================================
-    uint256 public isInitialized;
+    uint256 public override isInitialized;
     mapping(address => uint256) private allowedTargets;
 
     // =============================================================
     //                          IMMUTABLES
     // =============================================================
 
-    IAllowanceTransfer public immutable PERMIT2;
-    IERC20 public immutable STABLECOIN;
-    GeniusPool public immutable POOL;
-    GeniusVault public immutable VAULT;
+    IAllowanceTransfer public immutable override PERMIT2;
+    IERC20 public immutable override STABLECOIN;
+    IGeniusPool public immutable override POOL;
+    IERC4626 public immutable override VAULT;
 
     constructor(
         address permit2,
@@ -45,25 +36,26 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         address vault,
         address owner
     ) Ownable(owner) {
-
         PERMIT2 = IAllowanceTransfer(permit2);
-        VAULT = GeniusVault(vault);
-        POOL = GeniusPool(pool);
+        VAULT = IERC4626(vault);
+        POOL = IGeniusPool(pool);
         STABLECOIN = IERC20(POOL.STABLECOIN());
-
     }
 
     // =============================================================
     //                      EXTERNAL FUNCTIONS
     // =============================================================
 
+    /**
+     * @dev See {IGeniusExecutor-initialize}.
+     */
     function initialize(address[] calldata routers) external onlyOwner {
         uint256 length = routers.length;
         for (uint256 i = 0; i < length;) {
             address router = routers[i];
             if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
             if (allowedTargets[router] == 1) revert GeniusErrors.DuplicateRouter(router);
-            
+
             allowedTargets[router] = 1;
 
             unchecked { ++i; }
@@ -73,30 +65,19 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     }
 
     /**
-     * @dev Sets the allowed status for a target address.
-     * @param target The address to set the allowed status for.
-     * @param isAllowed The allowed status to set. True for allowed, false for not allowed.
+     * @dev See {IGeniusExecutor-setAllowedTarget}.
      */
     function setAllowedTarget(address target, bool isAllowed) external onlyOwner {
         allowedTargets[target] = isAllowed ? 1 : 0;
     }
 
     /**
-     * @dev Aggregates multiple calls in a single transaction.
-     *      This method will set `sender` to the `msg.sender` temporarily
-     *      for the span of its execution.
-     *      This method does not support reentrancy.
-     * @param targets An array of addresses to call.
-     * @param data    An array of calldata to forward to the targets.
-     * @param values  How much ETH to forward to each target.
-     * @param permitBatch The permit information for batch transfer.
-     * @param signature The signature for the permit.
-     * @param owner The address of the trader/owner to aggregate calls for.
+     * @dev See {IGeniusExecutor-aggregateWithPermit2}.
      */
     function aggregateWithPermit2(
-        address[] calldata targets, // routers
-        bytes[] calldata data, // calldata
-        uint256[] calldata values, // native 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
@@ -114,13 +95,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     }
 
     /**
-     * @dev Executes a batch of calls to external contracts with the sender's address.
-     * @param targets The array of target contract addresses to call.
-     * @param data The array of calldata for each call.
-     * @param values The array of ETH values to send with each call.
-     *
-     * @dev This function only allows native tokens to be sent with the transaction. Additionally,
-     *       The only valid targets are allowedTargets (protocol approved routers) and the msg.sender.
+     * @dev See {IGeniusExecutor-aggregate}.
      */
     function aggregate(
         address[] calldata targets,
@@ -137,15 +112,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     }
 
     /**
-     * @dev Aggregates multiple calls in a single transaction.
-     *      This method will set `sender` to the `msg.sender` temporarily
-     *      for the span of its execution.
-     *      This method does not support reentrancy.
-     * @param target An array of addresses to call.
-     * @param data    An array of calldata to forward to the targets.
-     * @param permitBatch The permit information for batch transfer.
-     * @param signature The signature for the permit.
-     * @param owner The address of the trader to deposit for.
+     * @dev See {IGeniusExecutor-tokenSwapAndDeposit}.
      */
     function tokenSwapAndDeposit(
         address target,
@@ -192,15 +159,8 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         _sweepERC20s(permitBatch, owner);
     }
 
-
     /**
-     * @dev Executes multiple swaps and deposits in a single transaction.
-     * @param targets The array of target addresses to call.
-     * @param data The array of data to pass to each target address.
-     * @param values The array of values to send to each target address.
-     * @param permitBatch The permit batch containing permit details for token transfers.
-     * @param signature The signature for the permit batch.
-     *
+     * @dev See {IGeniusExecutor-multiSwapAndDeposit}.
      */
     function multiSwapAndDeposit(
         address[] calldata targets,
@@ -218,7 +178,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
 
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
-        
+
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
@@ -241,13 +201,9 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         if (msg.value > 0) _sweepNative(msg.sender);
     }
 
-
     /**
-    * @dev Simplified function to perform a single swap and then deposit stablecoins to a vault.
-    * @param target The address to call.
-    * @param data The calldata to forward to the target.
-    * @param value How much ETH to forward to the target.
-    */
+     * @dev See {IGeniusExecutor-nativeSwapAndDeposit}.
+     */
     function nativeSwapAndDeposit(
         address target,
         bytes calldata data,
@@ -282,10 +238,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     }
 
     /**
-     * @dev Deposits a specified amount of tokens to the vault.
-     * @param permitBatch The permit batch data for permit approvals and transfers.
-     * @param signature The signature for permit approvals.
-     * @param owner The address of the owner of the tokens.
+     * @dev See {IGeniusExecutor-depositToVault}.
      */
     function depositToVault(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
@@ -304,10 +257,7 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     }
 
     /**
-     * @dev Withdraws a specified amount of STABLECOIN from the vault.
-     * @param permitBatch The permit information for batch transfer.
-     * @param signature The signature for the permit.
-     * @param owner The address of the trader to withdraw for.
+     * @dev See {IGeniusExecutor-withdrawFromVault}.
      */
     function withdrawFromVault(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
@@ -328,20 +278,11 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
 
         if (_residBalance > 0) revert GeniusErrors.ResidualBalance(_residBalance);
     }
-    
+
     // =============================================================
     //                      INTERNAL FUNCTIONS
     // =============================================================
 
-    /**
-     * @dev Checks if the given targets are valid for generic execution.
-     * @param targets The array of addresses representing the targets to be checked.
-     * @param tokenDetails The array of PermitDetails representing the token details.
-     * @param owner The address of the msg.sender utilizing the PermitDetails.
-     * @notice This function reverts if any of the targets is equal to the address of
-                the POOL or VAULT contracts. Additionally, it will revert if a target is 
-                not a part of the permit2 details array, an authorized router, or the owner.
-     */
     function _checkTargets(
         address[] memory targets,
         IAllowanceTransfer.PermitDetails[] memory tokenDetails,
@@ -349,10 +290,10 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
     ) internal view {
         uint256 targetsLength = targets.length;
         uint256 tokenDetailsLength = tokenDetails.length;
-        
+
         for (uint256 i; i < targetsLength;) {
             address target = targets[i];
-            
+
             if (target == address(POOL) || target == address(VAULT)) {
 
                 if (!orchestrator(msg.sender)) {
@@ -360,12 +301,12 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
                 }
 
             }
-            
+
             if (allowedTargets[target] == 0 && target != owner) {
                 if (tokenDetailsLength == 0) {
                     revert GeniusErrors.InvalidTarget(target);
                 }
-                
+
                 uint256 isValid;
                 for (uint256 j; j < tokenDetailsLength;) {
                     if (target == tokenDetails[j].token) {
@@ -379,24 +320,15 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
                     revert GeniusErrors.InvalidTarget(target);
                 }
             }
-            
+
             unchecked { ++i; }
         }
     }
 
-    /**
-     * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
-     * @param amount The expected amount of native currency.
-     */
     function _checkNative(uint256 amount) internal {
         if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
     }
 
-    /**
-     * @dev Calculates the sum of an array of uint256 values.
-     * @param amounts An array of uint256 values.
-     * @return total sum of the array elements.
-     */
     function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
         for (uint i = 0; i < amounts.length;) {
             total += amounts[i];
@@ -405,21 +337,16 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         }
     }
 
-    /**
-     * @dev Internal function to sweep all left over tokens to the owner.
-     * @param permitBatch The permit batch containing details of tokens to be swept.
-     */
     function _sweepERC20s(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         address owner
     ) internal {
-        // Sweep all left over tokens to the owner
         for (uint i = 0; i < permitBatch.details.length;) {
             IERC20 token = IERC20(permitBatch.details[i].token);
             uint256 balance = token.balanceOf(address(this));
             if (balance > 0) {
                 uint256 _delta = balance > permitBatch.details[i].amount ? balance - permitBatch.details[i].amount : 0;
-                
+
                 if (_delta > 0) {
                     if (!token.transfer(owner, _delta)) revert GeniusErrors.TransferFailed(address(token), _delta);
                 }
@@ -429,11 +356,6 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         }
     }
 
-    /**
-     * @dev Internal function to sweep native tokens from the contract.
-     * If the contract balance is greater than zero, it transfers the balance to the `msg.sender`.
-     * If the transfer fails, it reverts with a `TransferFailed` error.
-     */
     function _sweepNative(address receiver) internal {
         uint256 _balance = address(this).balance;
 
@@ -442,15 +364,9 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         }
     }
 
-    /**
-     * @dev Internal function to permit and transfer tokens from the caller's address.
-     * @param permitBatch The permit information for batch transfer.
-     * @param signature The signature for the permit.
-     * @param owner The address of the trader to deposit for.
-     */
     function _permitAndBatchTransfer(
-        IAllowanceTransfer.PermitBatch calldata permitBatch, // permissions for the batch transfer
-        bytes calldata signature, // signature for the permit from the owner
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata signature,
         address owner
     ) private {
         if (permitBatch.spender != address(this)) {
@@ -475,13 +391,6 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         PERMIT2.transferFrom(transferDetails);
     }
 
-
-    /**
-     * @dev Executes a batch of external function calls.
-     * @param targets The array of target addresses to call.
-     * @param data The array of function call data.
-     * @param values The array of values to send along with the function calls.
-     */
     function _batchExecution(
         address[] calldata targets,
         bytes[] calldata data,
@@ -495,11 +404,6 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         }
     }
 
-    /**
-     * @dev Approves multiple routers to spend tokens on behalf of the contract.
-     * @param routers The addresses of the routers to be approved.
-     * @param permitBatch The permit batch containing token and amount details.
-     */
     function _approveRouters(
         address[] calldata routers,
         IAllowanceTransfer.PermitBatch calldata permitBatch
@@ -514,36 +418,18 @@ contract GeniusExecutor is Orchestrable, ReentrancyGuard {
         }
     }
 
-    /**
-     * @dev Approves the transfer of a specified amount of STABLECOIN tokens to the VAULT contract.
-     * @param amount The amount of STABLECOIN tokens to be approved for transfer.
-     */
     function _approveVault(uint256 amount) private {
         if (!STABLECOIN.approve(address(VAULT), amount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amount);
     }
 
-    /**
-     * @dev Deposits the specified amount to the vault for the given receiver.
-     * @param receiver The address of the receiver.
-     * @param amount The amount to be deposited.
-     */
     function _depositToVault(address receiver, uint256 amount) private {
         VAULT.deposit(amount, receiver);
     }
 
-    /**
-     * @dev Withdraws a specified amount from the vault and transfers it to the specified receiver.
-     * @param receiver The address of the receiver of the withdrawn amount.
-     * @param amount The amount to be withdrawn from the vault.
-     */
     function _withdrawFromVault(address receiver, uint256 amount) private {
         VAULT.withdraw(amount, receiver, address(this));
     }
 
-    // /**
-    //  * @dev Receive function to reject plain Ether transfers.
-    //  * Reverts the transaction with an error message indicating that native tokens are not accepted directly.
-    //  */
     receive() external payable {
         revert("Native tokens not accepted directly");
     }
