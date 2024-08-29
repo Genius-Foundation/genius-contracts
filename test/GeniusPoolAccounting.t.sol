@@ -254,6 +254,8 @@ contract GeniusPoolAccounting is Test {
      * and minimum asset balance.
      */
     function testStakeAndDeposit() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
         // Setup
@@ -307,7 +309,9 @@ contract GeniusPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         vm.stopPrank();
@@ -333,6 +337,8 @@ contract GeniusPoolAccounting is Test {
      * It also logs the ending balances of key variables for further analysis.
      */
     function testCycleWithoutThresholdChange() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
         // Setup
@@ -386,7 +392,9 @@ contract GeniusPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         vm.stopPrank();
@@ -431,6 +439,8 @@ contract GeniusPoolAccounting is Test {
      * 9. Logs the ending balances of the pool and vault.
      */
     function testFullCycle() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
         // Setup
@@ -483,7 +493,9 @@ contract GeniusPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         vm.stopPrank();
@@ -534,6 +546,8 @@ contract GeniusPoolAccounting is Test {
          * 6. Logs the final state of the contract.
          */
     function testFullCycleWithDonations() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
         // Setup
@@ -593,7 +607,9 @@ contract GeniusPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         vm.stopPrank();

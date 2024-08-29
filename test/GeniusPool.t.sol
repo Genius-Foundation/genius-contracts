@@ -115,23 +115,39 @@ contract GeniusPoolTest is Test {
     }
 
     function testAddLiquiditySwapWhenPaused() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
         vm.startPrank(OWNER);
         POOL.emergencyLock();
         vm.stopPrank();
 
         vm.startPrank(address(EXECUTOR));
         vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
-        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
     }
 
     function testRemoveLiquiditySwapWhenPaused() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         vm.startPrank(OWNER);
         POOL.emergencyLock();
         vm.stopPrank();
 
         vm.startPrank(address(EXECUTOR));
         vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
-        POOL.removeLiquiditySwap(TRADER, 1_000 ether);
+        GeniusPool.Order memory order = 
+            GeniusPool.Order({
+                amountIn: 1_000 ether,
+                orderId: 1,
+                trader: TRADER,
+                srcChainId: uint16(block.chainid),
+                destChainId: destChainId,
+                fillDeadline: fillDeadline,
+                tokenIn: address(USDC)
+            });
+        
+        POOL.removeLiquiditySwap(order);
     }
 
     function testRemoveRewardLiquidityWhenPaused() public {
@@ -185,6 +201,8 @@ contract GeniusPoolTest is Test {
     }
 
     function testAddLiquiditySwapNative() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         deal(address(USDC), address(DEX_ROUTER), 1_000 ether);
         bytes memory swapData = abi.encodeWithSelector(
             MockDEXRouter.swapToStables.selector,
@@ -196,7 +214,9 @@ contract GeniusPoolTest is Test {
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
             address(DEX_ROUTER),
             swapData,
-            1 ether
+            1 ether,
+            destChainId,
+            fillDeadline
         );
 
         assertEq(USDC.balanceOf(address(POOL)), 500 ether, "GeniusPool balance should be 1,000 ether");
@@ -213,14 +233,28 @@ contract GeniusPoolTest is Test {
     }
 
     function testRemoveLiquiditySwap() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 1_000 ether);
         USDC.approve(address(POOL), 1_000 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
         assertEq(USDC.balanceOf(address(POOL)), 1_000 ether, "GeniusPool balance should be 1,000 ether");
 
-        POOL.removeLiquiditySwap(TRADER, 1_000 ether);
+        GeniusPool.Order memory order = 
+            GeniusPool.Order({
+                amountIn: 1_000 ether,
+                orderId: POOL.totalOrders(),
+                trader: TRADER,
+                srcChainId: uint16(block.chainid),
+                destChainId: destChainId,
+                fillDeadline: fillDeadline,
+                tokenIn: address(USDC)
+            });
+
+        POOL.removeLiquiditySwap(order);
 
         assertEq(USDC.balanceOf(address(POOL)), 0, "GeniusPool balance should be 0 ether");
 
@@ -236,11 +270,13 @@ contract GeniusPoolTest is Test {
     }
 
     function removeRewardLiquidity() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 initialOrchestatorBalance = USDC.balanceOf(ORCHESTRATOR);
 
         vm.startPrank(TRADER);
         USDC.approve(address(POOL), 1_000 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, fillDeadline);
 
         assertEq(USDC.balanceOf(address(POOL)), 1_000 ether, "GeniusPool balance should be 1,000 ether");
 

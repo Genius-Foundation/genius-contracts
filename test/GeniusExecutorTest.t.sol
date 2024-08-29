@@ -297,6 +297,9 @@ contract GeniusExecutorTest is Test {
 
 
     function testTokenSwapAndDeposit() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
         uint160 transferAmount = 10 ether;  // Define the amount of WAVAX to swap
 
         // Approve LBRouter to spend WAVAX from GeniusExecutor
@@ -342,7 +345,9 @@ contract GeniusExecutorTest is Test {
             swapCalldata,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
         vm.stopPrank();
 
@@ -354,6 +359,9 @@ contract GeniusExecutorTest is Test {
     }
 
     function testNativeSwapAndDeposit() public {
+        uint16 destChainId = 43114;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
         vm.startPrank(OWNER);
         MockDEXRouter dexRouter = new MockDEXRouter();
         EXECUTOR.setAllowedTarget(address(dexRouter), true);
@@ -369,7 +377,9 @@ contract GeniusExecutorTest is Test {
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
             address(dexRouter),
             swapData,
-            1 ether
+            1 ether,
+            destChainId,
+            fillDeadline
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
@@ -464,7 +474,9 @@ contract GeniusExecutorTest is Test {
             values,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            43114,
+            uint32(block.timestamp + 1000)
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
