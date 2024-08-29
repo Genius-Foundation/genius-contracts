@@ -4,27 +4,27 @@ pragma solidity ^0.8.20;
 import {ERC4626, ERC20} from "@solmate/tokens/ERC4626.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-import {GeniusPool} from "./GeniusPool.sol";
+import {IGeniusPool} from "./interfaces/IGeniusPool.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
-
+import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 
 /**
  * @title GeniusVault
  * @dev A contract that represents a vault for holding assets and interacting with the GeniusPool contract.
  */
-contract GeniusVault is ERC4626, Ownable {
+contract GeniusVault is IGeniusVault, ERC4626, Ownable {
 
     // =============================================================
     //                          IMMUTABLES
     // =============================================================
 
-    GeniusPool public geniusPool;
+    IGeniusPool public override geniusPool;
 
     // =============================================================
     //                          VARIABLES
     // =============================================================
 
-    bool initialized;
+    bool public override initialized;
 
     // =============================================================
     //                         CONSTRUCTOR
@@ -38,27 +38,28 @@ contract GeniusVault is ERC4626, Ownable {
     }
 
     // =============================================================
-    //                     INTERNAL OVERRIDES
+    //                     EXTERNAL FUNCTIONS
     // =============================================================
 
     /**
-     * @dev Returns the total assets held in the GeniusVault contract.
-     * @return uint256 total amount of assets held in the GeniusVault contract.
+     * @dev See {IGeniusVault-totalAssets}.
      */
     function totalAssets() public view override returns (uint256) {
         return geniusPool.totalStakedAssets();
     }
 
     /**
-     * @dev Initializes the GeniusVault contract.
-     * @param _geniusPool The address of the GeniusPool contract.
-     * @notice This function can only be called once to initialize the contract.
+     * @dev See {IGeniusVault-initialize}.
      */
     function initialize(address _geniusPool) external onlyOwner {
         if (initialized) revert GeniusErrors.Initialized();
-        geniusPool = GeniusPool(_geniusPool);
+        geniusPool = IGeniusPool(_geniusPool);
         initialized = true;
     }
+
+    // =============================================================
+    //                     INTERNAL OVERRIDES
+    // =============================================================
 
     /**
      * @dev This internal function is called after a deposit is made to the GeniusVault contract.

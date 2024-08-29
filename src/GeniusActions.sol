@@ -2,29 +2,10 @@
 
 pragma solidity ^0.8.13;
 
-/**
- * @title GeniusActions
- * @author looter
- * @notice A contract for managing Genius Protocol actions and their associated IPFS hashes.
- * @dev This contract inherits from OpenZeppelin's AccessControl for role-based access control.
- */
-
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "./interfaces/IGeniusActions.sol";
 
-contract GeniusActions is AccessControl {
-
-    // Structs
-    struct Action {
-        bytes32 label;
-        string ipfsHash;
-        bool active;
-    }
-
-    // Events
-    event ActionAdded(uint256 indexed actionId, bytes32 indexed label, string ipfsHash);
-    event ActionStatusUpdated(uint256 indexed actionId, bool active);
-    event ActionIpfsHashUpdated(uint256 indexed actionId, string newIpfsHash);
-    event ActionLabelUpdated(uint256 indexed actionId, bytes32 newLabel);
+contract GeniusActions is IGeniusActions, AccessControl {
 
     // Constants
     bytes32 public constant SENTINEL_ROLE = keccak256("SENTINEL_ROLE");
@@ -36,6 +17,7 @@ contract GeniusActions is AccessControl {
     mapping(bytes32 => uint256) internal hashToId;
     mapping(bytes32 => uint256) internal labelToId;
     mapping(address => bool) internal authorizedOrchestrators;
+    mapping(bytes32 => bool) internal authorizedCommitHashes;
 
     /**
      * @notice Initializes the contract with an initial admin
@@ -50,47 +32,61 @@ contract GeniusActions is AccessControl {
 
     // Modifiers
 
-    /**
-     * @dev Modifier for checking whether the caller is an admin.
-     */
     modifier onlyAdmin() {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "OwnablePausable: access denied");
         _;
     }
 
-    /**
-     * @dev Modifier for checking whether the caller has the SENTINEL_ROLE.
-     */
     modifier onlySentinel() {
         require(hasRole(SENTINEL_ROLE, msg.sender), "OwnablePausable: access denied");
         _;
     }
 
     /**
-     * @notice Changes the authorization status of an orchestrator
-     * @param _orchestrator the address of the orchestrator
-     * @param _authorized the new authorization status
+     * @dev See {IGeniusActions-setOrchestratorAuthorized}.
      */
     function setOrchestratorAuthorized(address _orchestrator, bool _authorized) external onlyAdmin {
         authorizedOrchestrators[_orchestrator] = _authorized;
+        emit OrchestratorAuthorized(_orchestrator, _authorized);
     }
 
     /**
-     * @notice Changes the authorization status of a mutliple orchestrators
-     * @param _orchestrators the array of orchestrators to set the authorization status for
-     * @param _authorized the new authorization status for all the orchestrators
+     * @dev See {IGeniusActions-setBatchOrchestratorAuthorized}.
      */
     function setBatchOrchestratorAuthorized(address[] calldata _orchestrators, bool _authorized) external onlyAdmin {
         for (uint256 i = 0; i < _orchestrators.length; i++) {
             authorizedOrchestrators[_orchestrators[i]] = _authorized;
+            emit OrchestratorAuthorized(_orchestrators[i], _authorized);
         }
     }
 
     /**
-     * @notice Adds a new action with the given label and IPFS hash
-     * @dev Only callable by admin
-     * @param actionLabel The label for the new action
-     * @param ipfsHash The IPFS hash of the action
+     * @dev See {IGeniusActions-setCommitHashAuthorized}.
+     */
+    function setCommitHashAuthorized(bytes32 _commitHash, bool _authorized) external onlyAdmin {
+        authorizedCommitHashes[_commitHash] = _authorized;
+        emit CommitHashAuthorized(_commitHash, _authorized);
+    }
+
+    /**
+     * @dev See {IGeniusActions-setBatchCommitHashAuthorized}.
+     */
+    function setBatchCommitHashAuthorized(bytes32[] calldata _commitHashes, bool _authorized) external onlyAdmin {
+        for (uint256 i = 0; i < _commitHashes.length; i++) {
+            authorizedCommitHashes[_commitHashes[i]] = _authorized;
+            emit CommitHashAuthorized(_commitHashes[i], _authorized);
+        }
+    }
+
+    /**
+     * @dev See {IGeniusActions-isAuthorizedCommitHash}.
+     */
+    function isAuthorizedCommitHash(bytes32 _commitHash) external view returns (bool) {
+        return authorizedCommitHashes[_commitHash];
+    }
+
+    /**
+     * @dev See {IGeniusActions-addAction}.
      */
     function addAction(bytes32 actionLabel, string memory ipfsHash) external onlyAdmin {
         bytes32 actionHash = getActionHashFromIpfsHash(ipfsHash);
@@ -101,10 +97,7 @@ contract GeniusActions is AccessControl {
     }
 
     /**
-     * @notice Updates the status of an action identified by its hash
-     * @dev Only callable by admin
-     * @param actionHash The hash of the action to update
-     * @param active The new status of the action
+     * @dev See {IGeniusActions-updateActionStatusByHash}.
      */
     function updateActionStatusByHash(bytes32 actionHash, bool active) external onlyAdmin {
         uint256 actionId = hashToId[actionHash];
@@ -112,10 +105,7 @@ contract GeniusActions is AccessControl {
     }
 
     /**
-     * @notice Updates the status of an action identified by its label
-     * @dev Only callable by admin
-     * @param actionLabel The label of the action to update
-     * @param active The new status of the action
+     * @dev See {IGeniusActions-updateActionStatusByLabel}.
      */
     function updateActionStatusByLabel(bytes32 actionLabel, bool active) external onlyAdmin {
         uint256 actionId = labelToId[actionLabel];
@@ -123,46 +113,36 @@ contract GeniusActions is AccessControl {
     }
 
     /**
-     * @notice Updates the IPFS hash of an action identified by its hash
-     * @dev Only callable by admin
-     * @param actionHash The current hash of the action
-     * @param newIpfsHash The new IPFS hash for the action
+     * @dev See {IGeniusActions-updateActionIpfsHashByHash}.
      */
     function updateActionIpfsHashByHash(bytes32 actionHash, string memory newIpfsHash) external onlyAdmin {
         uint256 actionId = hashToId[actionHash];
         require(actionId != 0, "Action does not exist");
-        
+
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
     /**
-     * @notice Updates the IPFS hash of an action identified by its label
-     * @dev Only callable by admin
-     * @param actionLabel The label of the action
-     * @param newIpfsHash The new IPFS hash for the action
+     * @dev See {IGeniusActions-updateActionIpfsHashByLabel}.
      */
     function updateActionIpfsHashByLabel(bytes32 actionLabel, string memory newIpfsHash) external onlyAdmin {
         uint256 actionId = labelToId[actionLabel];
         require(actionId != 0, "Action does not exist");
 
         bytes32 actionHash = getActionHashFromIpfsHash(idToAction[actionId].ipfsHash);
-        
+
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
-        /**
-     * @notice Emergency function to disable an action by its ID
-     * @dev Only callable by accounts with SENTINEL_ROLE
-     * @param actionId The ID of the action to disable
+    /**
+     * @dev See {IGeniusActions-emergencyDisableActionById}.
      */
     function emergencyDisableActionById(uint256 actionId) external onlySentinel {
         _updateActionStatus(actionId, false);
     }
 
     /**
-     * @notice Emergency function to disable an action by its hash
-     * @dev Only callable by accounts with SENTINEL_ROLE
-     * @param actionHash The hash of the action to disable
+     * @dev See {IGeniusActions-emergencyDisableActionByHash}.
      */
     function emergencyDisableActionByHash(bytes32 actionHash) external onlySentinel {
         uint256 actionId = hashToId[actionHash];
@@ -170,9 +150,7 @@ contract GeniusActions is AccessControl {
     }
 
     /**
-     * @notice Emergency function to disable an action by its label
-     * @dev Only callable by accounts with SENTINEL_ROLE
-     * @param actionLabel The label of the action to disable
+     * @dev See {IGeniusActions-emergencyDisableActionByLabel}.
      */
     function emergencyDisableActionByLabel(bytes32 actionLabel) external onlySentinel {
         uint256 actionId = labelToId[actionLabel];
@@ -180,56 +158,53 @@ contract GeniusActions is AccessControl {
     }
 
     /**
-     * @notice Emergency function to disable an orchestrator
-     * @dev Only callable by accounts with SENTINEL_ROLE
-     * @param _orchestrator The address of the orchestrator
+     * @dev See {IGeniusActions-emergencyDisableOrchestrator}.
      */
     function emergencyDisableOrchestrator(address _orchestrator) external onlySentinel {
         authorizedOrchestrators[_orchestrator] = false;
+        emit OrchestratorAuthorized(_orchestrator, false);
     }
 
     /**
-     * @notice Checks wether an orchestrator is authorized or not
-     * @param _orchestrator The address of the orchestrator
-     * @return whether the orchestrator is authorized or not
+     * @dev See {IGeniusActions-emergencyDisableCommitHash}.
+     */
+    function emergencyDisableCommitHash(bytes32 _commitHash) external onlySentinel {
+        authorizedCommitHashes[_commitHash] = false;
+        emit CommitHashAuthorized(_commitHash, false);
+    }
+
+    /**
+     * @dev See {IGeniusActions-isAuthorizedOrchestrator}.
      */
     function isAuthorizedOrchestrator(address _orchestrator) external view returns (bool) {
         return authorizedOrchestrators[_orchestrator];
     }
 
     /**
-     * @notice Verify if an action is active or not
-     * @param _ipfsHash The IPFS hash of the action
-     * @return whether the action is active or not
+     * @dev See {IGeniusActions-isActionActive}.
      */
     function isActionActive(string memory _ipfsHash) external view returns (bool) {
         return idToAction[hashToId[getActionHashFromIpfsHash(_ipfsHash)]].active;
     }
 
     /**
-     * @notice Retrieves an action by its IPFS hash
-     * @param _ipfsHash The IPFS hash of the action
-     * @return Action struct containing the action details
+     * @dev See {IGeniusActions-getActionByIpfsHash}.
      */
     function getActionByIpfsHash(string memory _ipfsHash) external view returns (Action memory) {
         return getActionByActionHash(getActionHashFromIpfsHash(_ipfsHash));
     }
 
     /**
-     * @notice Retrieves an action by its action hash
-     * @param _actionHash The action hash
-     * @return Action struct containing the action details
+     * @dev See {IGeniusActions-getActionByActionHash}.
      */
     function getActionByActionHash(bytes32 _actionHash) public view returns (Action memory) {
         Action memory action = idToAction[hashToId[_actionHash]];
         require(bytes(action.ipfsHash).length != 0, "Action does not exist");
         return action;
-    }
+        }
 
     /**
-     * @notice Retrieves an action by its label
-     * @param _actionLabel The label of the action
-     * @return Action struct containing the action details
+     * @dev See {IGeniusActions-getActionByActionLabel}.
      */
     function getActionByActionLabel(bytes32 _actionLabel) external view returns (Action memory) {
         Action memory action = idToAction[labelToId[_actionLabel]];
@@ -238,9 +213,7 @@ contract GeniusActions is AccessControl {
     }
 
     /**
-     * @notice Generates an action hash from an IPFS hash
-     * @param ipfsHash The IPFS hash to convert
-     * @return The generated action hash
+     * @dev See {IGeniusActions-getActionHashFromIpfsHash}.
      */
     function getActionHashFromIpfsHash(string memory ipfsHash) public pure returns (bytes32) {
         return keccak256(abi.encodePacked(ipfsHash));
@@ -260,7 +233,7 @@ contract GeniusActions is AccessControl {
         hashToId[prevActionHash] = 0;
         hashToId[newActionHash] = actionId;      
         idToAction[actionId].ipfsHash = newIpfsHash;
-                
+
         emit ActionIpfsHashUpdated(actionId, newIpfsHash);
     }
 

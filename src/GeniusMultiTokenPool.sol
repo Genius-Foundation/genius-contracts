@@ -7,6 +7,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
 import {Executable} from "./access/Executable.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
+import {IGeniusMultiTokenPool} from "./interfaces/IGeniusMultiTokenPool.sol";
 
 /**
  * @title GeniusMultiTokenPool
@@ -15,25 +16,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
  *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
-contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
-
-    // Use order hashing so no need to store order
-    enum OrderStatus {
-        Unexistant,
-        Created,
-        Filled,
-        Reverted
-    }
-
-    struct Order {
-        uint256 amountIn;
-        uint32 orderId;
-        address trader;
-        uint16 srcChainId;
-        uint16 destChainId;
-        uint32 fillDeadline; 
-        address tokenIn;
-    }
+contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable, Pausable {
 
     // =============================================================
     //                          IMMUTABLES
@@ -261,11 +244,9 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-    * @dev Manages (adds or removes) a token from the list of supported tokens.
-    * @param token The address of the token to be managed.
-    * @param isSupported True to add the token, false to remove it.
-    */
-    function manageToken(address token, bool isSupported) external onlyOwner {
+     * @dev See {IGeniusMultiTokenPool-manageToken}.
+     */
+    function manageToken(address token, bool isSupported) external override onlyOwner {
         if (token == address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
         if (isSupported) {
             if (tokenInfo[token].isSupported) revert GeniusErrors.DuplicateToken(token);
@@ -295,11 +276,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-     * @dev Initializes the GeniusMultiTokenPool contract.
-     * @param vaultAddress The address of the GeniusVault contract.
-     * @param tokens The array of token addresses to be supported by the contract.
-     * @notice This function can only be called once by the contract owner.
-     * @notice Once initialized, the `VAULT` address cannot be changed.
+     * @dev See {IGeniusMultiTokenPool-initialize}.
      */
     function initialize(
         address executor,
@@ -307,7 +284,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         address[] memory tokens,
         address[] memory bridges,
         address[] memory routers
-    ) external onlyOwner {
+    ) external override onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
 
         VAULT = vaultAddress;
@@ -346,12 +323,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-     * @dev Removes liquidity from a bridge pool and swaps it to the destination chain.
-     * @param amountIn The amount of tokens to remove from the bridge pool.
-     * @param dstChainId The chain ID of the destination chain.
-     * @param targets The array of target addresses to call.
-     * @param values The array of values to send along with the function calls.
-     * @param data The array of function call data.
+     * @dev See {IGeniusMultiTokenPool-removeBridgeLiquidity}.
      */
     function removeBridgeLiquidity(
         uint256 amountIn,
@@ -359,7 +331,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata data
-    ) public payable onlyOrchestrator whenReady {
+    ) public payable override onlyOrchestrator whenReady {
         uint256 preTransferAssets = totalAssets();
         uint256 neededLiquidity_ = minAssetBalance();
         // Checks
@@ -421,11 +393,17 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         emit BridgeFunds(amountIn, dstChainId);
     }
 
-    function totalAssets() public view returns (uint256) {
+    /**
+     * @dev See {IGeniusMultiTokenPool-totalAssets}.
+     */
+    function totalAssets() public view override returns (uint256) {
         return STABLECOIN.balanceOf(address(this));
     }
 
-    function minAssetBalance() public view returns (uint256) {
+    /**
+     * @dev See {IGeniusMultiTokenPool-minAssetBalance}.
+     */
+    function minAssetBalance() public view override returns (uint256) {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
         /**
           * Calculate the liquidity needed as the staked assets minus the reduction
@@ -434,7 +412,10 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         return totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
     }
 
-    function availableAssets() public view returns (uint256) {
+    /**
+     * @dev See {IGeniusMultiTokenPool-availableAssets}.
+     */
+    function availableAssets() public view override returns (uint256) {
         uint256 _totalAssets = totalAssets();
         uint256 _neededLiquidity = minAssetBalance();
         
@@ -446,8 +427,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-     * @dev Adds liquidity to the GeniusMultiTokenPool contract by swapping tokens.
-     * @notice Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
+     * @dev See {IGeniusMultiTokenPool-addLiquiditySwap}.
      */
     function addLiquiditySwap(
         address trader,
@@ -455,7 +435,7 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
         uint256 amountIn,
         uint16 destChainId,
         uint32 fillDeadline
-    ) external payable onlyExecutor whenReady {
+    ) external payable override onlyExecutor whenReady {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (destChainId == _currentChainId()) revert GeniusErrors.InvalidDestChainId(destChainId);
@@ -524,12 +504,11 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     }
 
     /**
-     * @dev Removes liquidity from the GeniusMultiTokenPool contract by swapping stablecoins for the specified amount.
-     *      Only the orchestrator can call this function.
+     * @dev See {IGeniusMultiTokenPool-removeLiquiditySwap}.
      */
     function removeLiquiditySwap(
         Order memory order
-    ) external onlyExecutor whenReady {
+    ) external override onlyExecutor whenReady {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Unexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
         if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
@@ -568,11 +547,9 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-     * @notice Removes reward liquidity from the GeniusMultiTokenPool contract.
-     * @dev Only the orchestrator can call this function.
-     * @param amount The amount of reward liquidity to remove.
+     * @dev See {IGeniusMultiTokenPool-addRewardLiquidity}.
      */
-    function removeRewardLiquidity(uint256 amount) external onlyOrchestrator whenReady {
+    function removeRewardLiquidity(uint256 amount) external override onlyOrchestrator whenReady {
         // Gas saving
         uint256 _totalAssets = totalAssets();
         uint256 _neededLiquidity = minAssetBalance();
@@ -592,19 +569,14 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-     * @dev Swaps a specified amount of tokens or native currency to stablecoins.
-     * Can only be called by the orchestrator.
-     * @param token The address of the token to be swapped. Pass 0x0 for native currency.
-     * @param amount The amount of tokens (or native) to be swapped.
-     * @param target The address of the target contract to execute the swap.
-     * @param data The calldata to be used when executing the swap on the target contract.
+     * @dev See {IGeniusMultiTokenPool-swapToStables}.
      */
     function swapToStables(
         address token,
         uint256 amount,
         address target,
         bytes calldata data
-    ) external onlyOrchestrator whenReady {
+    ) external override onlyOrchestrator whenReady {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (!tokenInfo[token].isSupported) revert GeniusErrors.InvalidToken(token);
         if (tokenInfo[token].balance < amount) revert GeniusErrors.InsufficientBalance(token, amount, tokenInfo[token].balance);
@@ -654,11 +626,9 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-     * @dev Stakes liquidity into the GeniusMultiTokenPool.
-     * @param trader The address of the trader staking the liquidity.
-     * @param amount The amount of liquidity to be staked.
+     * @dev See {IGeniusMultiTokenPool-stakeLiquidity}.
      */
-    function stakeLiquidity(address trader, uint256 amount) external whenReady {
+    function stakeLiquidity(address trader, uint256 amount) external override whenReady {
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
@@ -679,11 +649,9 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     }
 
     /**
-     * @dev Removes staked liquidity from the GeniusMultiTokenPool contract.
-     * @param trader The address of the trader who wants to remove liquidity.
-     * @param amount The amount of liquidity to be removed.
+     * @dev See {IGeniusMultiTokenPool-unstakeLiquidity}.
      */
-    function removeStakedLiquidity(address trader, uint256 amount) external whenReady {
+    function removeStakedLiquidity(address trader, uint256 amount) external override whenReady {
         if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
 
@@ -763,11 +731,9 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-     * @dev Sets the rebalance threshold for the GeniusMultiTokenPool contract.
-     * Only the contract owner can call this function.
-     * @param threshold The new rebalance threshold to be set.
+     * @dev See {IGeniusMultiTokenPool-setRebalanceThreshold}.
      */
-    function setRebalanceThreshold(uint256 threshold) external onlyOwner {
+    function setRebalanceThreshold(uint256 threshold) external override onlyOwner {
         rebalanceThreshold = threshold;
     }
 
@@ -776,14 +742,9 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-    * @dev Authorizes or unauthorizes a bridge target.
-    * @param bridge The address of the bridge target to be managed.
-    * @param authorize True to authorize the bridge, false to unauthorize it.
-    * @notice This function can only be called by the contract owner.
-    * @notice When authorizing, the bridge must not already be authorized.
-    * @notice When unauthorizing, the bridge must be currently authorized.
-    */
-    function manageBridge(address bridge, bool authorize) external onlyOwner {
+     * @dev See {IGeniusMultiTokenPool-manageBridge}.
+     */
+    function manageBridge(address bridge, bool authorize) external override onlyOwner {
         if (authorize) {
             if (supportedBridges[bridge] == 1) revert GeniusErrors.InvalidTarget(bridge);
             supportedBridges[bridge] = 1;
@@ -797,7 +758,10 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     //                        ROUTER MANAGEMENT
     // =============================================================
 
-    function manageRouter(address router, bool authorize) external onlyOwner {
+    /**
+     * @dev See {IGeniusMultiTokenPool-manageRouter}.
+     */
+    function manageRouter(address router, bool authorize) external override onlyOwner {
         if (authorize) {
             if (supportedRouters[router] == 1) revert GeniusErrors.DuplicateRouter(router);
             supportedRouters[router] = 1;
@@ -812,18 +776,16 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-     * @dev Pauses the contract and locks all functionality in case of an emergency.
-     * This function sets the `paused` state to true, preventing all contract operations.
+     * @dev See {IGeniusMultiTokenPool-emergencyLock}.
      */
-    function emergencyLock() external onlyOwner {
+    function emergencyLock() external override onlyOwner {
         _pause();
     }
 
     /**
-     * @dev Allows the owner to emergency unlock the contract.
-     * This function sets the `paused` state to false, allowing normal contract operations to resume.
+     * @dev See {IGeniusMultiTokenPool-emergencyUnlock}.
      */
-    function emergencyUnlock() external onlyOwner {
+    function emergencyUnlock() external override onlyOwner {
         _unpause();
     }
 
@@ -832,21 +794,16 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     // =============================================================
 
     /**
-     * @dev Checks if a token is supported by the GeniusMultiTokenPool contract.
-     * @param token The address of the token to check.
-     * @return boolean indicating whether the token is supported or not.
+     * @dev See {IGeniusMultiTokenPool-isTokenSupported}.
      */
-    function isTokenSupported(address token) public view returns (bool) {
+    function isTokenSupported(address token) public view override returns (bool) {
         return tokenInfo[token].isSupported;
     }
 
     /**
-     * @dev Returns the balances of the stablecoins in the GeniusMultiTokenPool contract.
-     * @return currentStables The current total balance of stablecoins in the pool.
-     * @return availStables The available balance of stablecoins in the pool.
-     * @return stakedStables The total balance of staked stablecoins in the pool.
+     * @dev See {IGeniusMultiTokenPool-isBridgeSupported}.
      */
-    function stablecoinBalances() public view returns (
+    function stablecoinBalances() public view override returns (
         uint256 currentStables,
         uint256 availStables,
         uint256 stakedStables
@@ -859,10 +816,9 @@ contract GeniusMultiTokenPool is Orchestrable, Executable, Pausable {
     }
 
     /**
-     * @dev Retrieves the balances of supported tokens.
-     * @return array of TokenBalance structs containing the token address and balance.
+     * @dev See {IGeniusMultiTokenPool-supportedTokenBalances}.
      */
-    function supportedTokenBalances() public view returns (TokenBalance[] memory) {
+    function supportedTokenBalances() public view override returns (TokenBalance[] memory) {
         TokenBalance[] memory _supportedTokenBalances = new TokenBalance[](supportedTokensCount);
 
         for (uint256 i = 0; i < supportedTokensCount;) {
