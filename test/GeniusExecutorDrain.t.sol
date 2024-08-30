@@ -435,7 +435,6 @@ contract GeniusExecutorDrain is Test {
      * 
      */
     function testSuccessfulMultiSwapAndDeposit() public {
-
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
@@ -463,7 +462,9 @@ contract GeniusExecutorDrain is Test {
             values,
             permitBatch,
             signature,
-            trader
+            trader,
+            42,
+            uint32(block.timestamp + 1000)
         );
 
         // Assert final balances
@@ -485,6 +486,8 @@ contract GeniusExecutorDrain is Test {
      * 8. Calls the `multiSwapAndDeposit` function with mismatched array length, permit batch, signature, and trader address.
      */
     function testMultiSwapAndDepositArrayLengthMismatch() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
@@ -504,7 +507,9 @@ contract GeniusExecutorDrain is Test {
             new uint256[](1), // Mismatched length
             permitBatch,
             signature,
-            trader
+            trader,
+            destChainId,
+            fillDeadline
         );
     }
 
@@ -530,7 +535,6 @@ contract GeniusExecutorDrain is Test {
      *     - `trader`: the address of the trader
      */
     function testMultiSwapAndDepositInvalidRouter() public {
-
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
@@ -553,7 +557,9 @@ contract GeniusExecutorDrain is Test {
             values,
             permitBatch,
             signature,
-            trader
+            trader,
+            42,
+            uint32(block.timestamp + 1000)
         );
     }
 
@@ -578,7 +584,6 @@ contract GeniusExecutorDrain is Test {
      *     - `trader`: Address of the trader.
      */
     function testMultiSwapAndDepositMaliciousContract() public {
-
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
@@ -611,7 +616,9 @@ contract GeniusExecutorDrain is Test {
             maliciousValues,
             permitBatch,
             signature,
-            trader
+            trader,
+            42,
+            uint32(block.timestamp + 1000)
         );
     }
 
@@ -643,7 +650,9 @@ contract GeniusExecutorDrain is Test {
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
             address(DEX_ROUTER),
             swapData,
-            1 ether
+            1 ether,
+            42,
+            uint32(block.timestamp + 1000)
         );
 
         // Assert final balances
@@ -657,7 +666,9 @@ contract GeniusExecutorDrain is Test {
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
             invalidTarget,
             swapData,
-            1 ether
+            1 ether,
+            42,
+            uint32(block.timestamp + 1000)
         );
 
         // 2. External call failed
@@ -672,7 +683,9 @@ contract GeniusExecutorDrain is Test {
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
             address(DEX_ROUTER),
             invalidSwapData,
-            1 ether
+            1 ether,
+            42,
+            uint32(block.timestamp + 1000)
         );
 
         // 3. Insufficient ETH sent
@@ -681,7 +694,9 @@ contract GeniusExecutorDrain is Test {
         EXECUTOR.nativeSwapAndDeposit{value: 0.5 ether}(
             address(DEX_ROUTER),
             swapData,
-            1 ether
+            1 ether,
+            42,
+            uint32(block.timestamp + 1000)
         );
     }
 }

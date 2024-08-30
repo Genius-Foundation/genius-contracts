@@ -16,6 +16,8 @@ import {GeniusActions} from "../../src/GeniusActions.sol";
         FANTOM: forge script script/deployment/DeployFantomGeniusEcosystem.s.sol:DeployFantomGeniusEcosystem --rpc-url $FANTOM_RPC_URL --broadcast -vvvv --via-ir
  */
 contract DeployFantomGeniusEcosystem is Script {
+    bytes32 constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
+    
     address public constant stableAddress = 0x28a92dde19D9989F39A49905d7C9C2FAc7799bDf;
     address public constant permit2Address = 0x838c010F57889195C88f2097488e49B7ad04EcB1;
 
@@ -50,11 +52,11 @@ contract DeployFantomGeniusEcosystem is Script {
         geniusVault.initialize(address(geniusPool));
 
         // Add orchestrators
-        geniusPool.addOrchestrator(0x17cC1e3AF40C88B235d9837990B8ad4D7C06F5cc);
-        geniusPool.addOrchestrator(0x4102b4144e9EFb8Cb0D7dc4A3fD8E65E4A8b8fD0);
-        geniusPool.addOrchestrator(0x90B29aF53D2bBb878cAe1952B773A307330393ef);
-        geniusPool.addOrchestrator(0x7e5E0712c627746a918ae2015e5bfAB51c86dA26);
-        geniusPool.addOrchestrator(0x5975fBa1186116168C479bb21Bb335f02D504CFB);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x17cC1e3AF40C88B235d9837990B8ad4D7C06F5cc);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x4102b4144e9EFb8Cb0D7dc4A3fD8E65E4A8b8fD0);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x90B29aF53D2bBb878cAe1952B773A307330393ef);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x5975fBa1186116168C479bb21Bb335f02D504CFB);
 
 
         console.log("GeniusPool deployed at: ", address(geniusPool));

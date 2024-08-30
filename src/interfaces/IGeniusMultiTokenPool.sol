@@ -7,24 +7,64 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  * @title IGeniusMultiTokenPool
  * @author looter
  * 
- * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
- *         liquidity management and swaps and can utilize multiple sources of liquidity.
+ * @notice The GeniusMultiTokenPool contract facilitates cross-chain
+ *         liquidity management and swaps, utilizing multiple sources of liquidity.
  */
 interface IGeniusMultiTokenPool {
-    // Structs
+
+    /**
+     * @notice Enum representing the possible statuses of an order.
+     * @dev Used to track the lifecycle of an order in the system.
+     */
+    enum OrderStatus {
+        Nonexistant,
+        Created,
+        Filled,
+        Reverted
+    }
+
+    /**
+     * @notice Struct representing an order in the system.
+     * @param amountIn The amount of tokens to be swapped.
+     * @param orderId Unique identifier for the order.
+     * @param trader Address of the trader initiating the order.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline by which the order must be filled.
+     * @param tokenIn The address of the token to be swapped.
+     */
+    struct Order {
+        uint256 amountIn;
+        uint32 orderId;
+        address trader;
+        uint16 srcChainId;
+        uint16 destChainId;
+        uint32 fillDeadline; 
+        address tokenIn;
+    }
+
+    /**
+     * @notice Struct representing the balance of a token in the pool.
+     * @param token The address of the token.
+     * @param balance The balance of the token.
+     */
     struct TokenBalance {
         address token;
         uint256 balance;
     }
 
+    /**
+     * @notice Struct to store information about a token.
+     * @param isSupported Boolean indicating if the token is supported.
+     * @param balance The balance of the token.
+     */
     struct TokenInfo {
         bool isSupported;
         uint256 balance;
     }
 
-    // Events
     /**
-     * @dev Emitted when a trader stakes their funds in the GeniusPool contract.
+     * @notice Emitted when a trader stakes their funds in the GeniusPool contract.
      * @param trader The address of the trader who is staking their funds.
      * @param amountDeposited The amount of funds being deposited by the trader.
      * @param newTotalDeposits The new total amount of funds deposited in the GeniusPool contract after the stake.
@@ -36,7 +76,7 @@ interface IGeniusMultiTokenPool {
     );
 
     /**
-     * @dev Emitted when a trader unstakes their funds from the GeniusPool contract.
+     * @notice Emitted when a trader unstakes their funds from the GeniusPool contract.
      * @param trader The address of the trader who unstaked their funds.
      * @param amountWithdrawn The amount of funds that were withdrawn by the trader.
      * @param newTotalDeposits The new total amount of deposits in the GeniusPool contract after the withdrawal.
@@ -48,7 +88,7 @@ interface IGeniusMultiTokenPool {
     );
 
     /**
-     * @dev Emitted when a swap is executed.
+     * @notice Emitted when a swap is executed.
      * @param token The address of the token that was swapped.
      * @param amount The amount of tokens that were swapped.
      * @param stableDelta The amount of stablecoins that were swapped.
@@ -60,50 +100,98 @@ interface IGeniusMultiTokenPool {
     );
 
     /**
-     * @dev Emitted when a swap deposit is made.
-     * @param trader The address of the trader who made the deposit.
-     * @param token The address of the token deposited.
-     * @param amountDeposited The amount of tokens deposited.
+     * @notice Emitted on the source chain when a swap deposit is made.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
      */
     event SwapDeposit(
+        uint32 indexed orderId,
         address indexed trader,
-        address token,
-        uint256 amountDeposited
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
     );
 
     /**
-     * @dev Emitted when a swap withdrawal occurs.
-     * @param trader The address of the trader who made the withdrawal.
-     * @param amountWithdrawn The amount that was withdrawn.
+     * @notice Emitted on the destination chain when a swap withdrawal occurs.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenOut The address of the output token.
+     * @param amountOut The amount of output tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
      */
     event SwapWithdrawal(
+        uint32 indexed orderId,
         address indexed trader,
-        uint256 amountWithdrawn
+        address tokenOut,
+        uint256 amountOut,
+        uint16 indexed srcChainId,
+        uint16 destChainId,
+        uint32 fillDeadline
     );
 
     /**
-     * @dev Emitted when funds are bridged to another chain.
+     * @notice Emitted on the source chain when an order is filled.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
+     */
+    event OrderFilled(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    /**
+     * @notice Emitted on the source chain when an order is reverted.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
+     */
+    event OrderReverted(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    /**
+     * @notice Emitted when liquidity are being rebalanced out.
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
      */
-    event BridgeFunds(
+    event RemovedLiquidity(
         uint256 amount,
         uint16 chainId
     );
 
     /**
-     * @dev Emitted when the contract receives funds from a bridge.
-     * @param amount The amount of funds received.
-     * @param chainId The chain ID that funds are received from.
-     */
-    event ReceiveBridgeFunds(
-        uint256 amount,
-        uint16 chainId
-    );
-
-    /**
-     * @dev Emitted when the balance of a token is updated due to token
-     *      swaps or liquidity additions.
+     * @notice Emitted when the balance of a token is updated due to token
+     *         swaps or liquidity additions.
      * @param token The address of the token.
      * @param oldBalance The previous balance of the token.
      * @param newBalance The new balance of the token.
@@ -115,7 +203,7 @@ interface IGeniusMultiTokenPool {
     );
 
     /**
-     * @dev Emitted when there is an excess balance of a token.
+     * @notice Emitted when there is an excess balance of a token.
      * @param token The address of the token.
      * @param excess The amount of excess tokens.
      */
@@ -125,10 +213,10 @@ interface IGeniusMultiTokenPool {
     );
 
     /**
-     * @dev Emitted when there is an unexpected decrease in the balance of a token.
+     * @notice Emitted when there is an unexpected decrease in the balance of a token.
      * @param token The address of the token.
-     * @param expectedBalance The new balance of the token.
-     * @param newBalance The previous balance of the token.
+     * @param expectedBalance The expected balance of the token.
+     * @param newBalance The actual new balance of the token.
      */
     event UnexpectedBalanceChange(
         address token,
@@ -136,34 +224,15 @@ interface IGeniusMultiTokenPool {
         uint256 newBalance
     );
 
-    // Functions
     /**
-     * @dev Initializes the GeniusMultiTokenPool contract.
-     * @param executor The address of the executor.
-     * @param vaultAddress The address of the GeniusVault contract.
-     * @param tokens The array of token addresses to be supported by the contract.
-     * @param bridges The array of bridge addresses to be supported.
-     * @param routers The array of router addresses to be supported.
-     * @notice This function can only be called once by the contract owner.
-     * @notice Once initialized, the `VAULT` address cannot be changed.
-     */
-    function initialize(
-        address executor,
-        address vaultAddress,
-        address[] memory tokens,
-        address[] memory bridges,
-        address[] memory routers
-    ) external;
-
-    /**
-     * @dev Manages (adds or removes) a token from the list of supported tokens.
+     * @notice Manages (adds or removes) a token from the list of supported tokens.
      * @param token The address of the token to be managed.
      * @param isSupported True to add the token, false to remove it.
      */
     function manageToken(address token, bool isSupported) external;
 
     /**
-     * @dev Removes liquidity from a bridge pool and swaps it to the destination chain.
+     * @notice Removes liquidity from the bridge pool and swaps it to the destination chain for rebalancing.
      * @param amountIn The amount of tokens to remove from the bridge pool.
      * @param dstChainId The chain ID of the destination chain.
      * @param targets The array of target addresses to call.
@@ -179,53 +248,77 @@ interface IGeniusMultiTokenPool {
     ) external payable;
 
     /**
-     * @dev Returns the total assets in the pool.
+     * @notice Returns the total assets in the pool.
      * @return The total amount of assets in the pool.
      */
     function totalAssets() external view returns (uint256);
 
     /**
-     * @dev Returns the minimum asset balance required in the pool.
+     * @notice Returns the minimum asset balance required in the pool.
      * @return The minimum asset balance.
      */
     function minAssetBalance() external view returns (uint256);
 
     /**
-     * @dev Returns the available assets in the pool.
+     * @notice Returns the available assets in the pool.
      * @return The amount of available assets.
      */
     function availableAssets() external view returns (uint256);
 
     /**
-     * @dev Adds liquidity to the GeniusMultiTokenPool contract by swapping tokens.
-     * @param trader The address of the trader who is adding liquidity.
-     * @param token The address of the token being swapped.
-     * @param amount The amount of tokens being swapped.
+     * @notice Adds liquidity to a source chain on the GeniusMultiTokenPool contract within a cross-chain swap flow.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
      */
     function addLiquiditySwap(
         address trader,
-        address token,
-        uint256 amount
+        address tokenIn,
+        uint256 amountIn,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external payable;
 
     /**
-     * @dev Removes liquidity from the GeniusMultiTokenPool contract by swapping stablecoins for the specified amount.
-     * @param trader The address of the trader who wants to remove liquidity.
-     * @param amount The amount of stablecoins to be swapped and transferred to the caller.
+     * @notice Removes liquidity on the destination chain from the GeniusMultiTokenPool contract within a cross-chain swap flow.
+     * @param order The Order struct containing the order details.
      */
     function removeLiquiditySwap(
-        address trader,
-        uint256 amount
+        Order memory order
     ) external;
 
     /**
-     * @dev Removes reward liquidity from the GeniusMultiTokenPool contract.
+     * @notice Sets the status of an order as filled on the source chain.
+     * @param order The Order struct containing the order details.
+     */
+    function setOrderAsFilled(Order memory order) external;
+
+    /**
+     * @notice Reverts an order on the source and executes revert actions.
+     * @param order The Order struct containing the order details.
+     * @param targets The array of target addresses to call.
+     * @param data The array of function call data.
+     * @param values The array of values to send along with the function calls.
+     * @dev Can only be called by an orchestrator, 
+     * when the fill deadline has passed and the order was not filled.
+     */
+    function revertOrder(
+        Order memory order, 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
+    ) external;
+
+    /**
+     * @notice Removes reward liquidity from the GeniusMultiTokenPool contract.
      * @param amount The amount of reward liquidity to remove.
      */
     function removeRewardLiquidity(uint256 amount) external;
 
     /**
-     * @dev Swaps a specified amount of tokens or native currency to stablecoins.
+     * @notice Swaps a specified amount of tokens or native currency to stablecoins.
      * @param token The address of the token to be swapped. Pass 0x0 for native currency.
      * @param amount The amount of tokens (or native) to be swapped.
      * @param target The address of the target contract to execute the swap.
@@ -239,58 +332,58 @@ interface IGeniusMultiTokenPool {
     ) external;
 
     /**
-     * @dev Stakes liquidity into the GeniusMultiTokenPool.
+     * @notice Stakes liquidity into the GeniusMultiTokenPool.
      * @param trader The address of the trader staking the liquidity.
      * @param amount The amount of liquidity to be staked.
      */
     function stakeLiquidity(address trader, uint256 amount) external;
 
     /**
-     * @dev Removes staked liquidity from the GeniusMultiTokenPool contract.
+     * @notice Removes staked liquidity from the GeniusMultiTokenPool contract.
      * @param trader The address of the trader who wants to remove liquidity.
      * @param amount The amount of liquidity to be removed.
      */
     function removeStakedLiquidity(address trader, uint256 amount) external;
 
     /**
-     * @dev Sets the rebalance threshold for the GeniusMultiTokenPool contract.
+     * @notice Sets the rebalance threshold for the GeniusMultiTokenPool contract.
      * @param threshold The new rebalance threshold to be set.
      */
     function setRebalanceThreshold(uint256 threshold) external;
 
     /**
-     * @dev Authorizes or unauthorizes a bridge target.
+     * @notice Authorizes or unauthorizes a bridge target.
      * @param bridge The address of the bridge target to be managed.
      * @param authorize True to authorize the bridge, false to unauthorize it.
      */
     function manageBridge(address bridge, bool authorize) external;
 
     /**
-     * @dev Manages (adds or removes) a router.
+     * @notice Manages (adds or removes) a router.
      * @param router The address of the router to be managed.
      * @param authorize True to add the router, false to remove it.
      */
     function manageRouter(address router, bool authorize) external;
 
     /**
-     * @dev Pauses the contract and locks all functionality in case of an emergency.
+     * @notice Pauses the contract and locks all features in case of an emergency.
      */
-    function emergencyLock() external;
+    function pause() external;
 
     /**
-     * @dev Allows the owner to emergency unlock the contract.
+     * @notice Allows the owner to emergency unlock the contract.
      */
-    function emergencyUnlock() external;
+    function unpause() external;
 
     /**
-     * @dev Checks if a token is supported by the GeniusMultiTokenPool contract.
+     * @notice Checks if a token is supported by the GeniusMultiTokenPool contract.
      * @param token The address of the token to check.
      * @return boolean indicating whether the token is supported or not.
      */
     function isTokenSupported(address token) external view returns (bool);
 
     /**
-     * @dev Returns the balances of the stablecoins in the GeniusMultiTokenPool contract.
+     * @notice Returns the balances of the stablecoins in the GeniusMultiTokenPool contract.
      * @return currentStables The current total balance of stablecoins in the pool.
      * @return availStables The available balance of stablecoins in the pool.
      * @return stakedStables The total balance of staked stablecoins in the pool.
@@ -302,22 +395,75 @@ interface IGeniusMultiTokenPool {
     );
 
     /**
-     * @dev Retrieves the balances of supported tokens.
-     * @return array of TokenBalance structs containing the token address and balance.
+     * @notice Retrieves the balances of supported tokens.
+     * @return An array of TokenBalance structs containing the token address and balance.
      */
     function supportedTokenBalances() external view returns (TokenBalance[] memory);
 
-    // Additional view functions
+    /**
+     * @notice Calculates the hash of an order.
+     * @param order The Order struct to hash.
+     * @return The bytes32 hash of the order.
+     */
+    function orderHash(Order memory order) external pure returns (bytes32);
+
+    /**
+     * @notice Returns the address of the stablecoin used in the pool.
+     * @return The IERC20 interface of the stablecoin.
+     */
     function STABLECOIN() external view returns (IERC20);
-    function NATIVE() external view returns (address);
-    function VAULT() external view returns (address);
-    function initialized() external view returns (uint256);
+
+    /**
+     * @notice Returns the total amount of staked assets in the pool.
+     * @return The total amount of staked assets.
+     */
     function totalStakedAssets() external view returns (uint256);
+
+    /**
+     * @notice Returns the current rebalance threshold.
+     * @return The rebalance threshold as a percentage.
+     */
     function rebalanceThreshold() external view returns (uint256);
+
+    /**
+     * @notice Returns the number of supported tokens in the pool.
+     * @return The count of supported tokens.
+     */
     function supportedTokensCount() external view returns (uint256);
-    function tokenInfo(address) external view returns (bool isSupported, uint256 balance);
-    function supportedTokensIndex(uint256) external view returns (address);
-    function tokenBalances(address) external view returns (uint256);
-    function supportedBridges(address) external view returns (uint256);
-    function supportedRouters(address) external view returns (uint256);
+
+    /**
+     * @notice Retrieves information about a specific token.
+     * @param token The address of the token to query.
+     * @return isSupported Boolean indicating if the token is supported.
+     * @return balance The balance of the token in the pool.
+     */
+    function tokenInfo(address token) external view returns (bool isSupported, uint256 balance);
+
+    /**
+     * @notice Returns the address of a supported token at a specific index.
+     * @param index The index of the supported token.
+     * @return The address of the token at the given index.
+     */
+    function supportedTokensIndex(uint256 index) external view returns (address);
+
+    /**
+     * @notice Returns the balance of a specific token in the pool.
+     * @param token The address of the token to query.
+     * @return The balance of the token.
+     */
+    function tokenBalances(address token) external view returns (uint256);
+
+    /**
+     * @notice Checks if a bridge is supported.
+     * @param bridge The address of the bridge to check.
+     * @return 1 if the bridge is supported, 0 otherwise.
+     */
+    function supportedBridges(address bridge) external view returns (uint256);
+
+    /**
+     * @notice Checks if a router is supported.
+     * @param router The address of the router to check.
+     * @return 1 if the router is supported, 0 otherwise.
+     */
+    function supportedRouters(address router) external view returns (uint256);
 }

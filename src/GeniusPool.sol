@@ -1,33 +1,35 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
-import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
-import {Executable} from "./access/Executable.sol";
-import {GeniusErrors} from "./libs/GeniusErrors.sol";
-import {IGeniusPool} from "./interfaces/IGeniusPool.sol";
+import { GeniusErrors } from "./libs/GeniusErrors.sol";
+import { IGeniusPool } from "./interfaces/IGeniusPool.sol";
 
-contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
-
+contract GeniusPool is IGeniusPool, AccessControl, Pausable {
     // =============================================================
     //                          IMMUTABLES
     // =============================================================
 
-    IERC20 public immutable override STABLECOIN;
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
-    address public override VAULT;
+    IERC20 public immutable STABLECOIN;
+    address public VAULT;
+    address public EXECUTOR;
 
     // =============================================================
     //                          VARIABLES
     // =============================================================
 
-    uint256 public override initialized; // Flag to check if the contract has been initialized
+    uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
+    uint256 public rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
 
-    uint256 public override totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
-    uint256 public override rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
+    uint32 public totalOrders;
+    mapping(bytes32 => OrderStatus) public orderStatus;
 
     // =============================================================
     //                          CONSTRUCTOR
@@ -35,14 +37,15 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
 
     constructor(
         address stablecoin,
-        address owner
-    ) Ownable(owner) {
-        if (stablecoin == address(0)) revert GeniusErrors.InvalidToken(stablecoin);
-        if (owner == address(0)) revert GeniusErrors.InvalidOwner();
+        address admin
+    ) {
+        if (stablecoin == address(0)) revert GeniusErrors.NonAddress0();
+        if (admin == address(0)) revert GeniusErrors.NonAddress0();
 
         STABLECOIN = IERC20(stablecoin);
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+        _grantRole(PAUSER_ROLE, admin);
 
-        initialized = 0;
         _pause();
     }
 
@@ -50,35 +53,53 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
     //                          MODIFIERS
     // =============================================================
 
-    modifier whenReady() {
-        if (initialized == 0) revert GeniusErrors.NotInitialized();
-        _requireNotPaused();
+    modifier onlyExecutor() {
+        if (msg.sender != EXECUTOR) revert GeniusErrors.IsNotExecutor();
+        _;
+    }
+
+    modifier onlyVault() {
+        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+        _;
+    }
+
+    modifier onlyAdmin() {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert GeniusErrors.IsNotAdmin();
+        _;
+    }
+
+    modifier onlyPauser() {
+        if(!hasRole(PAUSER_ROLE, msg.sender)) revert GeniusErrors.IsNotPauser();
+        _;
+    }
+
+    modifier onlyOrchestrator() {
+        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) revert GeniusErrors.IsNotOrchestrator();
         _;
     }
 
     /**
      * @dev See {IGeniusPool-initialize}.
      */
-    function initialize(address vaultAddress, address executor) external onlyOwner {
-        if (initialized == 1) revert GeniusErrors.Initialized();
+    function initialize(address vaultAddress, address executor) external onlyAdmin {
+        if (VAULT != address(0)) revert GeniusErrors.Initialized();
         VAULT = vaultAddress;
-        _initializeExecutor(payable(executor));
+        EXECUTOR = executor;
 
-        initialized = 1;
         _unpause();
     }
 
     /**
      * @dev See {IGeniusPool-totalAssets}.
      */
-    function totalAssets() public view returns (uint256) {
+    function totalAssets() public override view returns (uint256) {
         return STABLECOIN.balanceOf(address(this));
     }
 
     /**
      * @dev See {IGeniusPool-minAssetBalance}.
      */
-    function minAssetBalance() public view returns (uint256) {
+    function minAssetBalance() public override view returns (uint256) {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
         return totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
     }
@@ -86,7 +107,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
     /**
      * @dev See {IGeniusPool-availableAssets}.
      */
-    function availableAssets() public view returns (uint256) {
+    function availableAssets() public override view returns (uint256) {
         uint256 _totalAssets = totalAssets();
         uint256 _neededLiquidity = minAssetBalance();
 
@@ -102,7 +123,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
-    ) public payable onlyOrchestrator whenReady {
+    ) public payable override onlyOrchestrator whenNotPaused {
         uint256 totalAssetsBeforeTransfer = totalAssets();
         uint256 neededLiquidty_ = minAssetBalance();
 
@@ -120,7 +141,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
 
         if (_stableDelta != amountIn) revert GeniusErrors.AmountInAndDeltaMismatch(amountIn, _stableDelta);
 
-        emit BridgeFunds(
+        emit RemovedLiquidity(
             amountIn,
             dstChainId
         );
@@ -131,19 +152,41 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
      */
     function addLiquiditySwap(
         address trader,
-        address token,
-        uint256 amount
-    ) external onlyExecutor whenReady {
+        address tokenIn,
+        uint256 amountIn,
+        uint16 destChainId,
+        uint32 fillDeadline
+    ) external override onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
+        if (amountIn == 0) revert GeniusErrors.InvalidAmount();
+        if (tokenIn != address(STABLECOIN)) revert GeniusErrors.InvalidToken(tokenIn);
+        if (destChainId == _currentChainId()) revert GeniusErrors.InvalidDestChainId(destChainId);
+        if (fillDeadline <= _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(fillDeadline);
 
-        _transferERC20From(address(STABLECOIN), msg.sender,  address(this), amount);
+        Order memory order = Order({
+            trader: trader,
+            amountIn: amountIn,
+            orderId: totalOrders++,
+            srcChainId: uint16(_currentChainId()),
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            tokenIn: tokenIn
+        });
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.InvalidOrderStatus();
+
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), order.amountIn);
+
+        orderStatus[orderHash_] = OrderStatus.Created;        
 
         emit SwapDeposit(
-            trader,
-            token,
-            amount
+            order.orderId,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
         );
     }
 
@@ -151,29 +194,46 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
      * @dev See {IGeniusPool-removeLiquiditySwap}.
      */
     function removeLiquiditySwap(
-        address trader,
-        uint256 amount
-    ) external onlyExecutor whenReady {
+        Order memory order
+    ) external override onlyExecutor whenNotPaused {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
+        if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
+        if (order.fillDeadline < _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(order.fillDeadline); 
+        if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+
+
+        // Gas saving
         uint256 _totalAssets = totalAssets();
         uint256 _neededLiquidity = minAssetBalance();
 
-        _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
+        _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
 
-        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (!_isBalanceWithinThreshold(_totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
+        if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (!_isBalanceWithinThreshold(_totalAssets - order.amountIn)) revert GeniusErrors.ThresholdWouldExceed(
             _neededLiquidity,
-            _totalAssets - amount
+            _totalAssets - order.amountIn
         );
 
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
+        orderStatus[orderHash_] = OrderStatus.Filled;
 
-        emit SwapWithdrawal(trader, amount);
+        _transferERC20(address(STABLECOIN), msg.sender, order.amountIn);
+        
+        emit SwapWithdrawal(
+            order.orderId,
+            order.trader,
+            address(STABLECOIN),
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
+        );
     }
 
     /**
      * @dev See {IGeniusPool-removeRewardLiquidity}.
      */
-    function removeRewardLiquidity(uint256 amount) external onlyOrchestrator whenReady {
+    function removeRewardLiquidity(uint256 amount) external override onlyOrchestrator whenNotPaused {
         uint256 _totalAssets = totalAssets();
         uint256 _neededLiquidity = minAssetBalance();
 
@@ -190,8 +250,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
     /**
      * @dev See {IGeniusPool-stakeLiquidity}.
      */
-    function stakeLiquidity(address trader, uint256 amount) external whenReady {
-        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+    function stakeLiquidity(address trader, uint256 amount) external override onlyVault whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
@@ -208,8 +267,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
     /**
      * @dev See {IGeniusPool-removeStakedLiquidity}.
      */
-    function removeStakedLiquidity(address trader, uint256 amount) external whenReady {
-        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+    function removeStakedLiquidity(address trader, uint256 amount) external override onlyVault whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
@@ -232,35 +290,104 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
     }
 
     /**
+     * @dev See {IGeniusPool-setOrderAsFilled}.
+     */
+    function setOrderAsFilled(Order memory order) external override onlyOrchestrator whenNotPaused {
+        bytes32 orderHash_ = orderHash(order);
+
+        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+
+        orderStatus[orderHash_] = OrderStatus.Filled;
+
+        emit OrderFilled(
+            order.orderId,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
+        );
+    }
+
+    /**
+     * @dev See {IGeniusPool-revertOrder}.
+     */
+    function revertOrder(
+        Order calldata order, 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
+    ) external override onlyOrchestrator whenNotPaused {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+        if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
+
+        uint256 _totalAssetsPreRevert = totalAssets();
+
+        _batchExecution(targets, data, values);
+
+        uint256 _totalAssetsPostRevert = totalAssets();
+        uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
+
+        if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
+
+        orderStatus[orderHash_] = OrderStatus.Reverted;
+
+        emit OrderReverted(
+            order.orderId,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
+        );
+    }
+
+    // =============================================================
+    //                     REBALANCE THRESHOLD
+    // =============================================================
+
+    /**
      * @dev See {IGeniusPool-setRebalanceThreshold}.
      */
-    function setRebalanceThreshold(uint256 threshold) external onlyOwner {
+    function setRebalanceThreshold(uint256 threshold) external override onlyAdmin {
         rebalanceThreshold = threshold;
     }
 
     /**
      * @dev See {IGeniusPool-emergencyLock}.
      */
-    function emergencyLock() external onlyOwner {
+    function pause() external override onlyPauser {
         _pause();
     }
 
     /**
      * @dev See {IGeniusPool-emergencyUnlock}.
      */
-    function emergencyUnlock() external onlyOwner {
+    function unpause() external override onlyPauser {
         _unpause();
     }
 
     /**
      * @dev See {IGeniusPool-assets}.
      */
-    function assets() public view returns (uint256, uint256, uint256) {
+    function assets() public override view returns (uint256, uint256, uint256) {
         return (
             totalAssets(),
             availableAssets(),
             totalStakedAssets
         );
+    }
+
+    /**
+     * @dev See {IGeniusPool-orderHash}.
+     */
+    function orderHash(Order memory order) public override pure returns (bytes32) {
+        return keccak256(abi.encode(order));
     }
 
     // =============================================================
@@ -338,5 +465,13 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
 
             unchecked { i++; }
         }
+    }
+
+    function _currentChainId() internal view returns (uint256) {
+        return block.chainid;
+    }
+
+    function _currentTimeStamp() internal view returns (uint256) {
+        return block.timestamp;
     }
 }

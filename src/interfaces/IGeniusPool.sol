@@ -12,12 +12,39 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *         and other Genius related activities.
  */
 interface IGeniusPool {
-    // =============================================================
-    //                          EVENTS
-    // =============================================================
 
     /**
-     * @dev Emitted when a trader stakes their funds in the GeniusPool contract.
+     * @notice Enum representing the possible statuses of an order.
+     */
+    enum OrderStatus {
+        Nonexistant,
+        Created,
+        Filled,
+        Reverted
+    }
+
+    /**
+     * @notice Struct representing an order in the system.
+     * @param amountIn The amount of tokens to be swapped.
+     * @param orderId Unique identifier for the order.
+     * @param trader Address of the trader initiating the order.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline by which the order must be filled.
+     * @param tokenIn The address of the token to be swapped.
+     */
+    struct Order {
+        uint256 amountIn;
+        uint32 orderId;
+        address trader;
+        uint16 srcChainId;
+        uint16 destChainId;
+        uint32 fillDeadline; 
+        address tokenIn;
+    }
+
+    /**
+     * @notice Emitted when a trader stakes their funds in the GeniusPool contract.
      * @param trader The address of the trader who is staking their funds.
      * @param amountDeposited The amount of funds being deposited by the trader.
      * @param newTotalDeposits The new total amount of funds deposited in the GeniusPool contract after the stake.
@@ -29,7 +56,7 @@ interface IGeniusPool {
     );
 
     /**
-     * @dev Emitted when a trader unstakes their funds from the GeniusPool contract.
+     * @notice Emitted when a trader unstakes their funds from the GeniusPool contract.
      * @param trader The address of the trader who unstaked their funds.
      * @param amountWithdrawn The amount of funds that were withdrawn by the trader.
      * @param newTotalDeposits The new total amount of deposits in the GeniusPool contract after the withdrawal.
@@ -41,55 +68,116 @@ interface IGeniusPool {
     );
 
     /**
-     * @dev Emitted when a swap deposit is made.
-     * @param trader The address of the trader who made the deposit.
-     * @param amountDeposited The amount of tokens deposited.
+     * @notice Emitted on the source chain when a swap deposit is made.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
      */
     event SwapDeposit(
+        uint32 indexed orderId,
         address indexed trader,
-        address token,
-        uint256 amountDeposited
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
     );
 
     /**
-     * @dev Emitted when a swap withdrawal occurs.
-     * @param trader The address of the trader who made the withdrawal.
-     * @param amountWithdrawn The amount that was withdrawn.
+     * @notice Emitted on the destination chain when a swap withdrawal occurs.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenOut The address of the output token.
+     * @param amountOut The amount of output tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
      */
     event SwapWithdrawal(
+        uint32 indexed orderId,
         address indexed trader,
-        uint256 amountWithdrawn
+        address tokenOut,
+        uint256 amountOut,
+        uint16 indexed srcChainId,
+        uint16 destChainId,
+        uint32 fillDeadline
     );
 
     /**
-     * @dev Emitted when funds are bridged to another chain.
+     * @notice Emitted on the source chain when an order is filled.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
+     */
+    event OrderFilled(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    /**
+     * @notice Emitted on the source chain when an order is reverted.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
+     */
+    event OrderReverted(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    /**
+     * @notice Emitted when liquidity is removed for rebalancing.
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
      */
-    event BridgeFunds(
+    event RemovedLiquidity(
         uint256 amount,
         uint16 chainId
     );
 
-    // =============================================================
-    //                      EXTERNAL FUNCTIONS
-    // =============================================================
-
     /**
-     * @dev Initializes the GeniusVault contract.
-     * @param vaultAddress The address of the GeniusPool contract.
-     * @notice This function can only be called once to initialize the contract.
+     * @notice Returns the total assets in the pool.
+     * @return The total amount of assets in the pool.
      */
-    function initialize(address vaultAddress, address executor) external;
-
     function totalAssets() external view returns (uint256);
 
+    /**
+     * @notice Returns the minimum asset balance required in the pool.
+     * @return The minimum asset balance.
+     */
     function minAssetBalance() external view returns (uint256);
 
+    /**
+     * @notice Returns the available assets in the pool.
+     * @return The amount of available assets.
+     */
     function availableAssets() external view returns (uint256);
 
     /**
-     * @dev Removes liquidity from a bridge pool and swaps it to the destination chain.
+     * @notice Removes liquidity from a bridge pool 
+     * and bridge it to the destination chain.
      * @param amountIn The amount of tokens to remove from the bridge pool.
      * @param dstChainId The chain ID of the destination chain.
      * @param targets The array of target addresses to call.
@@ -105,81 +193,117 @@ interface IGeniusPool {
     ) external payable;
 
     /**
-     * @notice Deposits tokens into the vault
-     * @param trader The address of the trader that tokens are being deposited for
-     * @param amount The amount of tokens to deposit
-     * @notice Emits a SwapDeposit event with the trader's address, the token address, and the amount of tokens swapped.
+     * @notice Adds liquidity to the GeniusPool contract 
+     * of the source chain in a cross-chain order flow.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
      */
     function addLiquiditySwap(
         address trader,
-        address token,
-        uint256 amount
+        address tokenIn,
+        uint256 amountIn,
+        uint16 destChainId,
+        uint32 fillDeadline
     ) external;
 
     /**
-     * @dev Removes liquidity from the GeniusPool contract by swapping stablecoins for the specified amount.
-     *      Only the orchestrator can call this function.
-     * @param trader The address of the trader to use for 
-     * @param amount The amount of tokens to withdraw
+     * @notice Removes liquidity from the GeniusPool contract 
+     * of the destination chain in a cross-chain order flow.
+     * @param order The Order struct containing the order details.
      */
     function removeLiquiditySwap(
-        address trader,
-        uint256 amount
+        Order memory order
     ) external;
 
     /**
-     * @dev Removes reward liquidity from the GeniusPool contract.
+     * @notice Sets the status of an order as filled on the source chain.
+     * @param order The Order struct containing the order details.
+     */
+    function setOrderAsFilled(Order memory order) external;
+
+    /**
+     * @notice Reverts an order on the source chain and executes associated revert actions.
+     * @param order The Order struct containing the order details.
+     * @param targets The array of target addresses to call.
+     * @param data The array of function call data.
+     * @param values The array of values to send along with the function calls.
+     */
+    function revertOrder(
+        Order calldata order, 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
+    ) external;
+
+    /**
+     * @notice Removes reward liquidity from the GeniusPool contract.
      * @param amount The amount of reward liquidity to remove.
      */
     function removeRewardLiquidity(uint256 amount) external;
 
     /**
-     * @dev Allows a user to stake liquidity tokens.
-     * @param trader The address of the trader who is staking the liquidity tokens.
-     * @param amount The amount of liquidity tokens to stake.
+     * @notice Stakes liquidity into the GeniusPool.
+     * @param trader The address of the trader staking the liquidity.
+     * @param amount The amount of liquidity to be staked.
      */
     function stakeLiquidity(address trader, uint256 amount) external;
 
     /**
-     * @dev Removes staked liquidity from the GeniusPool contract.
+     * @notice Removes staked liquidity from the GeniusPool contract.
      * @param trader The address of the trader who wants to remove liquidity.
      * @param amount The amount of liquidity to be removed.
      */
     function removeStakedLiquidity(address trader, uint256 amount) external;
 
     /**
-     * @dev Sets the rebalance threshold for the GeniusPool contract.
+     * @notice Sets the rebalance threshold for the GeniusPool contract.
      * @param threshold The new rebalance threshold to be set.
      */
     function setRebalanceThreshold(uint256 threshold) external;
 
     /**
-     * @dev Pauses the contract and locks all functionality in case of an emergency.
-     * This function sets the `Paused` state to true, preventing all contract operations.
+     * @notice Pauses the contract and locks all functionality in case of an emergency.
      */
-    function emergencyLock() external;
+    function pause() external;
 
     /**
-     * @dev Allows the owner to emergency unlock the contract.
-     * This function sets the `Paused` state to true, allowing normal contract operations to resume.
+     * @notice Allows the owner to emergency unlock the contract.
      */
-    function emergencyUnlock() external;
+    function unpause() external;
 
     /**
-     * @dev Returns the current state of the assets in the GeniusPool contract.
+     * @notice Returns the current state of the assets in the GeniusPool contract.
      * @return totalAssets The total number of assets in the pool.
      * @return availableAssets The number of assets available for use.
      * @return totalStakedAssets The total number of assets currently staked in the pool.
      */
     function assets() external view returns (uint256, uint256, uint256);
 
-    // =============================================================
-    //                          VARIABLES
-    // =============================================================
+    /**
+     * @notice Calculates the hash of an order.
+     * @param order The Order struct to hash.
+     * @return The bytes32 hash of the order.
+     */
+    function orderHash(Order memory order) external pure returns (bytes32);
 
-    function STABLECOIN() external view returns (IERC20);
-    function VAULT() external view returns (address);
-    function initialized() external view returns (uint256);
+    /**
+     * @notice Returns the total amount of staked assets in the pool.
+     * @return The total amount of staked assets.
+     */
     function totalStakedAssets() external view returns (uint256);
+
+    /**
+     * @notice Returns the current rebalance threshold.
+     * @return The rebalance threshold as a percentage.
+     */
     function rebalanceThreshold() external view returns (uint256);
+
+     /**
+     * @notice Returns the address of the stablecoin used in the pool.
+     * @return The IERC20 interface of the stablecoin.
+     */
+    function STABLECOIN() external view returns (IERC20);
 }

@@ -3,10 +3,11 @@
 pragma solidity ^0.8.20;
 
 library GeniusErrors {
+
     /**
-     * @dev Error thrown when an invalid owner address is encountered.
+     * @dev Error thrown when an invalid address is encountered.
      */
-    error InvalidOwner();
+    error NonAddress0();
 
     /**
      * @dev Error thrown when an invalid spender address is encountered.
@@ -22,6 +23,17 @@ library GeniusErrors {
      * @dev Error thrown when msg.sender is not the vault.
      */
     error IsNotVault();
+
+    error IsNotExecutor();
+
+    error IsNotPauser();
+
+    error IsNotOrchestrator();
+
+    /**
+     * @dev Error thrown when an invalid admin address is encountered.
+     */
+    error IsNotAdmin();
 
     /**
      * @dev This library contains custom error definitions for the Genius contract.
@@ -57,6 +69,11 @@ library GeniusErrors {
     * @dev Error thrown when the permit batch length is invalid.
     */
     error InvalidPermitBatchLength();
+
+    error InvalidOrderStatus();
+
+    error InvalidOrderId();
+
 
     /**
     * @dev Error thrown thrown when the msg.value is not sufficient.
@@ -179,4 +196,13 @@ library GeniusErrors {
      */
     error AmountInAndDeltaMismatch(uint256 amountIn, uint256 delta);
 
+    error OrderAlreadyFilled(bytes32 srcOrderHash);
+
+    error InvalidDestChainId(uint256 chainId);
+
+    error InvalidSourceChainId(uint256 chainId);
+
+    error DeadlinePassed(uint256 deadline);
+
+    error DeadlineNotPassed(uint256 deadline);
 }

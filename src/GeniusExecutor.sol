@@ -6,15 +6,14 @@ import { console } from "forge-std/Test.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
 import { IGeniusPool } from "./interfaces/IGeniusPool.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
-import { Orchestrable, Ownable } from "./access/Orchestrable.sol";
 import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
 
-contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
-
+contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // =============================================================
     //                           VARIABLES
     // =============================================================
@@ -25,6 +24,8 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
     //                          IMMUTABLES
     // =============================================================
 
+    bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
+
     IAllowanceTransfer public immutable override PERMIT2;
     IERC20 public immutable override STABLECOIN;
     IGeniusPool public immutable override POOL;
@@ -34,12 +35,28 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         address permit2,
         address pool,
         address vault,
-        address owner
-    ) Ownable(owner) {
+        address admin
+    ) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IERC4626(vault);
         POOL = IGeniusPool(pool);
         STABLECOIN = IERC20(POOL.STABLECOIN());
+
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+    }
+
+    // =============================================================
+    //                          MODIFIERS
+    // =============================================================
+
+    modifier onlyAdmin() {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert GeniusErrors.IsNotAdmin();
+        _;
+    }
+
+    modifier onlyOrchestrator() {
+        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) revert GeniusErrors.IsNotOrchestrator();
+        _;
     }
 
     // =============================================================
@@ -49,7 +66,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
     /**
      * @dev See {IGeniusExecutor-initialize}.
      */
-    function initialize(address[] calldata routers) external onlyOwner {
+    function initialize(address[] calldata routers) external override onlyAdmin {
         uint256 length = routers.length;
         for (uint256 i = 0; i < length;) {
             address router = routers[i];
@@ -67,7 +84,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
     /**
      * @dev See {IGeniusExecutor-setAllowedTarget}.
      */
-    function setAllowedTarget(address target, bool isAllowed) external onlyOwner {
+    function setAllowedTarget(address target, bool isAllowed) external override onlyAdmin {
         allowedTargets[target] = isAllowed ? 1 : 0;
     }
 
@@ -81,7 +98,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external payable nonReentrant {
+    ) external override payable nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
@@ -101,7 +118,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values
-    ) external payable nonReentrant {
+    ) external payable override nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();        
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
         _checkTargets(targets, emptyPermitDetails, msg.sender);
@@ -119,8 +136,10 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
-        address owner
-    ) external onlyOrchestrator nonReentrant {
+        address owner,
+        uint16 destChainId,
+        uint32 fillDeadline
+    ) external override onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
 
@@ -154,7 +173,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
             _depositAmount
         );
 
-        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
+        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
 
         _sweepERC20s(permitBatch, owner);
     }
@@ -168,8 +187,10 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
-        address owner
-    ) external payable nonReentrant {
+        address owner,
+        uint16 destChainId,
+        uint32 fillDeadline
+    ) external override payable nonReentrant {
         if (
             targets.length != data.length ||
             data.length != values.length
@@ -195,7 +216,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
 
         if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
-        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount);
+        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
 
         _sweepERC20s(permitBatch, owner);
         if (msg.value > 0) _sweepNative(msg.sender);
@@ -207,8 +228,10 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
     function nativeSwapAndDeposit(
         address target,
         bytes calldata data,
-        uint256 value
-    ) external payable {
+        uint256 value,
+        uint16 destChainId,
+        uint32 fillDeadline
+    ) external override payable {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
@@ -232,7 +255,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
             _depositAmount
         );
 
-        POOL.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount);
+        POOL.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
 
         if (msg.value > 0) _sweepNative(msg.sender);
     }
@@ -244,7 +267,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external onlyOrchestrator nonReentrant {
+    ) external override onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.ArrayLengthsMismatch();
         if (permitBatch.details[0].token != address(STABLECOIN)) {
@@ -263,7 +286,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external onlyOrchestrator nonReentrant {
+    ) external override onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details[0].token != address(VAULT)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
@@ -296,7 +319,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
 
             if (target == address(POOL) || target == address(VAULT)) {
 
-                if (!orchestrator(msg.sender)) {
+                if (!hasRole(ORCHESTRATOR_ROLE ,msg.sender)) {
                     revert GeniusErrors.InvalidTarget(target);
                 }
 

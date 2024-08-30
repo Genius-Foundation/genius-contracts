@@ -122,8 +122,8 @@ contract MultiTokenPoolExecutorInteractions is Test {
         EXECUTOR.initialize(routers);
         
         // Add Orchestrator
-        MULTI_POOL.addOrchestrator(ORCHESTRATOR);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        MULTI_POOL.grantRole(MULTI_POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -149,6 +149,8 @@ contract MultiTokenPoolExecutorInteractions is Test {
 
 
     function testTokenSwapAndDeposit() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         bytes memory swapCalldata = abi.encodeWithSelector(
             MockSwapTarget.mockSwap.selector,
@@ -189,7 +191,9 @@ contract MultiTokenPoolExecutorInteractions is Test {
             swapCalldata,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
@@ -271,7 +275,9 @@ contract MultiTokenPoolExecutorInteractions is Test {
             values,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            42,
+            uint32(block.timestamp + 1000)
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
@@ -282,6 +288,8 @@ contract MultiTokenPoolExecutorInteractions is Test {
     }
 
     function testNativeSwapAndDeposit() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 initialBalance = TRADER.balance;
         uint256 swapAmount = 1 ether;
 
@@ -300,7 +308,9 @@ contract MultiTokenPoolExecutorInteractions is Test {
         EXECUTOR.nativeSwapAndDeposit{value: swapAmount}(
             address(ROUTER),
             swapCalldata,
-            swapAmount
+            swapAmount,
+            destChainId,
+            fillDeadline
         );
 
         // Prepare log entries for assertion checks

@@ -115,6 +115,9 @@ contract GeniusExecutorReentrancy is Test {
     }
 
 function testReentrancyMultiSwapAndDeposit() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
         vm.startPrank(OWNER);
         address[] memory routers = new address[](2);
         routers[0] = address(DEX_ROUTER);
@@ -151,7 +154,9 @@ function testReentrancyMultiSwapAndDeposit() public {
             values,
             permitBatch,
             signature,
-            trader
+            trader,
+            destChainId,
+            fillDeadline
         );
     }
 

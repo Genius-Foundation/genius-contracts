@@ -13,7 +13,6 @@ import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {Orchestrable, Ownable} from "../src/access/Orchestrable.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockSwapTarget} from "./mocks/MockSwapTarget.sol";
@@ -167,7 +166,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         );
         
         // Add Orchestrator
-        POOL.addOrchestrator(ORCHESTRATOR);
+        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -246,7 +245,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 100 ether);
         USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000));
         vm.stopPrank();
 
         assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
@@ -279,7 +278,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 100 ether);
         USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether);
+        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000));
         vm.stopPrank();
 
         assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
@@ -307,6 +306,9 @@ contract GeniusMultiTokenPoolAccounting is Test {
     }
 
     function testFullCycle() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+
         // =================== DEPOSIT THROUGH VAULT ===================
         deal(address(TOKEN1), address(TRADER), 100 ether);
         deal(address(USDC), address(DEX_ROUTER), 100 ether);
@@ -315,7 +317,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE() ,ORCHESTRATOR);
         vm.stopPrank();
 
         vm.startPrank(TRADER);
@@ -359,7 +361,9 @@ contract GeniusMultiTokenPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
@@ -401,6 +405,9 @@ contract GeniusMultiTokenPoolAccounting is Test {
     }
 
     function testFullCycleWithDonations() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
+        
         // =================== SETUP ===================
         deal(address(TOKEN1), address(TRADER), 100 ether);
         deal(address(USDC), address(DEX_ROUTER), 100 ether);
@@ -409,7 +416,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Initial donation
@@ -460,7 +467,9 @@ contract GeniusMultiTokenPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         vm.stopPrank();
@@ -525,29 +534,29 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         // Test USDC deposit
         USDC.approve(address(POOL), depositAmount);
-        POOL.addLiquiditySwap(TRADER, address(USDC), depositAmount);
+        POOL.addLiquiditySwap(TRADER, address(USDC), depositAmount, 42, uint32(block.timestamp + 1000));
         assertEq(POOL.totalAssets(), depositAmount, "USDC deposit failed");
         assertEq(USDC.balanceOf(address(POOL)), depositAmount, "USDC balance mismatch");
 
         // Test TOKEN1 deposit
         TOKEN1.approve(address(POOL), depositAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN1), depositAmount);
+        POOL.addLiquiditySwap(TRADER, address(TOKEN1), depositAmount, 42, uint32(block.timestamp + 1000));
         assertEq(TOKEN1.balanceOf(address(POOL)), depositAmount, "TOKEN1 balance mismatch");
 
         // Test TOKEN2 deposit
         TOKEN2.approve(address(POOL), depositAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN2), depositAmount);
+        POOL.addLiquiditySwap(TRADER, address(TOKEN2), depositAmount, 42, uint32(block.timestamp + 1000));
         assertEq(TOKEN2.balanceOf(address(POOL)), depositAmount, "TOKEN2 balance mismatch");
 
         // Test TOKEN3 deposit
         TOKEN3.approve(address(POOL), depositAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN3), depositAmount);
+        POOL.addLiquiditySwap(TRADER, address(TOKEN3), depositAmount, 42, uint32(block.timestamp + 1000));
         assertEq(TOKEN3.balanceOf(address(POOL)), depositAmount, "TOKEN3 balance mismatch");
 
         // Test native ETH deposit
         uint256 initialETHBalance = address(POOL).balance;
         vm.deal(address(EXECUTOR), depositAmount); // Ensure TRADER has enough ETH
-        POOL.addLiquiditySwap{value: depositAmount}(TRADER, NATIVE, depositAmount);
+        POOL.addLiquiditySwap{value: depositAmount}(TRADER, NATIVE, depositAmount, 42, uint32(block.timestamp + 1000));
         assertEq(address(POOL).balance - initialETHBalance, depositAmount, "ETH deposit failed");
 
         // Verify token balances using supportedTokenBalances
@@ -570,6 +579,8 @@ contract GeniusMultiTokenPoolAccounting is Test {
     }
 
     function testNativeLiquiditySwap() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
         // Setup
@@ -577,7 +588,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Check that each token is supported
@@ -601,7 +612,9 @@ contract GeniusMultiTokenPoolAccounting is Test {
         EXECUTOR.nativeSwapAndDeposit{value: depositAmount}(
             address(DEX_ROUTER),
             calldataSwap,
-            depositAmount
+            depositAmount,
+            destChainId,
+            fillDeadline
         );
 
         assertEq(address(POOL).balance - initialETHBalance, 0, "ETH should not be held in POOL");
@@ -626,7 +639,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // First, add liquidity for a non-USDC token (let's use TOKEN1)
@@ -638,7 +651,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         TOKEN1.approve(address(POOL), swapAmount);
         deal(address(TOKEN1), address(EXECUTOR), swapAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount);
+        POOL.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000));
         deal(address(USDC), address(DEX_ROUTER), swapAmount);
         vm.stopPrank();
 
@@ -671,7 +684,9 @@ contract GeniusMultiTokenPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            42,
+            uint32(block.timestamp + 1000)
         );
 
         // Assertions
@@ -704,7 +719,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Add liquidity for a non-USDC token (let's use TOKEN1)
@@ -716,7 +731,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         TOKEN1.approve(address(POOL), swapAmount);
         deal(address(TOKEN1), address(EXECUTOR), swapAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount);
+        POOL.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000));
         deal(address(USDC), address(DEX_ROUTER), swapAmount);
         vm.stopPrank();
 
@@ -729,7 +744,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         vm.startPrank(OWNER);
         // Test Paused error
-        POOL.emergencyLock();
+        POOL.pause();
         vm.stopPrank();
 
         assertEq(POOL.paused(), true, "Contract should be paused");
@@ -740,16 +755,16 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.stopPrank();
 
         vm.startPrank(OWNER);
-        POOL.emergencyUnlock();
+        POOL.unpause();
 
         // Test NotInitialized error
         GeniusMultiTokenPool uninitializedPool = new GeniusMultiTokenPool(address(USDC), OWNER);
         // Add the orchestrator as an orchestrator
-        uninitializedPool.addOrchestrator(ORCHESTRATOR);
+        uninitializedPool.grantRole(uninitializedPool.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         vm.startPrank(ORCHESTRATOR);
-        vm.expectRevert(GeniusErrors.NotInitialized.selector);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         uninitializedPool.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwap);
 
         // Test InvalidAmount error
@@ -873,12 +888,12 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Test when pool is paused
         vm.prank(OWNER);
-        POOL.emergencyLock();
+        POOL.pause();
         vm.prank(ORCHESTRATOR);
         vm.expectRevert(Pausable.EnforcedPause.selector);
         POOL.removeBridgeLiquidity(bridgeAmount, testChainId, targets, values, data);
         vm.prank(OWNER);
-        POOL.emergencyUnlock();
+        POOL.unpause();
 
         // Test when called by non-orchestrator
         vm.prank(TRADER);
@@ -1051,7 +1066,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         deal(address(newToken), address(EXECUTOR), 100 ether);
         vm.startPrank(address(EXECUTOR));
         newToken.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(newToken), 100 ether);
+        POOL.addLiquiditySwap(TRADER, address(newToken), 100 ether, 42, uint32(block.timestamp + 1000));
 
         vm.startPrank(OWNER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.RemainingBalance.selector, 100 ether));
@@ -1063,7 +1078,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Test calling from non-owner address (should revert)
         vm.startPrank(TRADER);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, TRADER));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector));
         POOL.manageToken(address(newToken), false);
     }
 
@@ -1095,7 +1110,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Test calling from non-owner address (should revert)
         vm.prank(TRADER);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, TRADER));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector));
         POOL.manageBridge(newBridge, true);
 
         // Test with address(0) as bridge address
@@ -1155,7 +1170,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Test calling from non-owner address (should revert)
         vm.prank(TRADER);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, TRADER));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector));
         POOL.manageRouter(unRouter, true);
 
         // Test with address(0) as router address
@@ -1210,7 +1225,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         deal(address(USDC), address(UNAUTHORIZED_ROUTER), amount);
         vm.startPrank(address(EXECUTOR));
         mockToken.approve(address(POOL), amount);
-        POOL.addLiquiditySwap(TRADER, address(mockToken), amount);
+        POOL.addLiquiditySwap(TRADER, address(mockToken), amount, 42, uint32(block.timestamp + 1000));
 
 
 

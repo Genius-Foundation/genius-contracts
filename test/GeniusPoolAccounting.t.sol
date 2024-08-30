@@ -137,7 +137,7 @@ contract GeniusPoolAccounting is Test {
         privateKey = traderKey;
         
         // Add Orchestrator
-        POOL.addOrchestrator(ORCHESTRATOR);
+        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -254,6 +254,8 @@ contract GeniusPoolAccounting is Test {
      * and minimum asset balance.
      */
     function testStakeAndDeposit() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
         // Setup
@@ -261,7 +263,7 @@ contract GeniusPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Start acting as TRADER
@@ -307,7 +309,9 @@ contract GeniusPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         vm.stopPrank();
@@ -333,6 +337,8 @@ contract GeniusPoolAccounting is Test {
      * It also logs the ending balances of key variables for further analysis.
      */
     function testCycleWithoutThresholdChange() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
         // Setup
@@ -340,7 +346,7 @@ contract GeniusPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);  // Assuming EXECUTOR can act as a router
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Start acting as TRADER
@@ -386,7 +392,9 @@ contract GeniusPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         vm.stopPrank();
@@ -431,6 +439,8 @@ contract GeniusPoolAccounting is Test {
      * 9. Logs the ending balances of the pool and vault.
      */
     function testFullCycle() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
         // Setup
@@ -438,7 +448,7 @@ contract GeniusPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // =================== DEPOSIT THROUGH VAULT ===================
@@ -483,7 +493,9 @@ contract GeniusPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         vm.stopPrank();
@@ -534,6 +546,8 @@ contract GeniusPoolAccounting is Test {
          * 6. Logs the final state of the contract.
          */
     function testFullCycleWithDonations() public {
+        uint16 destChainId = 42;
+        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 depositAmount = 100 ether;
 
         // Setup
@@ -541,7 +555,7 @@ contract GeniusPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Initial donation
@@ -593,7 +607,9 @@ contract GeniusPoolAccounting is Test {
             calldataSwap,
             permitBatch,
             signature,
-            TRADER
+            TRADER,
+            destChainId,
+            fillDeadline
         );
 
         vm.stopPrank();

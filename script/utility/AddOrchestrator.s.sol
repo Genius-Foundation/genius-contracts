@@ -18,6 +18,8 @@ import {GeniusPool} from "../../src/GeniusPool.sol";
  */
 contract AddOrchestrator is Script {
 
+    bytes32 constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
+
     /**
      * @dev Executes the deployment of the GeniusVault contract.
      */
@@ -29,7 +31,7 @@ contract AddOrchestrator is Script {
         GeniusPool geniusPool = GeniusPool(0x2789E39123D8AC259D7d5B5f84384B3a17b9145A);
 
         // Add orchestrator
-        geniusPool.addOrchestrator(0xB4Ea547b917763A12e640eA52a77eaba81F2068a);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0xB4Ea547b917763A12e640eA52a77eaba81F2068a);
 
         console.log("Orchestrator added to GeniusPool");
     }
