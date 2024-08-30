@@ -23,6 +23,8 @@ library GeniusErrors {
      */
     error IsNotVault();
 
+    error IsNotExecutor();
+
     /**
      * @dev This library contains custom error definitions for the Genius contract.
      */

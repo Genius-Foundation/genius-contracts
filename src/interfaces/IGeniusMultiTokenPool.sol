@@ -443,6 +443,12 @@ interface IGeniusMultiTokenPool {
     function VAULT() external view returns (address);
 
     /**
+     * @notice Returns the address of the associated executor contract.
+     * @return The address of the executor contract.
+     */
+    function EXECUTOR() external view returns (address);
+
+    /**
      * @notice Checks if the contract has been initialized.
      * @return 1 if initialized, 0 otherwise.
      */

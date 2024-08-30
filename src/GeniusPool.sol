@@ -6,17 +6,17 @@ import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
-import {Executable} from "./access/Executable.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusPool} from "./interfaces/IGeniusPool.sol";
 
-contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
+contract GeniusPool is IGeniusPool, Orchestrable, Pausable {
     // =============================================================
     //                          IMMUTABLES
     // =============================================================
 
     IERC20 public immutable override STABLECOIN;
     address public override VAULT;
+    address public override EXECUTOR;
 
     // =============================================================
     //                          VARIABLES
@@ -57,13 +57,23 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
         _;
     }
 
+    modifier onlyExecutor() {
+        if (msg.sender != EXECUTOR) revert GeniusErrors.IsNotExecutor();
+        _;
+    }
+
+    modifier onlyVault() {
+        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+        _;
+    }
+
     /**
      * @dev See {IGeniusPool-initialize}.
      */
     function initialize(address vaultAddress, address executor) external override onlyOwner {
         if (initialized == 1) revert GeniusErrors.Initialized();
         VAULT = vaultAddress;
-        _initializeExecutor(payable(executor));
+        EXECUTOR = executor;
 
         initialized = 1;
         _unpause();
@@ -230,8 +240,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
     /**
      * @dev See {IGeniusPool-stakeLiquidity}.
      */
-    function stakeLiquidity(address trader, uint256 amount) external override whenReady {
-        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+    function stakeLiquidity(address trader, uint256 amount) external override onlyVault whenReady {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         _transferERC20From(address(STABLECOIN), msg.sender, address(this), amount);
@@ -248,8 +257,7 @@ contract GeniusPool is IGeniusPool, Orchestrable, Executable, Pausable {
     /**
      * @dev See {IGeniusPool-removeStakedLiquidity}.
      */
-    function removeStakedLiquidity(address trader, uint256 amount) external override whenReady {
-        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
+    function removeStakedLiquidity(address trader, uint256 amount) external override onlyVault whenReady {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
 
         if (amount == 0) revert GeniusErrors.InvalidAmount();

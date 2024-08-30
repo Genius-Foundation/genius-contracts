@@ -5,7 +5,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import {Orchestrable, Ownable} from "./access/Orchestrable.sol";
-import {Executable} from "./access/Executable.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusMultiTokenPool} from "./interfaces/IGeniusMultiTokenPool.sol";
 
@@ -16,7 +15,7 @@ import {IGeniusMultiTokenPool} from "./interfaces/IGeniusMultiTokenPool.sol";
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
  *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
-contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable, Pausable {
+contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Pausable {
 
     // =============================================================
     //                          IMMUTABLES
@@ -25,7 +24,8 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable
     IERC20 public immutable STABLECOIN;
 
     address public immutable NATIVE = address(0);
-    address public  VAULT;
+    address public override VAULT;
+    address public override EXECUTOR;
 
     // =============================================================
     //                          VARIABLES
@@ -71,6 +71,16 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable
     modifier whenReady() {
         if (initialized == 0) revert GeniusErrors.NotInitialized();
         _requireNotPaused();
+        _;
+    }
+
+    modifier onlyExecutor() {
+        if (msg.sender != EXECUTOR) revert GeniusErrors.IsNotExecutor();
+        _;
+    }
+
+    modifier onlyVault() {
+        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
         _;
     }
 
@@ -123,7 +133,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, Orchestrable, Executable
         if (initialized == 1) revert GeniusErrors.Initialized();
 
         VAULT = vaultAddress;
-        _initializeExecutor(payable(executor));
+        EXECUTOR = executor;
 
         // Add the initial supported tokens
         for (uint256 i = 0; i < tokens.length;) {
