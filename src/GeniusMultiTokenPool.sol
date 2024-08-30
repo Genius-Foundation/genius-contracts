@@ -115,7 +115,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         EXECUTOR = executor;
 
         // Add the initial supported tokens
-        for (uint256 i = 0; i < tokens.length;) {
+        for (uint256 i; i < tokens.length;) {
             if (tokens[i] == address(STABLECOIN)) revert GeniusErrors.DuplicateToken(tokens[i]);
             _addInitialToken(tokens[i]);
 
@@ -123,7 +123,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         }
 
         // Add the initial supported bridges
-        for (uint256 i = 0; i < bridges.length;) {
+        for (uint256 i; i < bridges.length;) {
             if (supportedBridges[bridges[i]] == 1) revert GeniusErrors.InvalidTarget(bridges[i]);
             supportedBridges[bridges[i]] = 1;
 
@@ -131,7 +131,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         }
 
         // Add the initial supported routers
-        for (uint256 i = 0; i < routers.length;) {
+        for (uint256 i; i < routers.length;) {
             if (supportedRouters[routers[i]] == 1) revert GeniusErrors.DuplicateRouter(routers[i]);
             _addInitialRouter(routers[i]);
 
@@ -161,7 +161,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
             if (tokenInfo[token].balance != 0) revert GeniusErrors.RemainingBalance(tokenInfo[token].balance);
             
             delete tokenInfo[token];
-            for (uint256 i = 0; i < supportedTokensCount;) {
+            for (uint256 i; i < supportedTokensCount;) {
                 if (supportedTokensIndex[i] == token) {
                     supportedTokensIndex[i] = supportedTokensIndex[supportedTokensCount - 1];
                     delete supportedTokensIndex[supportedTokensCount - 1];
@@ -201,7 +201,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
 
         // Store pre-execution balances for all supported tokens
         TokenBalance[] memory preBalances = new TokenBalance[](supportedTokensCount);
-        for (uint256 i = 0; i < supportedTokensCount; i++) {
+        for (uint256 i; i < supportedTokensCount; i++) {
             address token = supportedTokensIndex[i];
             uint256 balance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
             preBalances[i] = TokenBalance(token, balance);
@@ -220,7 +220,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         );
 
         // Check balances of all supported tokens
-        for (uint256 i = 0; i < supportedTokensCount; i++) {
+        for (uint256 i; i < supportedTokensCount; i++) {
             address token = supportedTokensIndex[i];
             uint256 postBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
 
@@ -520,7 +520,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         tokenInfo[token].balance = postSwapTokenBalance;  // Adjust for any discrepancies
 
         // Check for unexpected balance changes in other tokens
-        for (uint256 i = 0; i < supportedTokensCount; i++) {
+        for (uint256 i; i < supportedTokensCount; i++) {
             address currentToken = supportedTokensIndex[i];
             if (currentToken != token && currentToken != address(STABLECOIN)) {
                 uint256 currentBalance = currentToken == NATIVE ? 
@@ -685,7 +685,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
     function supportedTokenBalances() public view override returns (TokenBalance[] memory) {
         TokenBalance[] memory _supportedTokenBalances = new TokenBalance[](supportedTokensCount);
 
-        for (uint256 i = 0; i < supportedTokensCount;) {
+        for (uint256 i; i < supportedTokensCount;) {
             address token = supportedTokensIndex[i];
             _supportedTokenBalances[i] = TokenBalance(token, tokenInfo[token].balance);
             
@@ -717,7 +717,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
      */
     function _checkBridge(address[] memory bridgeTargets) internal view {
         
-        for (uint256 i = 0; i < bridgeTargets.length;) {
+        for (uint256 i; i < bridgeTargets.length;) {
             if (supportedBridges[bridgeTargets[i]] == 0) revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
             unchecked { i++; }
         }
