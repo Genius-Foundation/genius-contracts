@@ -10,7 +10,7 @@ import {IGeniusMultiTokenPool} from "./interfaces/IGeniusMultiTokenPool.sol";
 
 /**
  * @title GeniusMultiTokenPool
- * @author looter
+ * @author @altloot, @samuel_vdu
  * 
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
  *         liquidity management and swaps and can utilize multiple sources of liquidity.

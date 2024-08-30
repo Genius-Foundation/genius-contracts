@@ -13,6 +13,14 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
 import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
 
+/**
+ * @title GeniusExecutor
+ * @author @altloot, @samuel_vdu
+ * 
+ * @notice The GeniusExecutor contract is a contract that allows for the aggregation of multiple calls
+ *         in a single transaction, as well as facilitating interactions with the GeniusPool contract
+ *         and the GeniusVault contract.
+ */
 contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // =============================================================
     //                           VARIABLES
@@ -319,7 +327,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
             if (target == address(POOL) || target == address(VAULT)) {
 
-                if (!hasRole(ORCHESTRATOR_ROLE ,msg.sender)) {
+                if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
                     revert GeniusErrors.InvalidTarget(target);
                 }
 

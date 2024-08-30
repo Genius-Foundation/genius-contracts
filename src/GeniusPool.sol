@@ -9,6 +9,14 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
 import { IGeniusPool } from "./interfaces/IGeniusPool.sol";
 
+/**
+ * @title GeniusPool
+ * @author @altloot, @samuel_vdu
+ * 
+ * @notice The GeniusPool contract helps to facilitate cross-chain
+ *         liquidity management and swaps utilizing stablecoins as the
+ *         primary asset.
+ */
 contract GeniusPool is IGeniusPool, AccessControl, Pausable {
     // =============================================================
     //                          IMMUTABLES

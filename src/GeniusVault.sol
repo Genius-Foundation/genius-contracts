@@ -10,6 +10,8 @@ import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 
 /**
  * @title GeniusVault
+ * @author @altloot, @samuel_vdu
+ *
  * @dev A contract that represents a vault for holding assets and interacting with the GeniusPool contract.
  */
 contract GeniusVault is IGeniusVault, ERC4626, Ownable {

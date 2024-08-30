@@ -5,6 +5,13 @@ pragma solidity ^0.8.13;
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./interfaces/IGeniusActions.sol";
 
+/**
+ * @title GeniusActions
+ * @author @altloot, @samuel_vdu
+ * 
+ * @notice The GeniusActions contract is a contract that manages the actions that can be executed by the Genius Protocol.
+ *         It allows for the addition, removal, and updating of actions that can be executed by the protocol.
+ */
 contract GeniusActions is IGeniusActions, AccessControl {
 
     // Constants
