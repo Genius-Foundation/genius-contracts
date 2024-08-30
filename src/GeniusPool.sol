@@ -36,6 +36,8 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
     uint256 public rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
 
+    mapping(address bridge => uint256 isSupported) public supportedBridges; // Mapping of bridge address to support status
+
     uint32 public totalOrders;
     mapping(bytes32 => OrderStatus) public orderStatus;
 
@@ -86,6 +88,10 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
         _;
     }
 
+    // =============================================================
+    //                            INITIALIZE
+    // =============================================================
+
     /**
      * @dev See {IGeniusPool-initialize}.
      */
@@ -97,30 +103,9 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
         _unpause();
     }
 
-    /**
-     * @dev See {IGeniusPool-totalAssets}.
-     */
-    function totalAssets() public override view returns (uint256) {
-        return STABLECOIN.balanceOf(address(this));
-    }
-
-    /**
-     * @dev See {IGeniusPool-minAssetBalance}.
-     */
-    function minAssetBalance() public override view returns (uint256) {
-        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-        return totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
-    }
-
-    /**
-     * @dev See {IGeniusPool-availableAssets}.
-     */
-    function availableAssets() public override view returns (uint256) {
-        uint256 _totalAssets = totalAssets();
-        uint256 _neededLiquidity = minAssetBalance();
-
-        return _availableAssets(_totalAssets, _neededLiquidity);
-    }
+    // =============================================================
+    //                 BRIDGE LIQUIDITY REBALANCING
+    // =============================================================
 
     /**
      * @dev See {IGeniusPool-removeBridgeLiquidity}.
@@ -132,6 +117,8 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
         uint256[] calldata values,
         bytes[] memory data
     ) public payable override onlyOrchestrator whenNotPaused {
+        _checkBridgeTargets(targets);
+ 
         uint256 totalAssetsBeforeTransfer = totalAssets();
         uint256 neededLiquidty_ = minAssetBalance();
 
@@ -154,6 +141,10 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
             dstChainId
         );
     }
+
+    // =============================================================
+    //                      SWAP LIQUIDITY
+    // =============================================================
 
     /**
      * @dev See {IGeniusPool-addLiquiditySwap}.
@@ -238,6 +229,10 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
         );
     }
 
+    // =============================================================
+    //                      REWARD LIQUIDITY
+    // =============================================================
+
     /**
      * @dev See {IGeniusPool-removeRewardLiquidity}.
      */
@@ -254,6 +249,10 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
 
         _transferERC20(address(STABLECOIN), msg.sender, amount);
     }
+
+    // =============================================================
+    //                     STAKING LIQUIDITY
+    // =============================================================
 
     /**
      * @dev See {IGeniusPool-stakeLiquidity}.
@@ -296,6 +295,10 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
             amount
         );
     }
+
+    // =============================================================
+    //                      ORDER MANAGEMENT
+    // =============================================================
 
     /**
      * @dev See {IGeniusPool-setOrderAsFilled}.
@@ -366,6 +369,27 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
         rebalanceThreshold = threshold;
     }
 
+    // =============================================================
+    //                        BRIDGE MANAGEMENT
+    // =============================================================
+
+    /**
+     * @dev See {IGeniusMultiTokenPool-manageBridge}.
+     */
+    function manageBridge(address bridge, bool authorize) external override onlyAdmin {
+        if (authorize) {
+            if (supportedBridges[bridge] == 1) revert GeniusErrors.InvalidTarget(bridge);
+            supportedBridges[bridge] = 1;
+        } else {
+            if (supportedBridges[bridge] == 0) revert GeniusErrors.InvalidTarget(bridge);
+            supportedBridges[bridge] = 0;
+        }
+    }
+
+    // =============================================================
+    //                           EMERGENCY
+    // =============================================================
+
     /**
      * @dev See {IGeniusPool-emergencyLock}.
      */
@@ -378,6 +402,35 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
      */
     function unpause() external override onlyPauser {
         _unpause();
+    }
+
+    // =============================================================
+    //                        READ FUNCTIONS
+    // =============================================================
+
+    /**
+     * @dev See {IGeniusPool-totalAssets}.
+     */
+    function totalAssets() public override view returns (uint256) {
+        return STABLECOIN.balanceOf(address(this));
+    }
+
+    /**
+     * @dev See {IGeniusPool-minAssetBalance}.
+     */
+    function minAssetBalance() public override view returns (uint256) {
+        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
+        return totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
+    }
+
+    /**
+     * @dev See {IGeniusPool-availableAssets}.
+     */
+    function availableAssets() public override view returns (uint256) {
+        uint256 _totalAssets = totalAssets();
+        uint256 _neededLiquidity = minAssetBalance();
+
+        return _availableAssets(_totalAssets, _neededLiquidity);
     }
 
     /**
@@ -402,8 +455,31 @@ contract GeniusPool is IGeniusPool, AccessControl, Pausable {
     //                     INTERNAL FUNCTIONS
     // =============================================================
 
+    /**
+     * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
+     * @param amount The expected amount of native currency.
+     */
     function _checkNative(uint256 amount) internal {
         if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
+    }
+
+    /**
+     * @dev Internal function to check if the given bridge targets are supported.
+     * @param bridgeTargets The array of bridge target addresses to check.
+     */
+    function _checkBridgeTargets(address[] memory bridgeTargets) internal view {
+        
+        for (uint256 i; i < bridgeTargets.length;) {
+            if (supportedBridges[bridgeTargets[i]] == 0) {
+                if (bridgeTargets[i] != address(STABLECOIN)) {
+                    revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
+                }
+            }
+
+            unchecked { i++; }
+
+        }
+
     }
 
     function _availableAssets(uint256 _totalAssets, uint256 _neededLiquidity) internal pure returns (uint256) {

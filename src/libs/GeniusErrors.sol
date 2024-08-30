@@ -86,6 +86,11 @@ library GeniusErrors {
     error InvalidTarget(address invalidTarget);
 
     /**
+     * @dev Error thrown when the target of a generic swap call is to an unauthorized bridge.
+     */
+    error InvalidBridge(address invalidBridge);
+
+    /**
      * @dev Error thrown when the target of a generic swap call is to an unauthorized router.
      */
     error InvalidRouter(address invalidRouter);

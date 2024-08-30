@@ -265,6 +265,13 @@ interface IGeniusPool {
     function setRebalanceThreshold(uint256 threshold) external;
 
     /**
+     * @notice Authorizes or unauthorizes a bridge target.
+     * @param bridge The address of the bridge target to be managed.
+     * @param authorize True to authorize the bridge, false to unauthorize it.
+     */
+    function manageBridge(address bridge, bool authorize) external;
+
+    /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.
      */
     function pause() external;
