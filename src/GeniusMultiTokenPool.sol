@@ -192,7 +192,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         // Checks
         _isAmountValid(amountIn, _availableAssets(preTransferAssets, neededLiquidity_));
         _checkNative(_sum(values));
-        _checkBridge(targets);
+        _checkBridgeTargets(targets);
 
         if (!_isBalanceWithinThreshold(preTransferAssets - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
             neededLiquidity_,
@@ -246,35 +246,6 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         }
 
         emit RemovedLiquidity(amountIn, dstChainId);
-    }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-totalAssets}.
-     */
-    function totalAssets() public view override returns (uint256) {
-        return STABLECOIN.balanceOf(address(this));
-    }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-minAssetBalance}.
-     */
-    function minAssetBalance() public view override returns (uint256) {
-        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-        /**
-          * Calculate the liquidity needed as the staked assets minus the reduction
-          * Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
-         */
-        return totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
-    }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-availableAssets}.
-     */
-    function availableAssets() public view override returns (uint256) {
-        uint256 _totalAssets = totalAssets();
-        uint256 _neededLiquidity = minAssetBalance();
-        
-        return _availableAssets(_totalAssets, _neededLiquidity);
     }
 
     // =============================================================
@@ -397,6 +368,10 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         );
     }
 
+    // =============================================================
+    //                      ORDER MANAGEMENT
+    // =============================================================
+
     /**
      * @dev See {IGeniusMultiTokenPool-setOrderAsFilled}.
      */
@@ -496,6 +471,8 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (!tokenInfo[token].isSupported) revert GeniusErrors.InvalidToken(token);
         if (tokenInfo[token].balance < amount) revert GeniusErrors.InsufficientBalance(token, amount, tokenInfo[token].balance);
+        if (target == address(0)) revert GeniusErrors.InvalidTarget(target);
+        if (supportedRouters[target] == 0) revert GeniusErrors.InvalidTarget(target);
 
         uint256 preSwapStableBalance = STABLECOIN.balanceOf(address(this));
         uint256 preSwapTokenBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
@@ -504,8 +481,12 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         tokenInfo[token].balance -= amount;  // Decrease the balance of the swapped token
         
         // Interactions
-        _executeSwap(token, target, data, amount);
-
+        if (token == NATIVE) {
+            _executeSwap(token, target, data, amount);
+        } else {
+            _approveERC20(token, target, amount);
+            _executeSwap(token, target, data, amount);
+        }
         // Post-swap checks and effects
         uint256 postSwapStableBalance = STABLECOIN.balanceOf(address(this));
         uint256 postSwapTokenBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
@@ -657,6 +638,36 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
     //                        READ FUNCTIONS
     // =============================================================
 
+
+    /**
+     * @dev See {IGeniusMultiTokenPool-totalAssets}.
+     */
+    function totalAssets() public view override returns (uint256) {
+        return STABLECOIN.balanceOf(address(this));
+    }
+
+    /**
+     * @dev See {IGeniusMultiTokenPool-minAssetBalance}.
+     */
+    function minAssetBalance() public view override returns (uint256) {
+        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
+        /**
+          * Calculate the liquidity needed as the staked assets minus the reduction
+          * Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
+         */
+        return totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
+    }
+
+    /**
+     * @dev See {IGeniusMultiTokenPool-availableAssets}.
+     */
+    function availableAssets() public view override returns (uint256) {
+        uint256 _totalAssets = totalAssets();
+        uint256 _neededLiquidity = minAssetBalance();
+        
+        return _availableAssets(_totalAssets, _neededLiquidity);
+    }
+
     /**
      * @dev See {IGeniusMultiTokenPool-isTokenSupported}.
      */
@@ -715,11 +726,17 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
      * @dev Internal function to check if the given bridge targets are supported.
      * @param bridgeTargets The array of bridge target addresses to check.
      */
-    function _checkBridge(address[] memory bridgeTargets) internal view {
+    function _checkBridgeTargets(address[] memory bridgeTargets) internal view {
         
         for (uint256 i; i < bridgeTargets.length;) {
-            if (supportedBridges[bridgeTargets[i]] == 0) revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
+            if (supportedBridges[bridgeTargets[i]] == 0) {
+                if (bridgeTargets[i] != address(STABLECOIN)) {
+                    revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
+                }
+            }
+
             unchecked { i++; }
+
         }
 
     }
