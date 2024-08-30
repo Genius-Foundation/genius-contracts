@@ -137,7 +137,7 @@ contract GeniusPoolAccounting is Test {
         privateKey = traderKey;
         
         // Add Orchestrator
-        POOL.addOrchestrator(ORCHESTRATOR);
+        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -263,7 +263,7 @@ contract GeniusPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Start acting as TRADER
@@ -346,7 +346,7 @@ contract GeniusPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);  // Assuming EXECUTOR can act as a router
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Start acting as TRADER
@@ -448,7 +448,7 @@ contract GeniusPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // =================== DEPOSIT THROUGH VAULT ===================
@@ -555,7 +555,7 @@ contract GeniusPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Initial donation

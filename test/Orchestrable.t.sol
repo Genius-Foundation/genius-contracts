@@ -6,6 +6,8 @@ import {OrchestrableERC20} from "./mocks/OrchestrableERC20.sol";
 
 // forge test -vvv --tx-origin 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38
 contract OrchestrableTest is Test {
+    bytes32 constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
+
     OrchestrableERC20 public orchestrableERC20;
     address public orchestrator = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
     address public owner;
@@ -18,25 +20,25 @@ contract OrchestrableTest is Test {
 
     function testAddOrchestrator() public {
         vm.prank(owner);
-        orchestrableERC20.addOrchestrator(orchestrator);
-        assertEq(orchestrableERC20.orchestrator(orchestrator), true);
+        orchestrableERC20.grantRole(ORCHESTRATOR_ROLE, orchestrator);
+        assertEq(orchestrableERC20.hasRole(ORCHESTRATOR_ROLE, orchestrator), true);
     }
 
     function testRemoveOrchestrator() public {
         vm.prank(owner);
-        orchestrableERC20.addOrchestrator(orchestrator);
-        assertEq(orchestrableERC20.orchestrator(orchestrator), true);
+        orchestrableERC20.grantRole(ORCHESTRATOR_ROLE, orchestrator);
+        assertEq(orchestrableERC20.hasRole(ORCHESTRATOR_ROLE, orchestrator), true);
 
         vm.prank(owner);
-        orchestrableERC20.removeOrchestrator(orchestrator);
-        assertEq(orchestrableERC20.orchestrator(orchestrator), false);
+        orchestrableERC20.revokeRole(ORCHESTRATOR_ROLE, orchestrator);
+        assertEq(orchestrableERC20.hasRole(ORCHESTRATOR_ROLE, orchestrator), false);
         vm.stopPrank();
     }
 
     function testMintAsOrchestrator() public {
         vm.prank(owner);
-        orchestrableERC20.addOrchestrator(orchestrator);
-        assertEq(orchestrableERC20.orchestrator(orchestrator), true);
+        orchestrableERC20.grantRole(ORCHESTRATOR_ROLE, orchestrator);
+        assertEq(orchestrableERC20.hasRole(ORCHESTRATOR_ROLE, orchestrator), true);
 
         vm.prank(orchestrator);
         orchestrableERC20.mint(orchestrator, 1000);
@@ -46,8 +48,8 @@ contract OrchestrableTest is Test {
 
     function testMintExpectRevertWithoutOrchestrator() public {
         vm.prank(owner);
-        orchestrableERC20.addOrchestrator(orchestrator);
-        assertEq(orchestrableERC20.orchestrator(orchestrator), true);
+        orchestrableERC20.grantRole(ORCHESTRATOR_ROLE, orchestrator);
+        assertEq(orchestrableERC20.hasRole(ORCHESTRATOR_ROLE, orchestrator), true);
 
         vm.prank(orchestrator);
         orchestrableERC20.mint(orchestrator, 1000);

@@ -16,6 +16,8 @@ import {GeniusActions} from "../../src/GeniusActions.sol";
         OPTIMISM: forge script script/deployment/DeployOptimismGeniusEcosystem.s.sol:DeployOptimismGeniusEcosystem --rpc-url $OPTIMISM_RPC_URL --broadcast -vvvv --via-ir
  */
 contract DeployOptimismGeniusEcosystem is Script {
+    bytes32 constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
+
     address public constant stableAddress = 0x7F5c764cBc14f9669B88837ca1490cCa17c31607;
     address public constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
@@ -50,11 +52,11 @@ contract DeployOptimismGeniusEcosystem is Script {
         geniusVault.initialize(address(geniusPool));
 
         // Add orchestrators
-        geniusPool.addOrchestrator(0x17cC1e3AF40C88B235d9837990B8ad4D7C06F5cc);
-        geniusPool.addOrchestrator(0x4102b4144e9EFb8Cb0D7dc4A3fD8E65E4A8b8fD0);
-        geniusPool.addOrchestrator(0x90B29aF53D2bBb878cAe1952B773A307330393ef);
-        geniusPool.addOrchestrator(0x7e5E0712c627746a918ae2015e5bfAB51c86dA26);
-        geniusPool.addOrchestrator(0x5975fBa1186116168C479bb21Bb335f02D504CFB);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x17cC1e3AF40C88B235d9837990B8ad4D7C06F5cc);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x4102b4144e9EFb8Cb0D7dc4A3fD8E65E4A8b8fD0);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x90B29aF53D2bBb878cAe1952B773A307330393ef);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26);
+        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0x5975fBa1186116168C479bb21Bb335f02D504CFB);
 
 
         console.log("GeniusPool deployed at: ", address(geniusPool));

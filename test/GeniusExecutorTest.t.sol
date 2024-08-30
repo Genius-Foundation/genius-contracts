@@ -112,8 +112,8 @@ contract GeniusExecutorTest is Test {
         vm.startPrank(OWNER);
         VAULT.initialize(address(POOL));
 
-        POOL.addOrchestrator(ORCHESTRATOR);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         address[] memory routers = new address[](1);
         routers[0] = address(ROUTER);

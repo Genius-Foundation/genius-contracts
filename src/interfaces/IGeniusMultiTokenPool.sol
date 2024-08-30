@@ -225,23 +225,6 @@ interface IGeniusMultiTokenPool {
     );
 
     /**
-     * @notice Initializes the GeniusMultiTokenPool contract.
-     * @dev This function can only be called once by the contract owner.
-     * @param executor The address of the executor.
-     * @param vaultAddress The address of the GeniusVault contract.
-     * @param tokens The array of token addresses to be supported by the contract.
-     * @param bridges The array of bridge addresses to be supported.
-     * @param routers The array of router addresses to be supported.
-     */
-    function initialize(
-        address executor,
-        address vaultAddress,
-        address[] memory tokens,
-        address[] memory bridges,
-        address[] memory routers
-    ) external;
-
-    /**
      * @notice Manages (adds or removes) a token from the list of supported tokens.
      * @param token The address of the token to be managed.
      * @param isSupported True to add the token, false to remove it.
@@ -383,14 +366,14 @@ interface IGeniusMultiTokenPool {
     function manageRouter(address router, bool authorize) external;
 
     /**
-     * @notice Pauses the contract and locks all functionality in case of an emergency.
+     * @notice Pauses the contract and locks all features in case of an emergency.
      */
-    function emergencyLock() external;
+    function pause() external;
 
     /**
      * @notice Allows the owner to emergency unlock the contract.
      */
-    function emergencyUnlock() external;
+    function unpause() external;
 
     /**
      * @notice Checks if a token is supported by the GeniusMultiTokenPool contract.
@@ -429,30 +412,6 @@ interface IGeniusMultiTokenPool {
      * @return The IERC20 interface of the stablecoin.
      */
     function STABLECOIN() external view returns (IERC20);
-
-    /**
-     * @notice Returns the address used to represent native currency.
-     * @return The address used for native currency (usually address(0)).
-     */
-    function NATIVE() external view returns (address);
-
-    /**
-     * @notice Returns the address of the associated vault contract.
-     * @return The address of the vault contract.
-     */
-    function VAULT() external view returns (address);
-
-    /**
-     * @notice Returns the address of the associated executor contract.
-     * @return The address of the executor contract.
-     */
-    function EXECUTOR() external view returns (address);
-
-    /**
-     * @notice Checks if the contract has been initialized.
-     * @return 1 if initialized, 0 otherwise.
-     */
-    function initialized() external view returns (uint256);
 
     /**
      * @notice Returns the total amount of staked assets in the pool.

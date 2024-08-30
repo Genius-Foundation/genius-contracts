@@ -3,10 +3,11 @@
 pragma solidity ^0.8.20;
 
 library GeniusErrors {
+
     /**
-     * @dev Error thrown when an invalid owner address is encountered.
+     * @dev Error thrown when an invalid address is encountered.
      */
-    error InvalidOwner();
+    error NonAddress0();
 
     /**
      * @dev Error thrown when an invalid spender address is encountered.
@@ -24,6 +25,15 @@ library GeniusErrors {
     error IsNotVault();
 
     error IsNotExecutor();
+
+    error IsNotPauser();
+
+    error IsNotOrchestrator();
+
+    /**
+     * @dev Error thrown when an invalid admin address is encountered.
+     */
+    error IsNotAdmin();
 
     /**
      * @dev This library contains custom error definitions for the Genius contract.

@@ -122,8 +122,8 @@ contract MultiTokenPoolExecutorInteractions is Test {
         EXECUTOR.initialize(routers);
         
         // Add Orchestrator
-        MULTI_POOL.addOrchestrator(ORCHESTRATOR);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        MULTI_POOL.grantRole(MULTI_POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 

@@ -83,8 +83,8 @@ contract GeniusPoolTransferVerificationTest is Test {
             bridges,
             routers
         );
-        POOL.addOrchestrator(ORCHESTRATOR);
-        MULTIPOOL.addOrchestrator(ORCHESTRATOR);
+        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        MULTIPOOL.grantRole(MULTIPOOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 

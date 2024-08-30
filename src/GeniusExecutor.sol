@@ -6,15 +6,14 @@ import { console } from "forge-std/Test.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
+import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
 import { IGeniusPool } from "./interfaces/IGeniusPool.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
-import { Orchestrable, Ownable } from "./access/Orchestrable.sol";
 import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
 
-contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
-
+contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // =============================================================
     //                           VARIABLES
     // =============================================================
@@ -25,6 +24,8 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
     //                          IMMUTABLES
     // =============================================================
 
+    bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
+
     IAllowanceTransfer public immutable override PERMIT2;
     IERC20 public immutable override STABLECOIN;
     IGeniusPool public immutable override POOL;
@@ -34,12 +35,28 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
         address permit2,
         address pool,
         address vault,
-        address owner
-    ) Ownable(owner) {
+        address admin
+    ) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IERC4626(vault);
         POOL = IGeniusPool(pool);
         STABLECOIN = IERC20(POOL.STABLECOIN());
+
+        _grantRole(DEFAULT_ADMIN_ROLE, admin);
+    }
+
+    // =============================================================
+    //                          MODIFIERS
+    // =============================================================
+
+    modifier onlyAdmin() {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert GeniusErrors.IsNotAdmin();
+        _;
+    }
+
+    modifier onlyOrchestrator() {
+        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) revert GeniusErrors.IsNotOrchestrator();
+        _;
     }
 
     // =============================================================
@@ -49,7 +66,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
     /**
      * @dev See {IGeniusExecutor-initialize}.
      */
-    function initialize(address[] calldata routers) external override onlyOwner {
+    function initialize(address[] calldata routers) external override onlyAdmin {
         uint256 length = routers.length;
         for (uint256 i = 0; i < length;) {
             address router = routers[i];
@@ -67,7 +84,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
     /**
      * @dev See {IGeniusExecutor-setAllowedTarget}.
      */
-    function setAllowedTarget(address target, bool isAllowed) external override onlyOwner {
+    function setAllowedTarget(address target, bool isAllowed) external override onlyAdmin {
         allowedTargets[target] = isAllowed ? 1 : 0;
     }
 
@@ -302,7 +319,7 @@ contract GeniusExecutor is IGeniusExecutor, Orchestrable, ReentrancyGuard {
 
             if (target == address(POOL) || target == address(VAULT)) {
 
-                if (!orchestrator(msg.sender)) {
+                if (!hasRole(ORCHESTRATOR_ROLE ,msg.sender)) {
                     revert GeniusErrors.InvalidTarget(target);
                 }
 

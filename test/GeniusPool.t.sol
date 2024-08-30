@@ -60,7 +60,7 @@ contract GeniusPoolTest is Test {
 
         vm.stopPrank();
 
-        assertEq(POOL.owner(), OWNER, "Owner should be ORCHESTRATOR");
+        assertEq(POOL.hasRole(POOL.DEFAULT_ADMIN_ROLE(), OWNER), true, "Owner should be ORCHESTRATOR");
 
         vm.startPrank(OWNER);
         VAULT.initialize(address(POOL));
@@ -73,11 +73,11 @@ contract GeniusPoolTest is Test {
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
 
-        POOL.addOrchestrator(ORCHESTRATOR);
-        POOL.addOrchestrator(address(this));
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
-        EXECUTOR.addOrchestrator(address(this));
-        assertEq(POOL.orchestrator(ORCHESTRATOR), true);
+        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), address(this));
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), address(this));
+        assertEq(POOL.hasRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 
         deal(address(USDC), TRADER, 1_000 ether);
         deal(address(USDC), ORCHESTRATOR, 1_000 ether);
@@ -85,14 +85,14 @@ contract GeniusPoolTest is Test {
 
     function testEmergencyLock() public {
         vm.startPrank(OWNER);
-        POOL.emergencyLock();
+        POOL.pause();
         assertEq(POOL.paused(), true, "GeniusPool should be paused");
         vm.stopPrank();
     }
 
     function testRemoveBridgeLiquidityWhenPaused() public {
         vm.startPrank(OWNER);
-        POOL.emergencyLock();
+        POOL.pause();
 
         address[] memory tokens = new address[](1);
         tokens[0] = address(USDC);
@@ -120,7 +120,7 @@ contract GeniusPoolTest is Test {
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         vm.startPrank(OWNER);
-        POOL.emergencyLock();
+        POOL.pause();
         vm.stopPrank();
 
         vm.startPrank(address(EXECUTOR));
@@ -132,7 +132,7 @@ contract GeniusPoolTest is Test {
         uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
         vm.startPrank(OWNER);
-        POOL.emergencyLock();
+        POOL.pause();
         vm.stopPrank();
 
         vm.startPrank(address(EXECUTOR));
@@ -153,7 +153,7 @@ contract GeniusPoolTest is Test {
 
     function testRemoveRewardLiquidityWhenPaused() public {
         vm.startPrank(OWNER);
-        POOL.emergencyLock();
+        POOL.pause();
         vm.stopPrank();
 
         vm.startPrank(address(ORCHESTRATOR));
@@ -163,11 +163,11 @@ contract GeniusPoolTest is Test {
 
     function testEmergencyUnlock() public {
         vm.startPrank(OWNER);
-        POOL.emergencyLock();
+        POOL.pause();
         assertEq(POOL.paused(), true, "GeniusPool should be paused");
 
         vm.startPrank(OWNER);
-        POOL.emergencyUnlock();
+        POOL.unpause();
         assertEq(POOL.paused(), false, "GeniusPool should be unpaused");
     }
 

@@ -158,14 +158,6 @@ interface IGeniusPool {
     );
 
     /**
-     * @notice Initializes the GeniusPool contract.
-     * @param vaultAddress The address of the GeniusVault contract.
-     * @param executor The address of the executor.
-     * @dev This function can only be called once to initialize the contract.
-     */
-    function initialize(address vaultAddress, address executor) external;
-
-    /**
      * @notice Returns the total assets in the pool.
      * @return The total amount of assets in the pool.
      */
@@ -275,12 +267,12 @@ interface IGeniusPool {
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.
      */
-    function emergencyLock() external;
+    function pause() external;
 
     /**
      * @notice Allows the owner to emergency unlock the contract.
      */
-    function emergencyUnlock() external;
+    function unpause() external;
 
     /**
      * @notice Returns the current state of the assets in the GeniusPool contract.
@@ -298,30 +290,6 @@ interface IGeniusPool {
     function orderHash(Order memory order) external pure returns (bytes32);
 
     /**
-     * @notice Returns the address of the stablecoin used in the pool.
-     * @return The IERC20 interface of the stablecoin.
-     */
-    function STABLECOIN() external view returns (IERC20);
-
-    /**
-     * @notice Returns the address of the associated vault contract.
-     * @return The address of the vault contract.
-     */
-    function VAULT() external view returns (address);
-
-    /**
-     * @notice Returns the address of the associated executor contract.
-     * @return The address of the executor contract.
-     */
-    function EXECUTOR() external view returns (address);
-
-    /**
-     * @notice Checks if the contract has been initialized.
-     * @return 1 if initialized, 0 otherwise.
-     */
-    function initialized() external view returns (uint256);
-
-    /**
      * @notice Returns the total amount of staked assets in the pool.
      * @return The total amount of staked assets.
      */
@@ -332,4 +300,10 @@ interface IGeniusPool {
      * @return The rebalance threshold as a percentage.
      */
     function rebalanceThreshold() external view returns (uint256);
+
+     /**
+     * @notice Returns the address of the stablecoin used in the pool.
+     * @return The IERC20 interface of the stablecoin.
+     */
+    function STABLECOIN() external view returns (IERC20);
 }

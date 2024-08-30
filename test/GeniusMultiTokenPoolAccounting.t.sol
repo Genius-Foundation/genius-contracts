@@ -13,7 +13,6 @@ import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {Orchestrable, Ownable} from "../src/access/Orchestrable.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockSwapTarget} from "./mocks/MockSwapTarget.sol";
@@ -167,7 +166,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         );
         
         // Add Orchestrator
-        POOL.addOrchestrator(ORCHESTRATOR);
+        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -318,7 +317,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE() ,ORCHESTRATOR);
         vm.stopPrank();
 
         vm.startPrank(TRADER);
@@ -417,7 +416,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Initial donation
@@ -589,7 +588,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Check that each token is supported
@@ -640,7 +639,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // First, add liquidity for a non-USDC token (let's use TOKEN1)
@@ -720,7 +719,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         EXECUTOR.initialize(routers);
-        EXECUTOR.addOrchestrator(ORCHESTRATOR);
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         // Add liquidity for a non-USDC token (let's use TOKEN1)
@@ -745,7 +744,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         vm.startPrank(OWNER);
         // Test Paused error
-        POOL.emergencyLock();
+        POOL.pause();
         vm.stopPrank();
 
         assertEq(POOL.paused(), true, "Contract should be paused");
@@ -756,16 +755,16 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.stopPrank();
 
         vm.startPrank(OWNER);
-        POOL.emergencyUnlock();
+        POOL.unpause();
 
         // Test NotInitialized error
         GeniusMultiTokenPool uninitializedPool = new GeniusMultiTokenPool(address(USDC), OWNER);
         // Add the orchestrator as an orchestrator
-        uninitializedPool.addOrchestrator(ORCHESTRATOR);
+        uninitializedPool.grantRole(uninitializedPool.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         vm.startPrank(ORCHESTRATOR);
-        vm.expectRevert(GeniusErrors.NotInitialized.selector);
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         uninitializedPool.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwap);
 
         // Test InvalidAmount error
@@ -889,12 +888,12 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Test when pool is paused
         vm.prank(OWNER);
-        POOL.emergencyLock();
+        POOL.pause();
         vm.prank(ORCHESTRATOR);
         vm.expectRevert(Pausable.EnforcedPause.selector);
         POOL.removeBridgeLiquidity(bridgeAmount, testChainId, targets, values, data);
         vm.prank(OWNER);
-        POOL.emergencyUnlock();
+        POOL.unpause();
 
         // Test when called by non-orchestrator
         vm.prank(TRADER);
@@ -1079,7 +1078,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Test calling from non-owner address (should revert)
         vm.startPrank(TRADER);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, TRADER));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector));
         POOL.manageToken(address(newToken), false);
     }
 
@@ -1111,7 +1110,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Test calling from non-owner address (should revert)
         vm.prank(TRADER);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, TRADER));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector));
         POOL.manageBridge(newBridge, true);
 
         // Test with address(0) as bridge address
@@ -1171,7 +1170,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Test calling from non-owner address (should revert)
         vm.prank(TRADER);
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, TRADER));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector));
         POOL.manageRouter(unRouter, true);
 
         // Test with address(0) as router address
