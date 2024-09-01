@@ -8,7 +8,7 @@ import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 import {GeniusVault} from "../src/GeniusVault.sol";
-import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
+import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
@@ -22,7 +22,6 @@ contract GeniusVaultTransferVerificationTest is Test {
     address ORCHESTRATOR;
     address public BRIDGE;
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    address MOCK_VAULT;
 
     address public constant NATIVE = address(0);
     ERC20 public TOKEN1;
@@ -31,7 +30,7 @@ contract GeniusVaultTransferVerificationTest is Test {
 
     ERC20 public USDC;
     GeniusVault public VAULT;
-    GeniusMultiTokenPool public MULTIPOOL;
+    GeniusMultiTokenVault public MULTIVAULT;
     GeniusExecutor public EXECUTOR;
     MockDEXRouter public DEX_ROUTER;
 
@@ -48,7 +47,6 @@ contract GeniusVaultTransferVerificationTest is Test {
 
         DEX_ROUTER = new MockDEXRouter();
         BRIDGE = makeAddr("BRIDGE");
-        MOCK_VAULT = makeAddr("MOCK_VAULT");
 
         // Deploy mock tokens
         TOKEN1 = new MockERC20("Token1", "TK1", 18);
@@ -70,19 +68,18 @@ contract GeniusVaultTransferVerificationTest is Test {
 
         vm.startPrank(OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
-        MULTIPOOL = new GeniusMultiTokenPool(address(USDC), OWNER);
+        MULTIVAULT = new GeniusMultiTokenVault(address(USDC), OWNER);
         EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
 
         VAULT.initialize(address(EXECUTOR));
-        MULTIPOOL.initialize(
+        MULTIVAULT.initialize(
             address(EXECUTOR),
-            address(MOCK_VAULT),
             supportedTokens,
             bridges,
             routers
         );
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
-        MULTIPOOL.grantRole(MULTIPOOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -121,20 +118,20 @@ contract GeniusVaultTransferVerificationTest is Test {
         vm.stopPrank();
     }
 
-    function testWrongTransferOnRemoveBridgeLiquidityMULTIPOOL() public {
+    function testWrongTransferOnRemoveBridgeLiquidityMULTIVAULT() public {
         uint256 initialLiquidity = 500 ether;
         uint256 amountToRemove = 400 ether;
         uint256 wrongTransferAmount = 500 ether;
 
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(MULTIPOOL), initialLiquidity);
+        USDC.transfer(address(MULTIVAULT), initialLiquidity);
         vm.stopPrank();
 
         // Prepare removal of bridge liquidity
         vm.startPrank(OWNER);
         // Ensure the USDC token is a valid target for bridge operations
-        MULTIPOOL.manageBridge(address(USDC), true);
+        MULTIVAULT.manageBridge(address(USDC), true);
         vm.stopPrank();
 
         vm.startPrank(ORCHESTRATOR);
@@ -156,7 +153,7 @@ contract GeniusVaultTransferVerificationTest is Test {
         data[0] = transferData;
 
         vm.expectRevert();
-        MULTIPOOL.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
+        MULTIVAULT.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
         vm.stopPrank();
     }
 }

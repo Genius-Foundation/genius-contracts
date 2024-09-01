@@ -179,7 +179,7 @@ interface IGeniusVault {
         uint256 amountIn,
         uint16 destChainId,
         uint32 fillDeadline
-    ) external;
+    ) external payable;
 
     /**
      * @notice Removes liquidity from the GeniusVault contract 

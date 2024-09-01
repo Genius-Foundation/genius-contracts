@@ -6,7 +6,9 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
-import {IGeniusMultiTokenPool} from "./interfaces/IGeniusMultiTokenPool.sol";
+import {IGeniusMultiTokenVault} from "./interfaces/IGeniusMultiTokenVault.sol";
+import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
+import {GeniusVault} from "./GeniusVault.sol";
 
 /**
  * @title GeniusMultiTokenPool
@@ -15,36 +17,23 @@ import {IGeniusMultiTokenPool} from "./interfaces/IGeniusMultiTokenPool.sol";
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
  *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
-contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable {
-    bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-
+contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
     // =============================================================
     //                          IMMUTABLES
     // =============================================================
     
-    IERC20 public immutable STABLECOIN;
-
     address public immutable NATIVE = address(0);
-    address public VAULT;
-    address public EXECUTOR;
 
     // =============================================================
     //                          VARIABLES
     // =============================================================
 
-    uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the pool through user deposits
-    uint256 public rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
     uint256 public supportedTokensCount; // The total number of supported tokens
 
     mapping(address => TokenInfo) public tokenInfo; // Mapping of token addresses to TokenInfo structs
     mapping(uint256 => address) public supportedTokensIndex; // Mapping of supported token index to token address
     mapping(address token => uint256 balance) public tokenBalances; // Mapping of token address to balance
-    mapping(address bridge => uint256 isSupported) public supportedBridges; // Mapping of bridge address to support status
     mapping(address router => uint256 isSupported) public supportedRouters; // Mapping of router address to support status
-
-    uint32 public totalOrders;
-    mapping(bytes32 => OrderStatus) public orderStatus;
 
     // =============================================================
     //                          CONSTRUCTOR
@@ -53,46 +42,8 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
     constructor(
         address stablecoin,
         address admin
-    ) {
-        if (stablecoin == address(0)) revert GeniusErrors.NonAddress0();
-        if (admin == address(0)) revert GeniusErrors.NonAddress0();
-
-        STABLECOIN = IERC20(stablecoin);
+    ) GeniusVault(stablecoin, admin) {
         tokenInfo[stablecoin] = TokenInfo({isSupported: true, balance: STABLECOIN.balanceOf(address(this))});
-
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(PAUSER_ROLE, admin);
-
-        _pause();
-    }
-
-    // =============================================================
-    //                          MODIFIERS
-    // =============================================================
-
-    modifier onlyExecutor() {
-        if (msg.sender != EXECUTOR) revert GeniusErrors.IsNotExecutor();
-        _;
-    }
-
-    modifier onlyVault() {
-        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
-        _;
-    }
-
-    modifier onlyAdmin() {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert GeniusErrors.IsNotAdmin();
-        _;
-    }
-
-    modifier onlyPauser() {
-        if (!hasRole(PAUSER_ROLE, msg.sender)) revert GeniusErrors.IsNotPauser();
-        _;
-    }
-
-    modifier onlyOrchestrator() {
-        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) revert GeniusErrors.IsNotOrchestrator();
-        _;
     }
 
     // =============================================================
@@ -104,15 +55,11 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
      */
     function initialize(
         address executor,
-        address vaultAddress,
         address[] memory tokens,
         address[] memory bridges,
         address[] memory routers
     ) external onlyAdmin {
-        if (VAULT != address(0)) revert GeniusErrors.Initialized();
-
-        VAULT = vaultAddress;
-        EXECUTOR = executor;
+        if (EXECUTOR != address(0)) revert GeniusErrors.Initialized();
 
         // Add the initial supported tokens
         for (uint256 i; i < tokens.length;) {
@@ -138,7 +85,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
             unchecked { i++; }
         }
 
-        _unpause();
+        initialize(executor);
     }
 
     // =============================================================
@@ -186,8 +133,8 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata data
-    ) public payable override onlyOrchestrator whenNotPaused {
-        uint256 preTransferAssets = totalAssets();
+    ) external payable override(GeniusVault, IGeniusVault) onlyOrchestrator whenNotPaused {
+        uint256 preTransferAssets = stablecoinBalance();
         uint256 neededLiquidity_ = minAssetBalance();
         // Checks
         _isAmountValid(amountIn, _availableAssets(preTransferAssets, neededLiquidity_));
@@ -212,7 +159,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         _batchExecution(targets, data, values);
 
         // Post-interaction checks
-        uint256 postTransferAssets = totalAssets();
+        uint256 postTransferAssets = stablecoinBalance();
         if (preTransferAssets - postTransferAssets != amountIn) revert GeniusErrors.UnexpectedBalanceChange(
             address(STABLECOIN),
             preTransferAssets - amountIn,
@@ -261,7 +208,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         uint256 amountIn,
         uint16 destChainId,
         uint32 fillDeadline
-    ) external payable override onlyExecutor whenNotPaused {
+    ) external payable override(GeniusVault, IGeniusVault) onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (destChainId == _currentChainId()) revert GeniusErrors.InvalidDestChainId(destChainId);
@@ -283,9 +230,9 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         uint256 postBalance;
 
         if (tokenIn == address(STABLECOIN)) {
-            preBalance = totalAssets();
+            preBalance = stablecoinBalance();
             _transferERC20From(tokenIn, msg.sender, address(this), amountIn);
-            postBalance = totalAssets();
+            postBalance = stablecoinBalance();
 
             if (postBalance - preBalance != amountIn) revert GeniusErrors.UnexpectedBalanceChange(
                 tokenIn,
@@ -334,7 +281,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
      */
     function removeLiquiditySwap(
         Order memory order
-    ) external override onlyExecutor whenNotPaused {
+    ) external override(IGeniusVault, GeniusVault) onlyExecutor whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
         if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
@@ -342,15 +289,15 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         // Gas saving
-        uint256 _totalAssets = totalAssets();
+        uint256 _stablecoinBalance = stablecoinBalance();
         uint256 _neededLiquidity = minAssetBalance();
         
-        _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
+        _isAmountValid(order.amountIn, _availableAssets(_stablecoinBalance, _neededLiquidity));
         
         if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (!_isBalanceWithinThreshold(_totalAssets - order.amountIn)) revert GeniusErrors.ThresholdWouldExceed(
+        if (!_isBalanceWithinThreshold(_stablecoinBalance - order.amountIn)) revert GeniusErrors.ThresholdWouldExceed(
             _neededLiquidity,
-            _totalAssets - order.amountIn
+            _stablecoinBalance - order.amountIn
         );
 
         orderStatus[orderHash_] = OrderStatus.Filled;
@@ -366,93 +313,6 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
             order.destChainId,
             order.fillDeadline
         );
-    }
-
-    // =============================================================
-    //                      ORDER MANAGEMENT
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-setOrderAsFilled}.
-     */
-    function setOrderAsFilled(
-        Order memory order
-    ) external override onlyOrchestrator whenNotPaused {
-        bytes32 orderHash_ = orderHash(order);
-
-        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-
-        orderStatus[orderHash_] = OrderStatus.Filled;
-
-        emit OrderFilled(
-            order.orderId,
-            order.trader,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline
-        );
-    }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-revertOrder}.
-     */
-    function revertOrder(
-        Order memory order, 
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values
-    ) external override onlyOrchestrator whenNotPaused {
-        bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-        if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
-
-        uint256 _totalAssetsPreRevert = totalAssets();
-
-        _batchExecution(targets, data, values);
-
-        uint256 _totalAssetsPostRevert = totalAssets();
-        uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
-
-        if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
-
-        orderStatus[orderHash_] = OrderStatus.Reverted;
-
-        emit OrderReverted(
-            order.orderId,
-            order.trader,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline
-        );
-    }
-
-
-    // =============================================================
-    //                     REWARD LIQUIDITY
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-addRewardLiquidity}.
-     */
-    function removeRewardLiquidity(uint256 amount) external override onlyOrchestrator whenNotPaused {
-        // Gas saving
-        uint256 _totalAssets = totalAssets();
-        uint256 _neededLiquidity = minAssetBalance();
-
-        _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
-
-        if (!_isBalanceWithinThreshold(_totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
-            _neededLiquidity,
-            _totalAssets - amount
-        );
-
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
     }
 
     // =============================================================
@@ -518,86 +378,7 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         emit SwapExecuted(token, amount, stableDelta);
     }
 
-    // =============================================================
-    //                     STAKING LIQUIDITY
-    // =============================================================
 
-    /**
-     * @dev See {IGeniusMultiTokenPool-stakeLiquidity}.
-     */
-    function stakeLiquidity(address trader, uint256 amount) external override whenNotPaused {
-        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-
-        _updateStakedBalance(amount, 1);
-
-        _transferERC20From(
-            address(STABLECOIN),
-            msg.sender,
-            address(this),
-            amount
-        );
-
-        emit Stake(
-            trader,
-            amount,
-            amount
-        );
-    }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-unstakeLiquidity}.
-     */
-    function removeStakedLiquidity(address trader, uint256 amount) external override whenNotPaused {
-        if (msg.sender != VAULT) revert GeniusErrors.IsNotVault();
-        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > totalAssets()) revert GeniusErrors.InvalidAmount();
-        if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
-            address(STABLECOIN),
-            amount,
-            totalStakedAssets
-        );
-
-        _updateStakedBalance(amount, 0);
-        
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
-
-        emit Unstake(
-            trader,
-            amount,
-            totalStakedAssets
-        );
-    }
-
-    // =============================================================
-    //                     REBALANCE THRESHOLD
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-setRebalanceThreshold}.
-     */
-    function setRebalanceThreshold(uint256 threshold) external override onlyAdmin {
-        rebalanceThreshold = threshold;
-    }
-
-    // =============================================================
-    //                        BRIDGE MANAGEMENT
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-manageBridge}.
-     */
-    function manageBridge(address bridge, bool authorize) external override onlyAdmin {
-        if (authorize) {
-            if (supportedBridges[bridge] == 1) revert GeniusErrors.InvalidTarget(bridge);
-            supportedBridges[bridge] = 1;
-        } else {
-            if (supportedBridges[bridge] == 0) revert GeniusErrors.InvalidTarget(bridge);
-            supportedBridges[bridge] = 0;
-        }
-    }
 
     // =============================================================
     //                        ROUTER MANAGEMENT
@@ -616,23 +397,6 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         }
     }
 
-    // =============================================================
-    //                           EMERGENCY
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-emergencyLock}.
-     */
-    function pause() external override onlyPauser {
-        _pause();
-    }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-emergencyUnlock}.
-     */
-    function unpause() external override onlyPauser {
-        _unpause();
-    }
 
     // =============================================================
     //                        READ FUNCTIONS
@@ -640,54 +404,10 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
 
 
     /**
-     * @dev See {IGeniusMultiTokenPool-totalAssets}.
-     */
-    function totalAssets() public view override returns (uint256) {
-        return STABLECOIN.balanceOf(address(this));
-    }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-minAssetBalance}.
-     */
-    function minAssetBalance() public view override returns (uint256) {
-        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-        /**
-          * Calculate the liquidity needed as the staked assets minus the reduction
-          * Ensure not to underflow; if reduction is somehow greater, set neededLiquidity to 0
-         */
-        return totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
-    }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-availableAssets}.
-     */
-    function availableAssets() public view override returns (uint256) {
-        uint256 _totalAssets = totalAssets();
-        uint256 _neededLiquidity = minAssetBalance();
-        
-        return _availableAssets(_totalAssets, _neededLiquidity);
-    }
-
-    /**
      * @dev See {IGeniusMultiTokenPool-isTokenSupported}.
      */
     function isTokenSupported(address token) public view override returns (bool) {
         return tokenInfo[token].isSupported;
-    }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-isBridgeSupported}.
-     */
-    function stablecoinBalances() public view override returns (
-        uint256 currentStables,
-        uint256 availStables,
-        uint256 stakedStables
-    ) {
-        return (
-            totalAssets(),
-            availableAssets(),
-            totalStakedAssets
-        );
     }
 
     /**
@@ -706,73 +426,10 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         return _supportedTokenBalances;
     }
 
-    function orderHash(Order memory order) public pure returns (bytes32) {
-        return keccak256(abi.encode(order));
-    }
 
     // =============================================================
     //                     INTERNAL FUNCTIONS
     // =============================================================
-
-    /**
-     * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
-     * @param amount The expected amount of native currency.
-     */
-    function _checkNative(uint256 amount) internal {
-        if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
-    }
-
-    /**
-     * @dev Internal function to check if the given bridge targets are supported.
-     * @param bridgeTargets The array of bridge target addresses to check.
-     */
-    function _checkBridgeTargets(address[] memory bridgeTargets) internal view {
-        
-        for (uint256 i; i < bridgeTargets.length;) {
-            if (supportedBridges[bridgeTargets[i]] == 0) {
-                if (bridgeTargets[i] != address(STABLECOIN)) {
-                    revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
-                }
-            }
-
-            unchecked { i++; }
-
-        }
-
-    }
-
-    function _availableAssets(uint256 _totalAssets, uint256 _neededLiquidity) internal pure returns (uint256) {
-        if (_totalAssets < _neededLiquidity) {
-            return 0;
-        }
-
-        return _totalAssets - _neededLiquidity;
-    }
-
-    /**
-     * @dev Checks if the given amount is valid for a transaction.
-     * @param amount_ The amount to be checked.
-     * @param availableAssets_ The available balance of STABLECOIN in the pool.
-     */
-    function _isAmountValid(uint256 amount_, uint256 availableAssets_) internal pure {
-        if (amount_ == 0) revert GeniusErrors.InvalidAmount();
-
-        if (amount_ > availableAssets_) revert GeniusErrors.InsufficientLiquidity(
-            availableAssets_,
-            amount_
-        );
-    }
-
-    /**
-     * @dev Checks if the given balance is within the threshold limit.
-     * @param balance The balance to be checked.
-     * @return boolean indicating whether the balance is within the threshold limit.
-     */
-    function _isBalanceWithinThreshold(uint256 balance) internal view returns (bool) {
-        uint256 _lowerBound = (totalStakedAssets * rebalanceThreshold) / 100;
-
-        return balance >= _lowerBound;
-    }
 
     /**
      * @dev Checks if the balance of a specific token is sufficient.
@@ -814,19 +471,6 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
     }
 
     /**
-     * @dev Updates the staked balance of the contract.
-     * @param amount The amount to update the staked balance by.
-     * @param add 0 to subtract, 1 to add.
-     */
-    function _updateStakedBalance(uint256 amount, uint256 add) internal {
-        if (add == 1) {
-            totalStakedAssets += amount;
-        } else {
-            totalStakedAssets -= amount;
-        }
-    }
-
-    /**
      * @dev Updates the balance of a token held by the contract.
      * @param token The address of the token to update the balance for.
      * @notice If the token is the native currency (ETH), the balance is updated with the contract's ETH balance.
@@ -838,63 +482,6 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
         } else {
             tokenBalances[token] = IERC20(token).balanceOf(address(this));
         }
-    }
-
-    /**
-     * @dev Calculates the sum of an array of uint256 values.
-     * @param amounts An array of uint256 values.
-     * @return total sum of the array elements.
-     */
-    function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
-        for (uint i = 0; i < amounts.length;) {
-            total += amounts[i];
-
-            unchecked { i++; }
-        }
-    }
-
-    /**
-     * @dev Internal function to approve an ERC20 token for a spender.
-     * @param token The address of the ERC20 token.
-     * @param spender The address of the spender.
-     * @param amount The amount to be approved.
-     */
-    function _approveERC20(address token, address spender, uint256 amount) internal {
-        (bool approvalSuccess) = IERC20(token).approve(spender, amount);
-
-        if (!approvalSuccess) {
-            revert GeniusErrors.ApprovalFailure(token, amount);
-        }
-    }
-
-    /**
-     * @dev Function to transfer ERC20 tokens.
-     * @param token The address of the ERC20 token.
-     * @param to The address to transfer the tokens to.
-     * @param amount The amount of tokens to transfer.
-     */
-    function _transferERC20(
-        address token,
-        address to,
-        uint256 amount
-    ) internal {
-        IERC20(token).transfer(to, amount);
-    }
-
-    /**
-     * @dev Internal function to transfer ERC20 tokens from one address to another.
-     * @param token The address of the ERC20 token contract.
-     * @param from The address from which the tokens will be transferred.
-     * @param to The address to which the tokens will be transferred.
-     * @param amount The amount of tokens to be transferred.
-     */
-    function _transferERC20From(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
-        IERC20(token).transferFrom(from, to, amount);
     }
 
     /**
@@ -921,29 +508,16 @@ contract GeniusMultiTokenPool is IGeniusMultiTokenPool, AccessControl, Pausable 
     }
 
     /**
-     * @dev Executes a batch of external function calls.
-     * @param targets The array of target addresses to call.
-     * @param data The array of function call data.
-     * @param values The array of values to send along with the function calls.
+     * @dev Internal function to approve an ERC20 token for a spender.
+     * @param token The address of the ERC20 token.
+     * @param spender The address of the spender.
+     * @param amount The amount to be approved.
      */
-    function _batchExecution(
-        address[] memory targets,
-        bytes[] memory data,
-        uint256[] memory values
-    ) private {
-        for (uint i = 0; i < targets.length;) {
-            (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], i);
+    function _approveERC20(address token, address spender, uint256 amount) internal {
+        (bool approvalSuccess) = IERC20(token).approve(spender, amount);
 
-            unchecked { i++; }
+        if (!approvalSuccess) {
+            revert GeniusErrors.ApprovalFailure(token, amount);
         }
-    }
-
-    function _currentChainId() internal view returns (uint256) {
-        return block.chainid;
-    }
-
-    function _currentTimeStamp() internal view returns (uint256) {
-        return block.timestamp;
     }
 }

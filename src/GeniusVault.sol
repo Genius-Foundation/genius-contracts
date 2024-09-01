@@ -90,7 +90,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
     /**
      * @dev See {IGeniusVault-initialize}.
      */
-    function initialize(address executor) external onlyAdmin {
+    function initialize(address executor) public onlyAdmin {
         if (executor == address(0)) revert GeniusErrors.NonAddress0();
         // Can only be set once
         if (EXECUTOR != address(0)) revert GeniusErrors.Initialized();
@@ -117,7 +117,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
-    ) public payable override onlyOrchestrator whenNotPaused {
+    ) external payable override virtual onlyOrchestrator whenNotPaused {
         _checkBridgeTargets(targets);
  
         uint256 totalAssetsBeforeTransfer = stablecoinBalance();
@@ -156,7 +156,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
         uint256 amountIn,
         uint16 destChainId,
         uint32 fillDeadline
-    ) external override onlyExecutor whenNotPaused {
+    ) external payable virtual override onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (tokenIn != address(STABLECOIN)) revert GeniusErrors.InvalidToken(tokenIn);
@@ -195,7 +195,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
      */
     function removeLiquiditySwap(
         Order memory order
-    ) external override onlyExecutor whenNotPaused {
+    ) external virtual override onlyExecutor whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
         if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
@@ -497,7 +497,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
         address[] memory targets,
         bytes[] memory data,
         uint256[] memory values
-    ) private {
+    ) internal {
         for (uint i = 0; i < targets.length;) {
             (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
             if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], i);

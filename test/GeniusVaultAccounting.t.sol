@@ -352,7 +352,7 @@ contract GeniusVaultAccounting is Test {
         VAULT.deposit(depositAmount, TRADER);
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.stablecoinBalance(), depositAmount, "Total assets mismatch");
+        assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
         vm.stopPrank();
@@ -405,7 +405,7 @@ contract GeniusVaultAccounting is Test {
         VAULT.withdraw(depositAmount, TRADER, TRADER);
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
-        assertEq(VAULT.stablecoinBalance(), 0, "Total assets mismatch");
+        assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 50 ether, "Available assets mismatch");
 
         LogEntry[] memory entries = new LogEntry[](5);
@@ -455,7 +455,7 @@ contract GeniusVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.stablecoinBalance(), depositAmount, "Total assets mismatch");
+        assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
@@ -516,7 +516,7 @@ contract GeniusVaultAccounting is Test {
         VAULT.withdraw(depositAmount, TRADER, TRADER);
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
-        assertEq(VAULT.stablecoinBalance(), 0, "Total assets mismatch");
+        assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 50 ether, "Available assets mismatch");
 
         vm.stopPrank();
@@ -565,7 +565,7 @@ contract GeniusVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.stablecoinBalance(), depositAmount, "Vault Total assets mismatch");
+        assertEq(VAULT.totalAssets(), depositAmount, "Vault Total assets mismatch");
         assertEq(VAULT.stablecoinBalance(), 110 ether, "Vault Total assets mismatch");
         assertEq(VAULT.availableAssets(), 85 ether, "#1 Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
@@ -637,13 +637,13 @@ contract GeniusVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
-        assertEq(VAULT.stablecoinBalance(), 0, "Total assets mismatch");
+        assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 90 ether, "Available assets mismatch");
 
         // Final state logging
         LogEntry[] memory entries = new LogEntry[](5);
         entries[0] = LogEntry("Total Staked Assets", VAULT.totalStakedAssets(), 0);
-        entries[1] = LogEntry("Total Assets", VAULT.stablecoinBalance(), 100 ether);
+        entries[1] = LogEntry("Total Assets", VAULT.totalAssets(), 100 ether);
         entries[2] = LogEntry("Available Assets", VAULT.availableAssets(), 100 ether);
         entries[3] = LogEntry("Min Asset Balance", VAULT.minAssetBalance(), 0);
         entries[4] = LogEntry("Vault Balance", VAULT.stablecoinBalance(), 0);
