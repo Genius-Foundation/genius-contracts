@@ -249,10 +249,10 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         // Test balances of other supported tokens
-        (GeniusMultiTokenVault.TokenBalance[] memory tokenBalances) = VAULT.supportedTokenBalances();
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token != address(USDC)) {
-                assertEq(tokenBalances[i].balance, 0, "Non-USDC token balance should be 0");
+            if (VAULT.supportedTokensIndex(i) != address(USDC)) {
+                assertEq(tokenBalances[i], 0, "Non-USDC token balance should be 0");
             }
         }
     }
@@ -292,10 +292,10 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(VAULT.totalAssets(), 0, "Total assets in VAULT mismatch");
 
         // Check balances of other supported tokens
-        GeniusMultiTokenVault.TokenBalance[] memory tokenBalances = VAULT.supportedTokenBalances();
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token != address(USDC)) {
-                assertEq(tokenBalances[i].balance, 0, "Non-USDC token balance should be 0");
+            if (VAULT.supportedTokensIndex(i) != address(USDC)) {
+                assertEq(tokenBalances[i], 0, "Non-USDC token balance should be 0");
             }
         }
     }
@@ -389,12 +389,12 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.stopPrank();
 
         // Check balances of other supported tokens
-        GeniusMultiTokenVault.TokenBalance[] memory tokenBalances = VAULT.supportedTokenBalances();
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token != address(USDC)) {
-                assertEq(tokenBalances[i].balance, 0, "Non-USDC token balance should be 0");
+            if (VAULT.supportedTokensIndex(i) != address(USDC)) {
+                assertEq(tokenBalances[i], 0, "Non-USDC token balance should be 0");
             } else {
-                assertEq(tokenBalances[i].balance, 100 ether, "USDC balance in vault should be 100 ether");
+                assertEq(tokenBalances[i], 100 ether, "USDC balance in vault should be 100 ether");
             }
         }
     }
@@ -500,12 +500,12 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(VAULT.availableAssets(), 90 ether, "Available stable balance mismatch");
 
         // Check balances of other supported tokens
-        GeniusMultiTokenVault.TokenBalance[] memory tokenBalances = VAULT.supportedTokenBalances();
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token != address(USDC)) {
-                assertEq(tokenBalances[i].balance, 0, "Non-USDC token balance should be 0");
+            if (VAULT.supportedTokensIndex(i) != address(USDC)) {
+                assertEq(tokenBalances[i], 0, "Non-USDC token balance should be 0");
             } else {
-                assertEq(tokenBalances[i].balance, 170 ether, "USDC balance in vault should be 170 ether");
+                assertEq(tokenBalances[i], 170 ether, "USDC balance in vault should be 170 ether");
             }
         }
     }
@@ -554,19 +554,20 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap{value: depositAmount}(TRADER, NATIVE, depositAmount, 42, uint32(block.timestamp + 1000));
         assertEq(address(VAULT).balance - initialETHBalance, depositAmount, "ETH deposit failed");
 
-        // Verify token balances using supportedTokenBalances
-        GeniusMultiTokenVault.TokenBalance[] memory tokenBalances = VAULT.supportedTokenBalances();
+        // Verify token balances using supportedTokensBalances
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token == address(USDC)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "USDC balance mismatch in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(TOKEN1)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "TOKEN1 balance mismatch in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(TOKEN2)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "TOKEN2 balance mismatch in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(TOKEN3)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "TOKEN3 balance mismatch in supportedTokenBalances");
-            } else if (tokenBalances[i].token == NATIVE) {
-                assertEq(tokenBalances[i].balance, depositAmount, "ETH balance mismatch in supportedTokenBalances");
+            address token = VAULT.supportedTokensIndex(i);
+            if (token == address(USDC)) {
+                assertEq(tokenBalances[i], depositAmount, "USDC balance mismatch in supportedTokensBalances");
+            } else if (token == address(TOKEN1)) {
+                assertEq(tokenBalances[i], depositAmount, "TOKEN1 balance mismatch in supportedTokensBalances");
+            } else if (token == address(TOKEN2)) {
+                assertEq(tokenBalances[i], depositAmount, "TOKEN2 balance mismatch in supportedTokensBalances");
+            } else if (token == address(TOKEN3)) {
+                assertEq(tokenBalances[i], depositAmount, "TOKEN3 balance mismatch in supportedTokensBalances");
+            } else if (token == NATIVE) {
+                assertEq(tokenBalances[i], depositAmount, "ETH balance mismatch in supportedTokensBalances");
             }
         }
 
@@ -615,13 +616,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(address(VAULT).balance - initialETHBalance, 0, "ETH should not be held in VAULT");
         assertEq(USDC.balanceOf(address(VAULT)), depositAmount / 2, "USDC balance mismatch after swap");
 
-        // Verify token balances using supportedTokenBalances
-        GeniusMultiTokenVault.TokenBalance[] memory tokenBalances = VAULT.supportedTokenBalances();
+        // Verify token balances using supportedTokensBalances
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token == NATIVE) {
-                assertEq(tokenBalances[i].balance, 0, "ETH balance should be 0 in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(USDC)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "USDC balance mismatch in supportedTokenBalances");
+            address token = VAULT.supportedTokensIndex(i);
+            if (token == NATIVE) {
+                assertEq(tokenBalances[i], 0, "ETH balance should be 0 in supportedTokensBalances");
+            } else if (token == address(USDC)) {
+                assertEq(tokenBalances[i], depositAmount, "USDC balance mismatch in supportedTokensBalances");
             }
         }
     }
@@ -689,19 +691,20 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(USDC.balanceOf(address(VAULT)), swapAmount / 2, "USDC balance should increase by swapAmount");
         assertEq(VAULT.stablecoinBalance(), initialTotalStables + swapAmount / 2, "Total stables should increase by swapAmount");
 
-        // Verify token balances using supportedTokenBalances
-        GeniusMultiTokenVault.TokenBalance[] memory tokenBalances = VAULT.supportedTokenBalances();
+        // Verify token balances using supportedTokensBalances
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         LogEntry[] memory finalEntries = new LogEntry[](tokenBalances.length);
         for (uint i = 0; i < tokenBalances.length; i++) {
+            address token = VAULT.supportedTokensIndex(i);
             finalEntries[i] = LogEntry(
-                string(abi.encodePacked("Final Balance of ", _getTokenSymbol(tokenBalances[i].token))),
-                tokenBalances[i].balance,
+                string(abi.encodePacked("Final Balance of ", _getTokenSymbol(token))),
+                tokenBalances[i],
                 0
             );
-            if (tokenBalances[i].token == address(TOKEN1)) {
-                assertEq(tokenBalances[i].balance, 100 ether, "TOKEN1 balance should be 100 in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(USDC)) {
-                assertEq(tokenBalances[i].balance, swapAmount, "USDC balance mismatch in supportedTokenBalances");
+            if (token == address(TOKEN1)) {
+                assertEq(tokenBalances[i], 100 ether, "TOKEN1 balance should be 100 in supportedTokensBalances");
+            } else if (token == address(USDC)) {
+                assertEq(tokenBalances[i], swapAmount, "USDC balance mismatch in supportedTokensBalances");
             }
         }
     }
@@ -805,7 +808,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         uint256 initialavailableAssets = VAULT.availableAssets();
         uint256 initialminAssetBalance = VAULT.minAssetBalance();
         
-        GeniusMultiTokenVault.TokenBalance[] memory initialBalances = VAULT.supportedTokenBalances();
+        uint256[] memory initialBalances = VAULT.supportedTokensBalances();
 
         // Perform addBridgeLiquidity
         vm.startPrank(ORCHESTRATOR);
@@ -822,19 +825,19 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(VAULT.minAssetBalance(), initialminAssetBalance, "Minimum stable balance should remain unchanged");
 
         // Assert balances for all supported tokens
-        GeniusMultiTokenVault.TokenBalance[] memory finalBalances = VAULT.supportedTokenBalances();
+        uint256[] memory finalBalances = VAULT.supportedTokensBalances();
         assertEq(finalBalances.length, initialBalances.length, "Number of supported tokens should remain the same");
 
         for (uint i = 0; i < finalBalances.length; i++) {
-            if (finalBalances[i].token == address(USDC)) {
-                assertEq(finalBalances[i].balance, initialBalances[i].balance + bridgeAmount, "USDC balance should increase by bridge amount");
+            if (VAULT.supportedTokensIndex(i) == address(USDC)) {
+                assertEq(finalBalances[i], initialBalances[i] + bridgeAmount, "USDC balance should increase by bridge amount");
             } else {
-                assertEq(finalBalances[i].balance, initialBalances[i].balance, "Non-USDC token balances should remain unchanged");
+                assertEq(finalBalances[i], initialBalances[i], "Non-USDC token balances should remain unchanged");
             }
         }
 
         // Verify USDC transfer
-        assertEq(USDC.balanceOf(address(VAULT)), initialBalances[0].balance + bridgeAmount, "USDC balance in vault should increase by bridge amount");
+        assertEq(USDC.balanceOf(address(VAULT)), initialBalances[0] + bridgeAmount, "USDC balance in vault should increase by bridge amount");
     }
 
     function testRemoveBridgeLiquidity() public {
@@ -913,7 +916,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         uint256 initialavailableAssets = VAULT.availableAssets();
         uint256 initialminAssetBalance = VAULT.minAssetBalance();
         
-        GeniusMultiTokenVault.TokenBalance[] memory initialBalances = VAULT.supportedTokenBalances();
+        uint256[] memory initialBalances = VAULT.supportedTokensBalances();
 
         // Perform addBridgeLiquidity
         vm.startPrank(ORCHESTRATOR);
@@ -942,7 +945,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         );
 
         // Assert balances for all supported tokens
-        GeniusMultiTokenVault.TokenBalance[] memory finalBalances = VAULT.supportedTokenBalances();
+        uint256[] memory finalBalances = VAULT.supportedTokensBalances();
         assertEq(
             finalBalances.length,
             initialBalances.length,
@@ -950,19 +953,19 @@ contract GeniusMultiTokenVaultAccounting is Test {
         );
 
         for (uint i = 0; i < finalBalances.length; i++) {
-            if (finalBalances[i].token == address(USDC)) {
+            if (VAULT.supportedTokensIndex(i) == address(USDC)) {
 
                 assertEq(
-                    finalBalances[i].balance,
-                    initialBalances[i].balance + bridgeAmount,
+                    finalBalances[i],
+                    initialBalances[i] + bridgeAmount,
                     "USDC balance should increase by bridge amount"
                 );
 
             } else {
 
                 assertEq(
-                    finalBalances[i].balance,
-                    initialBalances[i].balance,
+                    finalBalances[i],
+                    initialBalances[i],
                     "Non-USDC token balances should remain unchanged"
                 );
 
@@ -972,7 +975,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         // Verify USDC transfer
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            initialBalances[0].balance + bridgeAmount,
+            initialBalances[0] + bridgeAmount,
             "USDC balance in vault should increase by bridge amount"
         );
 
@@ -988,21 +991,21 @@ contract GeniusMultiTokenVaultAccounting is Test {
         );
 
         // Assert the balances have been updated correctly to include the donation
-        GeniusMultiTokenVault.TokenBalance[] memory postDonationBalances = VAULT.supportedTokenBalances();
+        uint256[] memory postDonationBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < postDonationBalances.length; i++) {
-            if (postDonationBalances[i].token == address(USDC)) {
+            if (VAULT.supportedTokensIndex(i) == address(USDC)) {
                 
                 assertEq(
-                    postDonationBalances[i].balance,
-                    finalBalances[i].balance + 10 ether,
+                    postDonationBalances[i],
+                    finalBalances[i] + 10 ether,
                     "USDC balance should include donation amount"
                 );
 
             } else {
 
                 assertEq(
-                    postDonationBalances[i].balance,
-                    finalBalances[i].balance,
+                    postDonationBalances[i],
+                    finalBalances[i],
                     "Non-USDC token balances should remain unchanged"
                 );
 
@@ -1012,7 +1015,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         // Verify USDC balance in the vault contract
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            initialBalances[0].balance + bridgeAmount + 10 ether,
+            initialBalances[0] + bridgeAmount + 10 ether,
             "USDC balance in vault should include donation amount"
         );
     }

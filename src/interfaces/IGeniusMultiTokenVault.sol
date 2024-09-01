@@ -12,28 +12,7 @@ import {IGeniusVault} from "./IGeniusVault.sol";
  *         liquidity management and swaps, utilizing multiple sources of liquidity.
  */
 interface IGeniusMultiTokenVault is IGeniusVault {
-
-
-    /**
-     * @notice Struct representing the balance of a token in the vault.
-     * @param token The address of the token.
-     * @param balance The balance of the token.
-     */
-    struct TokenBalance {
-        address token;
-        uint256 balance;
-    }
-
-    /**
-     * @notice Struct to store information about a token.
-     * @param isSupported Boolean indicating if the token is supported.
-     * @param balance The balance of the token.
-     */
-    struct TokenInfo {
-        bool isSupported;
-        uint256 balance;
-    }
-
+    
     /**
      * @notice Emitted when a swap is executed.
      * @param token The address of the token that was swapped.
@@ -60,16 +39,6 @@ interface IGeniusMultiTokenVault is IGeniusVault {
     );
 
     /**
-     * @notice Emitted when there is an excess balance of a token.
-     * @param token The address of the token.
-     * @param excess The amount of excess tokens.
-     */
-    event ExcessBalance(
-        address token,
-        uint256 excess
-    );
-
-    /**
      * @notice Emitted when there is an unexpected decrease in the balance of a token.
      * @param token The address of the token.
      * @param expectedBalance The expected balance of the token.
@@ -80,6 +49,18 @@ interface IGeniusMultiTokenVault is IGeniusVault {
         uint256 expectedBalance,
         uint256 newBalance
     );
+
+    /**
+     * Fethches the balance of a token in the vault.
+     * @param token The address of the token.
+     */
+    function tokenBalance(address token) external view returns (uint256);
+
+    /**
+     * @notice Retrieves the balances of all supported tokens.
+     * @return An array of balances for each supported token.
+     */
+    function supportedTokensBalances() external view returns (uint256[] memory);
 
     /**
      * @notice Manages (adds or removes) a token from the list of supported tokens.
@@ -117,24 +98,10 @@ interface IGeniusMultiTokenVault is IGeniusVault {
     function isTokenSupported(address token) external view returns (bool);
 
     /**
-     * @notice Retrieves the balances of supported tokens.
-     * @return An array of TokenBalance structs containing the token address and balance.
-     */
-    function supportedTokenBalances() external view returns (TokenBalance[] memory);
-
-    /**
      * @notice Returns the number of supported tokens in the vault.
      * @return The count of supported tokens.
      */
     function supportedTokensCount() external view returns (uint256);
-
-    /**
-     * @notice Retrieves information about a specific token.
-     * @param token The address of the token to query.
-     * @return isSupported Boolean indicating if the token is supported.
-     * @return balance The balance of the token in the vault.
-     */
-    function tokenInfo(address token) external view returns (bool isSupported, uint256 balance);
 
     /**
      * @notice Returns the address of a supported token at a specific index.
@@ -142,13 +109,6 @@ interface IGeniusMultiTokenVault is IGeniusVault {
      * @return The address of the token at the given index.
      */
     function supportedTokensIndex(uint256 index) external view returns (address);
-
-    /**
-     * @notice Returns the balance of a specific token in the vault.
-     * @param token The address of the token to query.
-     * @return The balance of the token.
-     */
-    function tokenBalances(address token) external view returns (uint256);
     
     /**
      * @notice Checks if a router is supported.

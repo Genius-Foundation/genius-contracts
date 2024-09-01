@@ -30,9 +30,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
 
     uint256 public supportedTokensCount; // The total number of supported tokens
 
-    mapping(address => TokenInfo) public tokenInfo; // Mapping of token addresses to TokenInfo structs
+    mapping(address => bool) public isSupported; // Mapping of token addresses to TokenInfo structs
     mapping(uint256 => address) public supportedTokensIndex; // Mapping of supported token index to token address
-    mapping(address token => uint256 balance) public tokenBalances; // Mapping of token address to balance
     mapping(address router => uint256 isSupported) public supportedRouters; // Mapping of router address to support status
 
     // =============================================================
@@ -43,7 +42,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
         address stablecoin,
         address admin
     ) GeniusVault(stablecoin, admin) {
-        tokenInfo[stablecoin] = TokenInfo({isSupported: true, balance: STABLECOIN.balanceOf(address(this))});
+        
     }
 
     // =============================================================
@@ -88,6 +87,24 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
         initialize(executor);
     }
 
+    function tokenBalance(address token) public view override returns (uint256) {
+        if (token == NATIVE) {
+            return address(this).balance;
+        } else {
+            return IERC20(token).balanceOf(address(this));
+        }
+    }
+
+    function supportedTokensBalances() public view override returns (uint256[] memory) {
+        uint256[] memory balances = new uint256[](supportedTokensCount);
+        for (uint256 i; i < supportedTokensCount; i++) {
+            address token = supportedTokensIndex[i];
+            uint256 balance = tokenBalance(token);
+            balances[i] = balance;
+        }
+        return balances;
+    }
+
     // =============================================================
     //                        TOKEN MANAGEMENT
     // =============================================================
@@ -95,19 +112,20 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
     /**
      * @dev See {IGeniusMultiTokenPool-manageToken}.
      */
-    function manageToken(address token, bool isSupported) external override onlyAdmin {
+    function manageToken(address token, bool supported) external override onlyAdmin {
         if (token == address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
-        if (isSupported) {
-            if (tokenInfo[token].isSupported) revert GeniusErrors.DuplicateToken(token);
+        if (supported) {
+            if (isSupported[token]) revert GeniusErrors.DuplicateToken(token);
             
-            tokenInfo[token] = TokenInfo({isSupported: true, balance: 0});
+            isSupported[token] = true;
             supportedTokensIndex[supportedTokensCount] = token;
             supportedTokensCount++;
         } else {
-            if (!tokenInfo[token].isSupported) revert GeniusErrors.InvalidToken(token);
-            if (tokenInfo[token].balance != 0) revert GeniusErrors.RemainingBalance(tokenInfo[token].balance);
+            if (!isSupported[token]) revert GeniusErrors.InvalidToken(token);
+            uint256 _tokenBalance = tokenBalance(token);
+            if (_tokenBalance != 0) revert GeniusErrors.RemainingBalance(_tokenBalance);
             
-            delete tokenInfo[token];
+            isSupported[token] = false;
             for (uint256 i; i < supportedTokensCount;) {
                 if (supportedTokensIndex[i] == token) {
                     supportedTokensIndex[i] = supportedTokensIndex[supportedTokensCount - 1];
@@ -147,13 +165,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
         );
 
         // Store pre-execution balances for all supported tokens
-        TokenBalance[] memory preBalances = new TokenBalance[](supportedTokensCount);
-        for (uint256 i; i < supportedTokensCount; i++) {
-            address token = supportedTokensIndex[i];
-            uint256 balance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
-            preBalances[i] = TokenBalance(token, balance);
-        }
-
+        uint256[] memory preBalances = supportedTokensBalances();
 
         // Interactions
         _batchExecution(targets, data, values);
@@ -169,26 +181,21 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
         // Check balances of all supported tokens
         for (uint256 i; i < supportedTokensCount; i++) {
             address token = supportedTokensIndex[i];
-            uint256 postBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
+            uint256 postBalance = tokenBalance(token);
 
             // Allow for increases in balance due to potential direct transfers
-            if (postBalance < preBalances[i].balance) {
+            if (postBalance < preBalances[i]) {
                 revert GeniusErrors.UnexpectedBalanceDecrease(
                     token,
                     postBalance,
-                    preBalances[i].balance
+                    preBalances[i]
                 );
-            }
-
-            // Update internal balances to match actual balances
-            if (tokenInfo[token].balance != postBalance) {
+            } else if (preBalances[i] != postBalance) {
                 emit BalanceUpdate(
                     token,
-                    tokenInfo[token].balance,
+                    preBalances[i],
                     postBalance
                 );
-
-                tokenInfo[token].balance = postBalance;
             }
         }
 
@@ -239,28 +246,18 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
                 amountIn,
                 postBalance - preBalance
             );
-        } else if (tokenInfo[tokenIn].isSupported) {
+        } else if (isSupported[tokenIn]) {
             if (tokenIn == NATIVE) {
                 if (msg.value != amountIn) revert GeniusErrors.InvalidAmount();
                 preBalance = address(this).balance - msg.value;
                 postBalance = address(this).balance;
             } else {
-                preBalance = IERC20(tokenIn).balanceOf(address(this));
+                preBalance = tokenBalance(tokenIn);
                 _transferERC20From(tokenIn, msg.sender, address(this), amountIn);
-                postBalance = IERC20(tokenIn).balanceOf(address(this));
+                postBalance = tokenBalance(tokenIn);
             }
-
-            if (postBalance - preBalance != amountIn) revert GeniusErrors.TransferFailed(order.tokenIn, order.amountIn);
-
-            tokenInfo[tokenIn].balance = postBalance;
         } else {
             revert GeniusErrors.InvalidToken(tokenIn);
-        }
-
-        // Check for and handle any pre-existing balance
-        if (preBalance > tokenInfo[tokenIn].balance) {
-            uint256 excess = preBalance - tokenInfo[tokenIn].balance;
-            emit ExcessBalance(tokenIn, excess);
         }
 
         orderStatus[orderHash_] = OrderStatus.Created;        
@@ -329,17 +326,16 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
         bytes calldata data
     ) external override onlyOrchestrator whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (!tokenInfo[token].isSupported) revert GeniusErrors.InvalidToken(token);
-        if (tokenInfo[token].balance < amount) revert GeniusErrors.InsufficientBalance(token, amount, tokenInfo[token].balance);
+        if (!isSupported[token]) revert GeniusErrors.InvalidToken(token);
+        uint256 _tokenBalance = tokenBalance(token);
+        if (_tokenBalance < amount) revert GeniusErrors.InsufficientBalance(token, amount, _tokenBalance);
         if (target == address(0)) revert GeniusErrors.InvalidTarget(target);
         if (supportedRouters[target] == 0) revert GeniusErrors.InvalidTarget(target);
 
         uint256 preSwapStableBalance = STABLECOIN.balanceOf(address(this));
-        uint256 preSwapTokenBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
-
-        // Effects
-        tokenInfo[token].balance -= amount;  // Decrease the balance of the swapped token
         
+        uint256[] memory preSwapBalances = supportedTokensBalances();
+
         // Interactions
         if (token == NATIVE) {
             _executeSwap(token, target, data, amount);
@@ -349,28 +345,23 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
         }
         // Post-swap checks and effects
         uint256 postSwapStableBalance = STABLECOIN.balanceOf(address(this));
-        uint256 postSwapTokenBalance = token == NATIVE ? address(this).balance : IERC20(token).balanceOf(address(this));
+        uint256 postSwapTokenBalance = tokenBalance(token);
 
         uint256 stableDelta = postSwapStableBalance - preSwapStableBalance;
-        uint256 tokenDelta = preSwapTokenBalance - postSwapTokenBalance;
+        uint256 tokenDelta = _tokenBalance - postSwapTokenBalance;
 
         if (stableDelta == 0) revert GeniusErrors.InvalidDelta();
         if (tokenDelta > amount) revert GeniusErrors.UnexpectedBalanceChange(token, amount, tokenDelta);
-
-        // Update balances
-        tokenInfo[token].balance = postSwapTokenBalance;  // Adjust for any discrepancies
 
         // Check for unexpected balance changes in other tokens
         for (uint256 i; i < supportedTokensCount; i++) {
             address currentToken = supportedTokensIndex[i];
             if (currentToken != token && currentToken != address(STABLECOIN)) {
-                uint256 currentBalance = currentToken == NATIVE ? 
-                    address(this).balance : 
-                    IERC20(currentToken).balanceOf(address(this));
+                uint256 currentBalance = tokenBalance(currentToken);
                 
-                if (currentBalance != tokenInfo[currentToken].balance) {
-                    emit UnexpectedBalanceChange(currentToken, tokenInfo[currentToken].balance, currentBalance);
-                    tokenInfo[currentToken].balance = currentBalance;
+                if (currentBalance != preSwapBalances[i]) {
+                    emit UnexpectedBalanceChange(currentToken, preSwapBalances[i], currentBalance);
+                    preSwapBalances[i] = currentBalance;
                 }
             }
         }
@@ -407,60 +398,21 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
      * @dev See {IGeniusMultiTokenPool-isTokenSupported}.
      */
     function isTokenSupported(address token) public view override returns (bool) {
-        return tokenInfo[token].isSupported;
+        return isSupported[token];
     }
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-supportedTokenBalances}.
-     */
-    function supportedTokenBalances() public view override returns (TokenBalance[] memory) {
-        TokenBalance[] memory _supportedTokenBalances = new TokenBalance[](supportedTokensCount);
-
-        for (uint256 i; i < supportedTokensCount;) {
-            address token = supportedTokensIndex[i];
-            _supportedTokenBalances[i] = TokenBalance(token, tokenInfo[token].balance);
-            
-            unchecked { ++i; }
-        }
-
-        return _supportedTokenBalances;
-    }
-
 
     // =============================================================
     //                     INTERNAL FUNCTIONS
     // =============================================================
 
     /**
-     * @dev Checks if the balance of a specific token is sufficient.
-     * @param token The address of the token to check the balance for.
-     * @param amount The amount to compare against the total balance.
-     * @return isSufficient boolean indicating whether the balance is sufficient or not.
-     * @return balanceInfo TokenBalance struct The balance of the token.
-     */
-    function _isBalanceSufficient(address token, uint256 amount) internal view returns (
-        bool isSufficient,
-        TokenBalance memory balanceInfo
-    ) {
-        uint256 tokenBalance = 0;
-
-        if (token == NATIVE) {
-            tokenBalance = address(this).balance;
-        } else {
-            tokenBalance = IERC20(token).balanceOf(address(this));
-        }
-
-        return (amount <= tokenBalance, TokenBalance(token, tokenBalance));
-    }
-
-    /**
      * @dev Adds an initial token to the GeniusMultiTokenPool.
      * @param token The address of the token to be added.
      */
     function _addInitialToken(address token) internal {
-        if (tokenInfo[token].isSupported) revert GeniusErrors.DuplicateToken(token);
+        if (isSupported[token]) revert GeniusErrors.DuplicateToken(token);
         
-        tokenInfo[token] = TokenInfo({isSupported: true, balance: 0});
+        isSupported[token] = true;
         supportedTokensIndex[supportedTokensCount] = token;
         supportedTokensCount++;
     }
@@ -468,20 +420,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
     function _addInitialRouter(address router) internal {
         if (supportedRouters[router] == 1) revert GeniusErrors.DuplicateRouter(router);
         supportedRouters[router] = 1;
-    }
-
-    /**
-     * @dev Updates the balance of a token held by the contract.
-     * @param token The address of the token to update the balance for.
-     * @notice If the token is the native currency (ETH), the balance is updated with the contract's ETH balance.
-     * Otherwise, the balance is updated with the contract's token balance using the IERC20 interface.
-     */
-    function _updateTokenBalance(address token) internal {
-        if (token == NATIVE) {
-            tokenBalances[token] = address(this).balance;
-        } else {
-            tokenBalances[token] = IERC20(token).balanceOf(address(this));
-        }
     }
 
     /**
