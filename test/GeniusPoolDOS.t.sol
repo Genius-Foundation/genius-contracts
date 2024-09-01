@@ -7,13 +7,12 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
-import {GeniusPool} from "../src/GeniusPool.sol";
-import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
+import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
-contract GeniusPoolDOSTest is Test {
+contract GeniusVaultDOSTest is Test {
     uint256 avalanche;
     uint16 constant targetChainId = 42;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -23,6 +22,7 @@ contract GeniusPoolDOSTest is Test {
     address ORCHESTRATOR;
     address public BRIDGE;
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address MOCK_VAULT;
 
     address public constant NATIVE = address(0);
     ERC20 public TOKEN1;
@@ -30,9 +30,8 @@ contract GeniusPoolDOSTest is Test {
     ERC20 public TOKEN3;
 
     ERC20 public USDC;
-    GeniusPool public POOL;
-    GeniusMultiTokenPool public MULTIPOOL;
     GeniusVault public VAULT;
+    GeniusMultiTokenPool public MULTIPOOL;
     GeniusExecutor public EXECUTOR;
     MockDEXRouter public DEX_ROUTER;
 
@@ -46,6 +45,7 @@ contract GeniusPoolDOSTest is Test {
         OWNER = makeAddr("OWNER");
         TRADER = makeAddr("TRADER");
         ORCHESTRATOR = makeAddr("ORCHESTRATOR");
+        MOCK_VAULT = makeAddr("MOCK_VAULT");
 
         DEX_ROUTER = new MockDEXRouter();
         BRIDGE = makeAddr("BRIDGE");
@@ -55,7 +55,7 @@ contract GeniusPoolDOSTest is Test {
         TOKEN2 = new MockERC20("Token2", "TK2", 18);
         TOKEN3 = new MockERC20("Token3", "TK3", 18);
 
-        // Initialize pool with supported tokens
+        // Initialize vault with supported tokens
         address[] memory supportedTokens = new address[](4);
         supportedTokens[0] = NATIVE;
         supportedTokens[1] = address(TOKEN1);
@@ -69,21 +69,19 @@ contract GeniusPoolDOSTest is Test {
         routers[0] = address(DEX_ROUTER);
 
         vm.startPrank(OWNER);
-        POOL = new GeniusPool(address(USDC), OWNER);
-        MULTIPOOL = new GeniusMultiTokenPool(address(USDC), OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT), OWNER);
+        MULTIPOOL = new GeniusMultiTokenPool(address(USDC), OWNER);
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
 
-        VAULT.initialize(address(POOL));
-        POOL.initialize(address(VAULT), address(EXECUTOR));
+        VAULT.initialize(address(EXECUTOR));
         MULTIPOOL.initialize(
             address(EXECUTOR),
-            address(VAULT),
+            address(MOCK_VAULT),
             supportedTokens,
             bridges,
             routers
         );
-        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         MULTIPOOL.grantRole(MULTIPOOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
@@ -94,11 +92,11 @@ contract GeniusPoolDOSTest is Test {
     function testDOSAttackOnRemoveBridgeLiquidity() public {
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(POOL), 500 ether);
+        USDC.transfer(address(VAULT), 500 ether);
         vm.stopPrank();
 
-        // Simulate a donation to the pool
-        deal(address(USDC), address(POOL), 600 ether);
+        // Simulate a donation to the vault
+        deal(address(USDC), address(VAULT), 600 ether);
 
         // Prepare removal of bridge liquidity
         vm.startPrank(ORCHESTRATOR);
@@ -121,7 +119,7 @@ contract GeniusPoolDOSTest is Test {
         data[0] = transferData;
 
         // This should not revert
-        POOL.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
 
         vm.stopPrank();
 
@@ -143,7 +141,7 @@ contract GeniusPoolDOSTest is Test {
     uint256 initialtotalAssets = MULTIPOOL.totalAssets();
     uint256 initialavailableAssets = MULTIPOOL.availableAssets();
 
-    // Simulate a donation to the pool
+    // Simulate a donation to the vault
     deal(address(USDC), address(MULTIPOOL), initialLiquidity + donationAmount);
 
     // Prepare removal of bridge liquidity
@@ -178,7 +176,7 @@ contract GeniusPoolDOSTest is Test {
     // Verify that the funds have been transferred
     assertEq(USDC.balanceOf(recipient), removalAmount, "Recipient should receive the removed amount");
 
-    // Verify the state changes in the pool
+    // Verify the state changes in the vault
     assertEq(MULTIPOOL.totalAssets(), initialtotalAssets + donationAmount - removalAmount, "Total stables should be updated correctly");
     assertEq(MULTIPOOL.availableAssets(), initialavailableAssets + donationAmount - removalAmount, "Available stable balance should be updated correctly");
 

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import {GeniusPool} from "../../src/GeniusPool.sol";
+import {GeniusVault} from "../../src/GeniusVault.sol";
 
 /**
  * @title AddOrchestrator
@@ -28,11 +28,11 @@ contract AddOrchestrator is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        GeniusPool geniusPool = GeniusPool(0x2789E39123D8AC259D7d5B5f84384B3a17b9145A);
+        GeniusVault geniusVault = GeniusVault(0x2789E39123D8AC259D7d5B5f84384B3a17b9145A);
 
         // Add orchestrator
-        geniusPool.grantRole(ORCHESTRATOR_ROLE, 0xB4Ea547b917763A12e640eA52a77eaba81F2068a);
+        geniusVault.grantRole(ORCHESTRATOR_ROLE, 0xB4Ea547b917763A12e640eA52a77eaba81F2068a);
 
-        console.log("Orchestrator added to GeniusPool");
+        console.log("Orchestrator added to GeniusVault");
     }
 }

@@ -5,7 +5,6 @@ import {Test, console} from "forge-std/Test.sol";
 import {PermitSignature} from "./utils/SigUtils.sol";
 
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
-import {GeniusPool} from "../src/GeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
@@ -35,7 +34,6 @@ contract GeniusExecutorDrain is Test {
     PermitSignature public sigUtils;
     IEIP712 public permit2;
 
-    GeniusPool public POOL;
     GeniusVault public VAULT;
     GeniusExecutor public EXECUTOR;
     MaliciousContract public MALICIOUS;
@@ -143,11 +141,9 @@ contract GeniusExecutorDrain is Test {
         sigUtils = new PermitSignature();
 
         vm.startPrank(OWNER);
-        POOL = new GeniusPool(address(USDC), OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(permit2Address, address(POOL), address(VAULT), OWNER);
-        POOL.initialize(address(VAULT), address(EXECUTOR));
-        VAULT.initialize(address(POOL));
+        EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER);
+        VAULT.initialize(address(EXECUTOR));
         MALICIOUS = new MaliciousContract(address(EXECUTOR));
         DEX_ROUTER = new MockDEXRouter();
         vm.stopPrank();
@@ -428,10 +424,10 @@ contract GeniusExecutorDrain is Test {
      * 4. Sets up the targets, data, and values for the multiSwap by calling `setupMultiSwapParams` function.
      * 5. Generates permit batch and signature by calling `generatePermitBatchAndSignature` function with the trader address,
      *    executor address, and an array of token addresses and values.
-     * 6. Records the initial balances of the trader and the pool.
+     * 6. Records the initial balances of the trader and the vault.
      * 7. Executes the multiSwapAndDeposit by calling `multiSwapAndDeposit` function with the targets, data, values,
      *    permit batch, signature, and trader address.
-     * 8. Asserts the final balances of the trader and the pool.
+     * 8. Asserts the final balances of the trader and the vault.
      * 
      */
     function testSuccessfulMultiSwapAndDeposit() public {
@@ -452,7 +448,7 @@ contract GeniusExecutorDrain is Test {
         // Record initial balances
         uint256 initialTraderUSDCBalance = USDC.balanceOf(trader);
         uint256 initialTraderWETHBalance = WETH.balanceOf(trader);
-        uint256 initialPoolUSDCBalance = USDC.balanceOf(address(POOL));
+        uint256 initialVaultUSDCBalance = USDC.balanceOf(address(VAULT));
 
         // Execute multiSwapAndDeposit
         vm.prank(trader);
@@ -470,7 +466,7 @@ contract GeniusExecutorDrain is Test {
         // Assert final balances
         assertEq(USDC.balanceOf(trader), initialTraderUSDCBalance - 10 ether, "Trader USDC balance should decrease by 10 ether");
         assertEq(WETH.balanceOf(trader), initialTraderWETHBalance - 5 ether, "Trader WETH balance should decrease by 5 ether");
-        assertEq(USDC.balanceOf(address(POOL)), initialPoolUSDCBalance + 10 ether, "Pool should receive the deposited USDC");
+        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + 10 ether, "Vault should receive the deposited USDC");
     }
 
     /**
@@ -635,7 +631,7 @@ contract GeniusExecutorDrain is Test {
 
         // Setup initial balances
         uint256 initialContractBalance = address(this).balance;
-        uint256 initialPoolUSDCBalance = USDC.balanceOf(address(POOL));
+        uint256 initialVaultUSDCBalance = USDC.balanceOf(address(VAULT));
 
         // Prepare swap data
         bytes memory swapData = abi.encodeWithSignature(
@@ -657,7 +653,7 @@ contract GeniusExecutorDrain is Test {
 
         // Assert final balances
         assertEq(address(this).balance, initialContractBalance - 1 ether, "Trader ETH balance should decrease by 1 ether");
-        assertEq(USDC.balanceOf(address(POOL)), initialPoolUSDCBalance + MockDEXRouter(DEX_ROUTER).usdcAmountOut(), "Pool should receive the swapped USDC");
+        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + MockDEXRouter(DEX_ROUTER).usdcAmountOut(), "Vault should receive the swapped USDC");
 
         // 1. Invalid target
         address invalidTarget = address(0x1234);

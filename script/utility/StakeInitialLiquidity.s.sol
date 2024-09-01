@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
-import {GeniusPool} from "../../src/GeniusPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /**
  * @title StakeInitialLiquidity
@@ -42,7 +41,7 @@ contract StakeInitialLiquidity is Script {
         // vm.startBroadcast(deployerPrivateKey);
 
         // // Adjust threshold to 75
-        // geniusPool.setRebalanceThreshold(75);
+        // geniusVault.setRebalanceThreshold(75);
 
         // console.log("Rebalance threshold adjusted to 75");
 

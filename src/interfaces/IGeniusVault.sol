@@ -1,28 +1,274 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IGeniusPool} from "./IGeniusPool.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title IGeniusVault
- * @dev Interface for a contract that represents a vault for holding assets and interacting with the GeniusPool contract.
+ * @author looter
+ * 
+ * @notice Interface for the GeniusVault contract that allows for Genius Orchestrators to credit and debit
+ *         trader STABLECOIN balances for cross-chain swaps,
+ *         and other Genius related activities.
  */
 interface IGeniusVault {
-    // =============================================================
-    //                          FUNCTIONS
-    // =============================================================
 
     /**
-     * @dev Initializes the GeniusVault contract.
-     * @param _geniusPool The address of the GeniusPool contract.
-     * @notice This function can only be called once to initialize the contract.
+     * @notice Enum representing the possible statuses of an order.
      */
-    function initialize(address _geniusPool) external;
+    enum OrderStatus {
+        Nonexistant,
+        Created,
+        Filled,
+        Reverted
+    }
 
-    // =============================================================
-    //                          VARIABLES
-    // =============================================================
+    /**
+     * @notice Struct representing an order in the system.
+     * @param amountIn The amount of tokens to be swapped.
+     * @param orderId Unique identifier for the order.
+     * @param trader Address of the trader initiating the order.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline by which the order must be filled.
+     * @param tokenIn The address of the token to be swapped.
+     */
+    struct Order {
+        uint256 amountIn;
+        uint32 orderId;
+        address trader;
+        uint16 srcChainId;
+        uint16 destChainId;
+        uint32 fillDeadline; 
+        address tokenIn;
+    }
 
-    function geniusPool() external view returns (IGeniusPool);
-    function initialized() external view returns (bool);
+    /**
+     * @notice Emitted on the source chain when a swap deposit is made.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
+     */
+    event SwapDeposit(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    /**
+     * @notice Emitted on the destination chain when a swap withdrawal occurs.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenOut The address of the output token.
+     * @param amountOut The amount of output tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
+     */
+    event SwapWithdrawal(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenOut,
+        uint256 amountOut,
+        uint16 indexed srcChainId,
+        uint16 destChainId,
+        uint32 fillDeadline
+    );
+
+    /**
+     * @notice Emitted on the source chain when an order is filled.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
+     */
+    event OrderFilled(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    /**
+     * @notice Emitted on the source chain when an order is reverted.
+     * @param orderId The unique identifier of the order.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param srcChainId The source chain ID.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
+     */
+    event OrderReverted(
+        uint32 indexed orderId,
+        address indexed trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 srcChainId,
+        uint16 indexed destChainId,
+        uint32 fillDeadline
+    );
+
+    /**
+     * @notice Emitted when liquidity is removed for rebalancing.
+     * @param amount The amount of funds being bridged.
+     * @param chainId The ID of the chain where the funds are being bridged to.
+     */
+    event RemovedLiquidity(
+        uint256 amount,
+        uint16 chainId
+    );
+
+    function stablecoinBalance() external view returns (uint256);
+
+    /**
+     * @notice Returns the minimum asset balance required in the vault.
+     * @return The minimum asset balance.
+     */
+    function minAssetBalance() external view returns (uint256);
+
+    /**
+     * @notice Returns the available assets in the vault.
+     * @return The amount of available assets.
+     */
+    function availableAssets() external view returns (uint256);
+
+    /**
+     * @notice Removes liquidity from a bridge vault 
+     * and bridge it to the destination chain.
+     * @param amountIn The amount of tokens to remove from the bridge vault.
+     * @param dstChainId The chain ID of the destination chain.
+     * @param targets The array of target addresses to call.
+     * @param values The array of values to send along with the function calls.
+     * @param data The array of function call data.
+     */
+    function removeBridgeLiquidity(
+        uint256 amountIn,
+        uint16 dstChainId,
+        address[] memory targets,
+        uint256[] calldata values,
+        bytes[] memory data
+    ) external payable;
+
+    /**
+     * @notice Adds liquidity to the GeniusVault contract 
+     * of the source chain in a cross-chain order flow.
+     * @param trader The address of the trader.
+     * @param tokenIn The address of the input token.
+     * @param amountIn The amount of input tokens.
+     * @param destChainId The destination chain ID.
+     * @param fillDeadline The deadline for filling the order.
+     */
+    function addLiquiditySwap(
+        address trader,
+        address tokenIn,
+        uint256 amountIn,
+        uint16 destChainId,
+        uint32 fillDeadline
+    ) external;
+
+    /**
+     * @notice Removes liquidity from the GeniusVault contract 
+     * of the destination chain in a cross-chain order flow.
+     * @param order The Order struct containing the order details.
+     */
+    function removeLiquiditySwap(
+        Order memory order
+    ) external;
+
+    /**
+     * @notice Sets the status of an order as filled on the source chain.
+     * @param order The Order struct containing the order details.
+     */
+    function setOrderAsFilled(Order memory order) external;
+
+    /**
+     * @notice Reverts an order on the source chain and executes associated revert actions.
+     * @param order The Order struct containing the order details.
+     * @param targets The array of target addresses to call.
+     * @param data The array of function call data.
+     * @param values The array of values to send along with the function calls.
+     */
+    function revertOrder(
+        Order calldata order, 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
+    ) external;
+
+    /**
+     * @notice Removes reward liquidity from the GeniusVault contract.
+     * @param amount The amount of reward liquidity to remove.
+     */
+    function removeRewardLiquidity(uint256 amount) external;
+
+    /**
+     * @notice Sets the rebalance threshold for the GeniusVault contract.
+     * @param threshold The new rebalance threshold to be set.
+     */
+    function setRebalanceThreshold(uint256 threshold) external;
+
+    /**
+     * @notice Authorizes or unauthorizes a bridge target.
+     * @param bridge The address of the bridge target to be managed.
+     * @param authorize True to authorize the bridge, false to unauthorize it.
+     */
+    function manageBridge(address bridge, bool authorize) external;
+
+    /**
+     * @notice Pauses the contract and locks all functionality in case of an emergency.
+     */
+    function pause() external;
+
+    /**
+     * @notice Allows the owner to emergency unlock the contract.
+     */
+    function unpause() external;
+
+    /**
+     * @notice Returns the current state of the assets in the GeniusVault contract.
+     * @return balanceStablecoin The total number of assets in the vault.
+     * @return availableAssets The number of assets available for use.
+     * @return totalStakedAssets The total number of assets currently staked in the vault.
+     */
+    function allAssets() external view returns (uint256, uint256, uint256);
+
+    /**
+     * @notice Calculates the hash of an order.
+     * @param order The Order struct to hash.
+     * @return The bytes32 hash of the order.
+     */
+    function orderHash(Order memory order) external pure returns (bytes32);
+
+    /**
+     * @notice Returns the total amount of staked assets in the vault.
+     * @return The total amount of staked assets.
+     */
+    function totalStakedAssets() external view returns (uint256);
+
+    /**
+     * @notice Returns the current rebalance threshold.
+     * @return The rebalance threshold as a percentage.
+     */
+    function rebalanceThreshold() external view returns (uint256);
+
+     /**
+     * @notice Returns the address of the stablecoin used in the vault.
+     * @return The IERC20 interface of the stablecoin.
+     */
+    function STABLECOIN() external view returns (IERC20);
 }

@@ -101,7 +101,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
         // Deploy contracts
         MULTI_POOL = new GeniusMultiTokenPool(address(USDC), OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(address(PERMIT2), address(MULTI_POOL), address(VAULT), OWNER);
+        EXECUTOR = new GeniusExecutor(address(PERMIT2), address(MULTI_POOL), OWNER);
         ROUTER = new MockSwapTarget();
 
         // Initialize pool with supported tokens

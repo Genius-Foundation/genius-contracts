@@ -7,7 +7,6 @@ import {PermitSignature} from "./utils/SigUtils.sol";
 
 // Contracts
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
-import {GeniusPool} from "../src/GeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 
 // Interfaces
@@ -63,7 +62,6 @@ contract GeniusExecutorTest is Test {
     IEIP712 public permit2;
 
     // Internal contracts
-    GeniusPool public POOL;
     GeniusVault public VAULT;
     GeniusExecutor public EXECUTOR;
 
@@ -91,28 +89,25 @@ contract GeniusExecutorTest is Test {
         sigUtils = new PermitSignature();
 
         vm.prank(OWNER);
-        POOL = new GeniusPool(
+        VAULT = new GeniusVault(
             address(USDC),
             OWNER
         );
 
         vm.startPrank(OWNER);
-        VAULT = new GeniusVault(address(USDC), OWNER);
 
         EXECUTOR = new GeniusExecutor(
             permit2Address,
-            address(POOL),
             address(VAULT),
             OWNER
         );
 
-        POOL.initialize(address(VAULT), address(EXECUTOR));
+        VAULT.initialize(address(EXECUTOR));
         vm.stopPrank();
 
         vm.startPrank(OWNER);
-        VAULT.initialize(address(POOL));
 
-        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         address[] memory routers = new address[](1);
@@ -352,10 +347,10 @@ contract GeniusExecutorTest is Test {
         vm.stopPrank();
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(POOL)), 5 ether, "Executor should have 5 test tokens");
-        assertEq(POOL.totalAssets(), 5 ether, "Pool should have 5 test tokens available");
-        assertEq(POOL.availableAssets(), 5 ether, "Pool should have 90% of test tokens available");
-        assertEq(POOL.totalStakedAssets(), 0, "Pool should have 0 test tokens staked");
+        assertEq(USDC.balanceOf(address(VAULT)), 5 ether, "Executor should have 5 test tokens");
+        assertEq(VAULT.stablecoinBalance(), 5 ether, "Vault should have 5 test tokens available");
+        assertEq(VAULT.availableAssets(), 5 ether, "Vault should have 90% of test tokens available");
+        assertEq(VAULT.totalStakedAssets(), 0, "Vault should have 0 test tokens staked");
     }
 
     function testNativeSwapAndDeposit() public {
@@ -383,10 +378,10 @@ contract GeniusExecutorTest is Test {
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(POOL)), 50 ether, "Executor should have 10 test tokens");
-        assertEq(POOL.totalAssets(), 50 ether, "Pool should have 10 test tokens available");
-        assertEq(POOL.availableAssets(), 50 ether, "Pool should have 10 test tokens available");
-        assertEq(POOL.totalStakedAssets(), 0, "Pool should have 0 test tokens staked");
+        assertEq(USDC.balanceOf(address(VAULT)), 50 ether, "Executor should have 10 test tokens");
+        assertEq(VAULT.stablecoinBalance(), 50 ether, "Vault should have 10 test tokens available");
+        assertEq(VAULT.availableAssets(), 50 ether, "Vault should have 50 test tokens available");
+        assertEq(VAULT.totalStakedAssets(), 0, "Vault should have 0 test tokens staked");
     }
 
 
@@ -480,13 +475,13 @@ contract GeniusExecutorTest is Test {
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(POOL)), 120 ether, "Executor should have 120 test tokens");
+        assertEq(USDC.balanceOf(address(VAULT)), 120 ether, "Executor should have 120 test tokens");
         assertEq(USDC.balanceOf(holderOne), 90 ether, "Holder One should have 90 test tokens");
         assertEq(USDC.balanceOf(holderTwo), 90 ether, "Holder Two should have 90 test tokens");
         assertEq(USDC.balanceOf(TRADER), traderBalance - 100 ether, "Trader should have expected balance");
-        assertEq(POOL.totalAssets(), 120 ether, "Pool should have 120 test tokens available");
-        assertEq(POOL.availableAssets(), 120 ether, "Pool should have 120 test tokens available");
-        assertEq(POOL.totalStakedAssets(), 0, "Pool should have 0 test tokens staked");
+        assertEq(VAULT.stablecoinBalance(), 120 ether, "Vault should have 120 test tokens available");
+        assertEq(VAULT.availableAssets(), 120 ether, "Vault should have 120 test tokens available");
+        assertEq(VAULT.totalStakedAssets(), 0, "Vault should have 0 test tokens staked");
     }
 
     function testDepositToVault() public {
@@ -531,7 +526,7 @@ contract GeniusExecutorTest is Test {
 
         // Assert the results
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 USDC");
-        assertEq(VAULT.totalAssets(), depositAmount, "Vault should have received the deposit");
+        assertEq(VAULT.stablecoinBalance(), depositAmount, "Vault should have received the deposit");
         assertEq(VAULT.balanceOf(TRADER), depositAmount, "Trader should have received vault shares");
         assertEq(USDC.balanceOf(TRADER), 90 ether, "Trader should have 90 USDC left");
     }
@@ -607,7 +602,7 @@ contract GeniusExecutorTest is Test {
 
         // Assert the results
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 USDC");
-        assertEq(USDC.balanceOf(address(POOL)), 9 ether, "Pool should have remaining USDC");
+        assertEq(USDC.balanceOf(address(VAULT)), 9 ether, "Vault should have remaining USDC");
         assertEq(VAULT.balanceOf(TRADER), 9 ether, "Trader should have remaining vault shares");
         assertEq(USDC.balanceOf(TRADER), 91 ether, "Trader should have received withdrawn USDC");
     }

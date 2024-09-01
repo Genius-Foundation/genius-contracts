@@ -139,7 +139,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
         // Deploy contracts
         POOL = new GeniusMultiTokenPool(address(USDC), OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(permit2Address, address(POOL), address(VAULT), OWNER);
+        EXECUTOR = new GeniusExecutor(permit2Address, address(POOL), OWNER);
         DEX_ROUTER = new MockDEXRouter();
         BRIDGE = makeAddr("bridge");
 
