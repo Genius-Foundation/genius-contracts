@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusMultiTokenVault} from "./interfaces/IGeniusMultiTokenVault.sol";
@@ -18,6 +19,8 @@ import {GeniusVault} from "./GeniusVault.sol";
  *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
 contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
+    using SafeERC20 for IERC20;
+
     // =============================================================
     //                          IMMUTABLES
     // =============================================================
@@ -42,7 +45,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
         address stablecoin,
         address admin
     ) GeniusVault(stablecoin, admin) {
-        
+        isSupported[address(STABLECOIN)] = true;
     }
 
     // =============================================================
@@ -452,10 +455,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
      * @param amount The amount to be approved.
      */
     function _approveERC20(address token, address spender, uint256 amount) internal {
-        (bool approvalSuccess) = IERC20(token).approve(spender, amount);
-
-        if (!approvalSuccess) {
-            revert GeniusErrors.ApprovalFailure(token, amount);
-        }
+        IERC20(token).safeIncreaseAllowance(spender, amount);
     }
 }

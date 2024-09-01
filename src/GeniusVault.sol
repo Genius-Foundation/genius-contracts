@@ -6,6 +6,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
 import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
@@ -19,6 +20,8 @@ import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
  *         primary asset.
  */
 contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
+    using SafeERC20 for IERC20;
+
     // =============================================================
     //                          IMMUTABLES
     // =============================================================
@@ -481,7 +484,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
         address to,
         uint256 amount
     ) internal {
-        IERC20(token).transfer(to, amount);
+        IERC20(token).safeTransfer(to, amount);
     }
 
     function _transferERC20From(
@@ -490,7 +493,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
         address to,
         uint256 amount
     ) internal {
-        IERC20(token).transferFrom(from, to, amount);
+        IERC20(token).safeTransferFrom(from, to, amount);
     }
 
     function _batchExecution(
