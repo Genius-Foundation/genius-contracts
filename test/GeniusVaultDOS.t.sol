@@ -7,13 +7,12 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
-import {GeniusPool} from "../src/GeniusPool.sol";
-import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
+import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
-contract GeniusPoolDOSTest is Test {
+contract GeniusVaultDOSTest is Test {
     uint256 avalanche;
     uint16 constant targetChainId = 42;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -23,6 +22,7 @@ contract GeniusPoolDOSTest is Test {
     address ORCHESTRATOR;
     address public BRIDGE;
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address MOCK_VAULT;
 
     address public constant NATIVE = address(0);
     ERC20 public TOKEN1;
@@ -30,9 +30,8 @@ contract GeniusPoolDOSTest is Test {
     ERC20 public TOKEN3;
 
     ERC20 public USDC;
-    GeniusPool public POOL;
-    GeniusMultiTokenPool public MULTIPOOL;
     GeniusVault public VAULT;
+    GeniusMultiTokenVault public MULTIVAULT;
     GeniusExecutor public EXECUTOR;
     MockDEXRouter public DEX_ROUTER;
 
@@ -55,7 +54,7 @@ contract GeniusPoolDOSTest is Test {
         TOKEN2 = new MockERC20("Token2", "TK2", 18);
         TOKEN3 = new MockERC20("Token3", "TK3", 18);
 
-        // Initialize pool with supported tokens
+        // Initialize vault with supported tokens
         address[] memory supportedTokens = new address[](4);
         supportedTokens[0] = NATIVE;
         supportedTokens[1] = address(TOKEN1);
@@ -69,22 +68,19 @@ contract GeniusPoolDOSTest is Test {
         routers[0] = address(DEX_ROUTER);
 
         vm.startPrank(OWNER);
-        POOL = new GeniusPool(address(USDC), OWNER);
-        MULTIPOOL = new GeniusMultiTokenPool(address(USDC), OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT), OWNER);
+        MULTIVAULT = new GeniusMultiTokenVault(address(USDC), OWNER);
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
 
-        VAULT.initialize(address(POOL));
-        POOL.initialize(address(VAULT), address(EXECUTOR));
-        MULTIPOOL.initialize(
+        VAULT.initialize(address(EXECUTOR));
+        MULTIVAULT.initialize(
             address(EXECUTOR),
-            address(VAULT),
             supportedTokens,
             bridges,
             routers
         );
-        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
-        MULTIPOOL.grantRole(MULTIPOOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -94,11 +90,11 @@ contract GeniusPoolDOSTest is Test {
     function testDOSAttackOnRemoveBridgeLiquidity() public {
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(POOL), 500 ether);
+        USDC.transfer(address(VAULT), 500 ether);
         vm.stopPrank();
 
-        // Simulate a donation to the pool
-        deal(address(USDC), address(POOL), 600 ether);
+        // Simulate a donation to the vault
+        deal(address(USDC), address(VAULT), 600 ether);
 
         // Prepare removal of bridge liquidity
         vm.startPrank(ORCHESTRATOR);
@@ -121,7 +117,7 @@ contract GeniusPoolDOSTest is Test {
         data[0] = transferData;
 
         // This should not revert
-        POOL.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
 
         vm.stopPrank();
 
@@ -129,27 +125,27 @@ contract GeniusPoolDOSTest is Test {
         assertEq(USDC.balanceOf(recipient), amountToRemove);
     }
 
-    function testDOSAttackOnRemoveBridgeLiquidityMULTIPOOL() public {
+    function testDOSAttackOnRemoveBridgeLiquidityMULTIVAULT() public {
     uint256 initialLiquidity = 500 ether;
     uint256 donationAmount = 100 ether;
     uint256 removalAmount = 500 ether;
 
     // Add initial liquidity
     vm.startPrank(ORCHESTRATOR);
-    USDC.transfer(address(MULTIPOOL), initialLiquidity);
+    USDC.transfer(address(MULTIVAULT), initialLiquidity);
     vm.stopPrank();
 
     // Record initial state
-    uint256 initialtotalAssets = MULTIPOOL.totalAssets();
-    uint256 initialavailableAssets = MULTIPOOL.availableAssets();
+    uint256 initialtotalAssets = MULTIVAULT.stablecoinBalance();
+    uint256 initialavailableAssets = MULTIVAULT.availableAssets();
 
-    // Simulate a donation to the pool
-    deal(address(USDC), address(MULTIPOOL), initialLiquidity + donationAmount);
+    // Simulate a donation to the vault
+    deal(address(USDC), address(MULTIVAULT), initialLiquidity + donationAmount);
 
     // Prepare removal of bridge liquidity
     vm.startPrank(OWNER);
     // Ensure the USDC token is a valid target for bridge operations
-    MULTIPOOL.manageBridge(address(USDC), true);
+    MULTIVAULT.manageBridge(address(USDC), true);
     vm.stopPrank();
 
     vm.startPrank(ORCHESTRATOR);
@@ -171,25 +167,25 @@ contract GeniusPoolDOSTest is Test {
     data[0] = transferData;
 
     // This should now succeed
-    MULTIPOOL.removeBridgeLiquidity(removalAmount, targetChainId, targets, values, data);
+    MULTIVAULT.removeBridgeLiquidity(removalAmount, targetChainId, targets, values, data);
 
     vm.stopPrank();
 
     // Verify that the funds have been transferred
     assertEq(USDC.balanceOf(recipient), removalAmount, "Recipient should receive the removed amount");
 
-    // Verify the state changes in the pool
-    assertEq(MULTIPOOL.totalAssets(), initialtotalAssets + donationAmount - removalAmount, "Total stables should be updated correctly");
-    assertEq(MULTIPOOL.availableAssets(), initialavailableAssets + donationAmount - removalAmount, "Available stable balance should be updated correctly");
+    // Verify the state changes in the vault
+    assertEq(MULTIVAULT.stablecoinBalance(), initialtotalAssets + donationAmount - removalAmount, "Total stables should be updated correctly");
+    assertEq(MULTIVAULT.availableAssets(), initialavailableAssets + donationAmount - removalAmount, "Available stable balance should be updated correctly");
 
     // Try to remove more than the available balance (should revert)
     vm.startPrank(ORCHESTRATOR);
-    uint256 excessiveAmount = MULTIPOOL.availableAssets() + 1 ether;
+    uint256 excessiveAmount = MULTIVAULT.availableAssets() + 1 ether;
     vm.expectRevert();
-    MULTIPOOL.removeBridgeLiquidity(excessiveAmount, targetChainId, targets, values, data);
+    MULTIVAULT.removeBridgeLiquidity(excessiveAmount, targetChainId, targets, values, data);
     vm.stopPrank();
 
     // Verify that the total balance matches the contract's actual balance
-    assertEq(USDC.balanceOf(address(MULTIPOOL)), MULTIPOOL.totalAssets(), "Contract balance should match totalAssets");
+    assertEq(USDC.balanceOf(address(MULTIVAULT)), MULTIVAULT.stablecoinBalance(), "Contract balance should match stablecoinBalance");
     }
 }

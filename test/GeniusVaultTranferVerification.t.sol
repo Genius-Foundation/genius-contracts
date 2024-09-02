@@ -7,13 +7,12 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
-import {GeniusPool} from "../src/GeniusPool.sol";
-import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
+import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
-contract GeniusPoolTransferVerificationTest is Test {
+contract GeniusVaultTransferVerificationTest is Test {
     uint256 avalanche;
     uint16 constant targetChainId = 42;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -30,9 +29,8 @@ contract GeniusPoolTransferVerificationTest is Test {
     ERC20 public TOKEN3;
 
     ERC20 public USDC;
-    GeniusPool public POOL;
-    GeniusMultiTokenPool public MULTIPOOL;
     GeniusVault public VAULT;
+    GeniusMultiTokenVault public MULTIVAULT;
     GeniusExecutor public EXECUTOR;
     MockDEXRouter public DEX_ROUTER;
 
@@ -69,22 +67,19 @@ contract GeniusPoolTransferVerificationTest is Test {
         routers[0] = address(DEX_ROUTER);
 
         vm.startPrank(OWNER);
-        POOL = new GeniusPool(address(USDC), OWNER);
-        MULTIPOOL = new GeniusMultiTokenPool(address(USDC), OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT), OWNER);
+        MULTIVAULT = new GeniusMultiTokenVault(address(USDC), OWNER);
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
 
-        VAULT.initialize(address(POOL));
-        POOL.initialize(address(VAULT), address(EXECUTOR));
-        MULTIPOOL.initialize(
+        VAULT.initialize(address(EXECUTOR));
+        MULTIVAULT.initialize(
             address(EXECUTOR),
-            address(VAULT),
             supportedTokens,
             bridges,
             routers
         );
-        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
-        MULTIPOOL.grantRole(MULTIPOOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -94,7 +89,7 @@ contract GeniusPoolTransferVerificationTest is Test {
     function testWrongTranferAmountOnRemoveBridgeLiquidity() public {
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(POOL), 500 ether);
+        USDC.transfer(address(VAULT), 500 ether);
         vm.stopPrank();
 
         // Prepare removal of bridge liquidity
@@ -119,24 +114,24 @@ contract GeniusPoolTransferVerificationTest is Test {
         data[0] = transferData;
 
         vm.expectRevert();
-        POOL.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
         vm.stopPrank();
     }
 
-    function testWrongTransferOnRemoveBridgeLiquidityMULTIPOOL() public {
+    function testWrongTransferOnRemoveBridgeLiquidityMULTIVAULT() public {
         uint256 initialLiquidity = 500 ether;
         uint256 amountToRemove = 400 ether;
         uint256 wrongTransferAmount = 500 ether;
 
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(MULTIPOOL), initialLiquidity);
+        USDC.transfer(address(MULTIVAULT), initialLiquidity);
         vm.stopPrank();
 
         // Prepare removal of bridge liquidity
         vm.startPrank(OWNER);
         // Ensure the USDC token is a valid target for bridge operations
-        MULTIPOOL.manageBridge(address(USDC), true);
+        MULTIVAULT.manageBridge(address(USDC), true);
         vm.stopPrank();
 
         vm.startPrank(ORCHESTRATOR);
@@ -158,7 +153,7 @@ contract GeniusPoolTransferVerificationTest is Test {
         data[0] = transferData;
 
         vm.expectRevert();
-        MULTIPOOL.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
+        MULTIVAULT.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
         vm.stopPrank();
     }
 }

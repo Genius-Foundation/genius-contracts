@@ -8,7 +8,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
 
-import { IGeniusPool } from "./interfaces/IGeniusPool.sol";
+import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
 import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
@@ -18,7 +18,7 @@ import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
  * @author @altloot, @samuel_vdu
  * 
  * @notice The GeniusExecutor contract is a contract that allows for the aggregation of multiple calls
- *         in a single transaction, as well as facilitating interactions with the GeniusPool contract
+ *         in a single transaction, as well as facilitating interactions with the GeniusVault contract
  *         and the GeniusVault contract.
  */
 contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
@@ -36,19 +36,16 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
     IAllowanceTransfer public immutable override PERMIT2;
     IERC20 public immutable override STABLECOIN;
-    IGeniusPool public immutable override POOL;
-    IERC4626 public immutable override VAULT;
+    IGeniusVault public immutable VAULT;
 
     constructor(
         address permit2,
-        address pool,
         address vault,
         address admin
     ) {
         PERMIT2 = IAllowanceTransfer(permit2);
-        VAULT = IERC4626(vault);
-        POOL = IGeniusPool(pool);
-        STABLECOIN = IERC20(POOL.STABLECOIN());
+        VAULT = IGeniusVault(vault);
+        STABLECOIN = IERC20(VAULT.STABLECOIN());
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
     }
@@ -176,12 +173,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _postStableValue
         );
 
-        if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(
+        if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(
             address(STABLECOIN),
             _depositAmount
         );
 
-        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
+        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
 
         _sweepERC20s(permitBatch, owner);
     }
@@ -222,9 +219,9 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _postStableValue
         );
 
-        if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
+        if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
-        POOL.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
+        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
 
         _sweepERC20s(permitBatch, owner);
         if (msg.value > 0) _sweepNative(msg.sender);
@@ -258,12 +255,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
 
         if (_depositAmount == 0) revert GeniusErrors.UnexpectedBalanceChange(address(STABLECOIN), _initStableValue, _postStableValue);
-        if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(
+        if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(
             address(STABLECOIN),
             _depositAmount
         );
 
-        POOL.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
+        VAULT.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
 
         if (msg.value > 0) _sweepNative(msg.sender);
     }
@@ -325,7 +322,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         for (uint256 i; i < targetsLength;) {
             address target = targets[i];
 
-            if (target == address(POOL) || target == address(VAULT)) {
+            if (target == address(VAULT) || target == address(VAULT)) {
 
                 if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
                     revert GeniusErrors.InvalidTarget(target);
@@ -454,11 +451,11 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     }
 
     function _depositToVault(address receiver, uint256 amount) private {
-        VAULT.deposit(amount, receiver);
+        IERC4626(address(VAULT)).deposit(amount, receiver);
     }
 
     function _withdrawFromVault(address receiver, uint256 amount) private {
-        VAULT.withdraw(amount, receiver, address(this));
+        IERC4626(address(VAULT)).withdraw(amount, receiver, address(this));
     }
 
     receive() external payable {

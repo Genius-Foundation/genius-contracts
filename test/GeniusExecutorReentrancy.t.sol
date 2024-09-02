@@ -5,7 +5,6 @@ import {Test, console} from "forge-std/Test.sol";
 import {PermitSignature} from "./utils/SigUtils.sol";
 
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
-import {GeniusPool} from "../src/GeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
@@ -35,7 +34,6 @@ contract GeniusExecutorReentrancy is Test {
     PermitSignature public sigUtils;
     IEIP712 public permit2;
 
-    GeniusPool public POOL;
     GeniusVault public VAULT;
     GeniusExecutor public EXECUTOR;
     MockDEXRouter public DEX_ROUTER;
@@ -60,11 +58,9 @@ contract GeniusExecutorReentrancy is Test {
         sigUtils = new PermitSignature();
 
         vm.startPrank(OWNER);
-        POOL = new GeniusPool(address(USDC), OWNER);
         VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(permit2Address, address(POOL), address(VAULT), OWNER);
-        POOL.initialize(address(VAULT), address(EXECUTOR));
-        VAULT.initialize(address(POOL));
+        EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER);
+        VAULT.initialize(address(EXECUTOR));
         DEX_ROUTER = new MockDEXRouter();
         ATTACKER = new MockReentrancyAttacker(payable(EXECUTOR));
         MALICIOUS_TOKEN = new MaliciousToken(address(EXECUTOR));

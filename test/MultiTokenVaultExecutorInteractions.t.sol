@@ -7,20 +7,19 @@ import {PermitSignature} from "./utils/SigUtils.sol";
 import { IAllowanceTransfer, IEIP712 } from "permit2/interfaces/IAllowanceTransfer.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
+import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
-import {GeniusVault} from "../src/GeniusVault.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockSwapTarget} from "./mocks/MockSwapTarget.sol";
 
 /**
- * @title MultiTokenPoolExecutorInteractions
+ * @title MultiTokenVaultExecutorInteractions
  * @dev This contract tests the various functions and
- *      interactions between the GeniusMultiTokenPool and the
+ *      interactions between the GeniusMultiTokenVault and the
  *      GeniusExecutor contracts.
  */
-contract MultiTokenPoolExecutorInteractions is Test {
+contract MultiTokenVaultExecutorInteractions is Test {
     // ============ Network ============
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -33,8 +32,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
     IEIP712 PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     // ============ Internal Contracts ============
-    GeniusVault public VAULT;
-    GeniusMultiTokenPool public MULTI_POOL;
+    GeniusMultiTokenVault public MULTI_VAULT;
     GeniusExecutor public EXECUTOR;
     PermitSignature public SIG_UTILS;
 
@@ -99,9 +97,8 @@ contract MultiTokenPoolExecutorInteractions is Test {
         vm.startPrank(OWNER);
 
         // Deploy contracts
-        MULTI_POOL = new GeniusMultiTokenPool(address(USDC), OWNER);
-        VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(address(PERMIT2), address(MULTI_POOL), address(VAULT), OWNER);
+        MULTI_VAULT = new GeniusMultiTokenVault(address(USDC), OWNER);
+        EXECUTOR = new GeniusExecutor(address(PERMIT2), address(MULTI_VAULT), OWNER);
         ROUTER = new MockSwapTarget();
 
         // Initialize pool with supported tokens
@@ -117,12 +114,11 @@ contract MultiTokenPoolExecutorInteractions is Test {
         address[] memory bridges = new address[](1);
         bridges[0] = BRIDGE;
         
-        MULTI_POOL.initialize(address(EXECUTOR), address(VAULT), supportedTokens, bridges, routers);
-        VAULT.initialize(address(MULTI_POOL));
+        MULTI_VAULT.initialize(address(EXECUTOR), supportedTokens, bridges, routers);
         EXECUTOR.initialize(routers);
         
         // Add Orchestrator
-        MULTI_POOL.grantRole(MULTI_POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        MULTI_VAULT.grantRole(MULTI_VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
@@ -137,7 +133,7 @@ contract MultiTokenPoolExecutorInteractions is Test {
         deal(address(USDC), address(ROUTER), 100 ether);
         deal(TRADER, 1000 ether); // Provide ETH
 
-        // Approve tokens for MULTI_POOL
+        // Approve tokens for MULTI_VAULT
         vm.startPrank(TRADER);
         TOKEN1.approve(address(PERMIT2), 1_000 ether);
         TOKEN2.approve(address(PERMIT2), 1_000 ether);
@@ -197,10 +193,10 @@ contract MultiTokenPoolExecutorInteractions is Test {
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(MULTI_POOL)), 5 ether, "MULTI_POOL should have 5 test tokens");
-        assertEq(MULTI_POOL.totalAssets(), 5 ether, "MULTI_POOL should have 5 test tokens available");
-        assertEq(MULTI_POOL.availableAssets(), 5 ether, "MULTI_POOL should have 90% of test tokens available");
-        assertEq(MULTI_POOL.totalStakedAssets(), 0, "MULTI_POOL should have 0 test tokens staked");
+        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 5 ether, "MULTI_VAULT should have 5 test tokens");
+        assertEq(MULTI_VAULT.stablecoinBalance(), 5 ether, "MULTI_VAULT should have 5 test tokens available");
+        assertEq(MULTI_VAULT.availableAssets(), 5 ether, "MULTI_VAULT should have 90% of test tokens available");
+        assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 test tokens staked");
 
     }
 
@@ -281,10 +277,10 @@ contract MultiTokenPoolExecutorInteractions is Test {
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(MULTI_POOL)), 10 ether, "MULTI_POOL should have 10 test tokens");
-        assertEq(MULTI_POOL.totalAssets(), 10 ether, "MULTI_POOL should have 10 test tokens available");
-        assertEq(MULTI_POOL.availableAssets(), 10 ether, "MULTI_POOL should have 90% of test tokens available");
-        assertEq(MULTI_POOL.totalStakedAssets(), 0, "MULTI_POOL should have 0 test tokens staked ");
+        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 10 ether, "MULTI_VAULT should have 10 test tokens");
+        assertEq(MULTI_VAULT.stablecoinBalance(), 10 ether, "MULTI_VAULT should have 10 test tokens available");
+        assertEq(MULTI_VAULT.availableAssets(), 10 ether, "MULTI_VAULT should have 90% of test tokens available");
+        assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 test tokens staked ");
     }
 
     function testNativeSwapAndDeposit() public {
@@ -316,10 +312,10 @@ contract MultiTokenPoolExecutorInteractions is Test {
         // Prepare log entries for assertion checks
         LogEntry[] memory entries = new LogEntry[](6);
         entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
-        entries[1] = LogEntry("MULTI_POOL USDC balance", USDC.balanceOf(address(MULTI_POOL)), swapAmount / 2);
-        entries[2] = LogEntry("MULTI_POOL totalAssets", MULTI_POOL.totalAssets(), swapAmount / 2);
-        entries[3] = LogEntry("MULTI_POOL availableAssets", MULTI_POOL.availableAssets(), swapAmount / 2);
-        entries[4] = LogEntry("MULTI_POOL totalStakedAssets", MULTI_POOL.totalStakedAssets(), 0);
+        entries[1] = LogEntry("MULTI_VAULT USDC balance", USDC.balanceOf(address(MULTI_VAULT)), swapAmount / 2);
+        entries[2] = LogEntry("MULTI_VAULT stablecoinBalance", MULTI_VAULT.stablecoinBalance(), swapAmount / 2);
+        entries[3] = LogEntry("MULTI_VAULT availableAssets", MULTI_VAULT.availableAssets(), swapAmount / 2);
+        entries[4] = LogEntry("MULTI_VAULT totalStakedAssets", MULTI_VAULT.totalStakedAssets(), 0);
         entries[5] = LogEntry("TRADER ETH balance change", initialBalance - TRADER.balance, swapAmount);
 
         // Log and assert all values
@@ -373,8 +369,8 @@ contract MultiTokenPoolExecutorInteractions is Test {
         // Prepare log entries for assertion checks
         LogEntry[] memory entries = new LogEntry[](4);
         entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
-        entries[1] = LogEntry("VAULT total assets", VAULT.totalAssets(), depositAmount);
-        entries[2] = LogEntry("TRADER vault share balance", VAULT.balanceOf(TRADER), depositAmount);
+        entries[1] = LogEntry("VAULT total assets", MULTI_VAULT.totalAssets(), depositAmount);
+        entries[2] = LogEntry("TRADER vault share balance", MULTI_VAULT.balanceOf(TRADER), depositAmount);
         entries[3] = LogEntry("TRADER USDC balance", USDC.balanceOf(TRADER), 90 ether);
 
         // Log and assert all values
@@ -390,10 +386,10 @@ contract MultiTokenPoolExecutorInteractions is Test {
         uint160 withdrawAmount = 1 ether;
         
         vm.startPrank(TRADER);
-        USDC.approve(address(VAULT), 100 ether);
+        USDC.approve(address(MULTI_VAULT), 100 ether);
         USDC.approve(address(PERMIT2), 100 ether);
         USDC.approve(address(EXECUTOR), 100 ether);
-        VAULT.approve(address(PERMIT2), 100 ether);
+        MULTI_VAULT.approve(address(PERMIT2), 100 ether);
         vm.stopPrank();
 
         // Set up permit details for deposit
@@ -423,14 +419,14 @@ contract MultiTokenPoolExecutorInteractions is Test {
         EXECUTOR.depositToVault(depositPermitBatch, depositSignature, TRADER);
         console.log("deposit successful");
         vm.startPrank(TRADER);
-        VAULT.approve(address(EXECUTOR), VAULT.balanceOf(TRADER));
+        MULTI_VAULT.approve(address(EXECUTOR), MULTI_VAULT.balanceOf(TRADER));
         vm.stopPrank();
         
         // Now set up the withdrawal
         // Set up permit details for withdrawal (vault shares)
         IAllowanceTransfer.PermitDetails[] memory withdrawPermitDetails = new IAllowanceTransfer.PermitDetails[](1);
         withdrawPermitDetails[0] = IAllowanceTransfer.PermitDetails({
-            token: address(VAULT),
+            token: address(MULTI_VAULT),
             amount: withdrawAmount,
             expiration: 1900000000,
             nonce: 0
@@ -463,9 +459,9 @@ contract MultiTokenPoolExecutorInteractions is Test {
         // Prepare log entries for assertion checks
         LogEntry[] memory entries = new LogEntry[](5);
         entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
-        entries[1] = LogEntry("MULTI_POOL USDC balance", USDC.balanceOf(address(MULTI_POOL)), 9 ether);
-        entries[2] = LogEntry("VAULT total assets", VAULT.totalAssets(), 9 ether);
-        entries[3] = LogEntry("TRADER vault share balance", VAULT.balanceOf(TRADER), 9 ether);
+        entries[1] = LogEntry("MULTI_VAULT USDC balance", USDC.balanceOf(address(MULTI_VAULT)), 9 ether);
+        entries[2] = LogEntry("VAULT total assets", MULTI_VAULT.totalAssets(), 9 ether);
+        entries[3] = LogEntry("TRADER vault share balance", MULTI_VAULT.balanceOf(TRADER), 9 ether);
         entries[4] = LogEntry("TRADER USDC balance", USDC.balanceOf(TRADER), 991 ether);
 
         // Log and assert all values

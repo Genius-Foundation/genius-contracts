@@ -6,13 +6,12 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAllowanceTransfer, IEIP712} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {PermitSignature} from "./utils/SigUtils.sol";
 
-import {GeniusPool} from "../src/GeniusPool.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
-contract GeniusPoolAccounting is Test {
+contract GeniusVaultAccounting is Test {
     // ============ Network ============
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -22,7 +21,6 @@ contract GeniusPoolAccounting is Test {
     ERC20 public TEST_TOKEN;
     
     // ============ Internal Contracts ============
-    GeniusPool public POOL;
     GeniusVault public VAULT;
     GeniusExecutor public EXECUTOR;
     MockDEXRouter public DEX_ROUTER;
@@ -98,11 +96,11 @@ contract GeniusPoolAccounting is Test {
 
     // ============ Helper Functions ============
     function donateAndAssert(uint256 expectedTotalStaked, uint256 expectedTotal, uint256 expectedAvailable, uint256 expectedMin) internal {
-        USDC.transfer(address(POOL), 10 ether);
-        assertEq(POOL.totalStakedAssets(), expectedTotalStaked, "Total staked assets mismatch after donation");
-        assertEq(POOL.totalAssets(), expectedTotal, "Total assets mismatch after donation");
-        assertEq(POOL.availableAssets(), expectedAvailable, "Available assets mismatch after donation");
-        assertEq(POOL.minAssetBalance(), expectedMin, "Minimum asset balance mismatch after donation");
+        USDC.transfer(address(VAULT), 10 ether);
+        assertEq(VAULT.totalStakedAssets(), expectedTotalStaked, "Total staked assets mismatch after donation");
+        assertEq(VAULT.stablecoinBalance(), expectedTotal, "Total assets mismatch after donation");
+        assertEq(VAULT.availableAssets(), expectedAvailable, "Available assets mismatch after donation");
+        assertEq(VAULT.minAssetBalance(), expectedMin, "Minimum asset balance mismatch after donation");
     }
 
     // ============ Setup ============
@@ -119,14 +117,12 @@ contract GeniusPoolAccounting is Test {
 
         // Deploy contracts
         ERC20 usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
-        POOL = new GeniusPool(address(usdc), OWNER);
         VAULT = new GeniusVault(address(usdc), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(POOL), address(VAULT), OWNER);
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
         DEX_ROUTER = new MockDEXRouter();
         
 
-        POOL.initialize(address(VAULT), address(EXECUTOR));
-        VAULT.initialize(address(POOL));
+        VAULT.initialize(address(EXECUTOR));
 
         permit2 = IEIP712(permit2Address);
         DOMAIN_SEPERATOR = permit2.DOMAIN_SEPARATOR();
@@ -137,7 +133,7 @@ contract GeniusPoolAccounting is Test {
         privateKey = traderKey;
         
         // Add Orchestrator
-        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -149,7 +145,7 @@ contract GeniusPoolAccounting is Test {
 
 
     /**
-     * @dev This function is a test function that checks the staked values in the GeniusPoolAccounting contract.
+     * @dev This function is a test function that checks the staked values in the GeniusVaultAccounting contract.
      * It performs the following steps:
      * 1. Starts a prank with the TRADER address.
      * 2. Approves USDC to be spent by the VAULT contract.
@@ -168,26 +164,26 @@ contract GeniusPoolAccounting is Test {
         VAULT.deposit(100 ether, TRADER);
 
         LogEntry[] memory entries = new LogEntry[](4);
-        entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 100 ether);
-        entries[1] = LogEntry("Total Assets", VAULT.totalAssets(), 100 ether);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 75 ether);
-        entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 25 ether);
+        entries[0] = LogEntry("Total Staked Assets", VAULT.totalStakedAssets(), 100 ether);
+        entries[1] = LogEntry("Total Assets", VAULT.stablecoinBalance(), 100 ether);
+        entries[2] = LogEntry("Available Assets", VAULT.availableAssets(), 75 ether);
+        entries[3] = LogEntry("Min Asset Balance", VAULT.minAssetBalance(), 25 ether);
 
         logValues("Staked Values", entries);
 
         // Check the staked value
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), 100 ether, "Total assets mismatch");
-        assertEq(POOL.totalStakedAssets(), VAULT.totalAssets(), "Total staked assets and total assets mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 100 ether, "Total assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), VAULT.stablecoinBalance(), "Total staked assets and total assets mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         vm.stopPrank(); // Stop acting as TRADER
     }
 
 
     /**
-     * @dev This function tests the threshold change functionality of the GeniusPoolAccounting contract.
+     * @dev This function tests the threshold change functionality of the GeniusVaultAccounting contract.
      * It performs the following steps:
      * 1. Starts acting as a TRADER.
      * 2. Approves USDC to be spent by the vault.
@@ -210,35 +206,35 @@ contract GeniusPoolAccounting is Test {
         VAULT.deposit(100 ether, TRADER);
 
         // Check the staked value
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), 100 ether, "Total assets mismatch");
-        assertEq(POOL.totalStakedAssets(), VAULT.totalAssets(), "Total staked assets and total assets mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 100 ether, "Total assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), VAULT.stablecoinBalance(), "Total staked assets and total assets mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         vm.stopPrank(); // Stop acting as TRADER
 
         // Change the threshold
         vm.startPrank(OWNER);
-        POOL.setRebalanceThreshold(10);
+        VAULT.setRebalanceThreshold(10);
         vm.stopPrank();
 
         // Log the staked values
         LogEntry[] memory entries = new LogEntry[](4);
-        entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 100 ether);
-        entries[1] = LogEntry("Total Assets", VAULT.totalAssets(), 100 ether);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 10 ether);
-        entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 90 ether);
+        entries[0] = LogEntry("Total Staked Assets", VAULT.totalStakedAssets(), 100 ether);
+        entries[1] = LogEntry("Total Assets", VAULT.stablecoinBalance(), 100 ether);
+        entries[2] = LogEntry("Available Assets", VAULT.availableAssets(), 10 ether);
+        entries[3] = LogEntry("Min Asset Balance", VAULT.minAssetBalance(), 90 ether);
 
         logValues("Post Change Values", entries);
 
 
         // Check the staked value
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), 100 ether, "Total assets mismatch");
-        assertEq(POOL.totalStakedAssets(), VAULT.totalAssets(), "Total staked assets and total assets mismatch");
-        assertEq(POOL.availableAssets(), 10 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 100 ether, "Total assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), VAULT.stablecoinBalance(), "Total staked assets and total assets mismatch");
+        assertEq(VAULT.availableAssets(), 10 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
     }
 
     /**
@@ -246,7 +242,7 @@ contract GeniusPoolAccounting is Test {
      * It starts by acting as a TRADER, approves the transfer of USDC tokens to the VAULT contract,
      * and then deposits 100 ether into the VAULT contract.
      * It asserts the expected values for total staked assets, total assets, and available assets.
-     * After that, it stops acting as a TRADER, approves the transfer of USDC tokens to the POOL contract,
+     * After that, it stops acting as a TRADER, approves the transfer of USDC tokens to the VAULT contract,
      * and adds liquidity swap for 100 ether.
      * It creates an array of LogEntry structs to store the post-stake and deposit values,
      * and logs these values using the logValues function.
@@ -272,10 +268,10 @@ contract GeniusPoolAccounting is Test {
         USDC.approve(permit2Address, type(uint256).max);
         VAULT.deposit(depositAmount, TRADER);
 
-        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), depositAmount, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         vm.stopPrank();
 
@@ -317,22 +313,22 @@ contract GeniusPoolAccounting is Test {
         vm.stopPrank();
 
         LogEntry[] memory entries = new LogEntry[](4);
-        entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), depositAmount);
-        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 150 ether);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 125 ether);
-        entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 25 ether);
+        entries[0] = LogEntry("Total Staked Assets", VAULT.totalStakedAssets(), depositAmount);
+        entries[1] = LogEntry("Total Assets", VAULT.stablecoinBalance(), 150 ether);
+        entries[2] = LogEntry("Available Assets", VAULT.availableAssets(), 125 ether);
+        entries[3] = LogEntry("Min Asset Balance", VAULT.minAssetBalance(), 25 ether);
 
         logValues("Post Stake and Deposit Values", entries);
 
-        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 150 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 125 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 125 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
     }
 
     /**
-     * @dev This function tests the cycle without threshold change in the GeniusPoolAccounting contract.
-     * It performs a series of actions such as depositing assets into the vault, adding liquidity to the pool,
+     * @dev This function tests the cycle without threshold change in the GeniusVaultAccounting contract.
+     * It performs a series of actions such as depositing assets into the vault, adding liquidity to the vault,
      * withdrawing assets from the vault, and checking the balances of various variables and contracts.
      * It also logs the ending balances of key variables for further analysis.
      */
@@ -355,10 +351,10 @@ contract GeniusPoolAccounting is Test {
         USDC.approve(permit2Address, type(uint256).max);
         VAULT.deposit(depositAmount, TRADER);
 
-        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
         vm.stopPrank();
 
         // Swap and deposit using EXECUTOR
@@ -399,25 +395,25 @@ contract GeniusPoolAccounting is Test {
 
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 150 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 125 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 125 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // Start acting as TRADER
         vm.startPrank(TRADER);
         VAULT.withdraw(depositAmount, TRADER, TRADER);
 
-        assertEq(POOL.totalStakedAssets(), 0, "Total staked assets does not equal 0");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 50 ether, "Available assets mismatch");
+        assertEq(VAULT.availableAssets(), 50 ether, "Available assets mismatch");
 
         LogEntry[] memory entries = new LogEntry[](5);
-        entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 0);
-        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), depositAmount);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), depositAmount);
-        entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 0);
-        entries[4] = LogEntry("Vault Balance", VAULT.totalAssets(), 0);
+        entries[0] = LogEntry("Total Staked Assets", VAULT.totalStakedAssets(), 0);
+        entries[1] = LogEntry("Total Assets", VAULT.stablecoinBalance(), depositAmount);
+        entries[2] = LogEntry("Available Assets", VAULT.availableAssets(), depositAmount);
+        entries[3] = LogEntry("Min Asset Balance", VAULT.minAssetBalance(), 0);
+        entries[4] = LogEntry("Vault Balance", VAULT.stablecoinBalance(), 0);
 
         logValues("testCycleWithoutThresholdChange Ending balances", entries);
 
@@ -425,18 +421,18 @@ contract GeniusPoolAccounting is Test {
     }
 
     /**
-     * @dev This function tests the full cycle of depositing assets through a vault, adding liquidity to a pool,
+     * @dev This function tests the full cycle of depositing assets through a vault, adding liquidity to a vault,
      * changing the rebalance threshold, and withdrawing assets from the vault.
      * It performs the following steps:
      * 1. Deposits 100 ether into the vault.
-     * 2. Checks the total staked assets, total assets, available assets, and minimum asset balance of the pool.
-     * 3. Adds liquidity of 100 ether to the pool.
-     * 4. Checks the total staked assets, total assets, available assets, and minimum asset balance of the pool.
-     * 5. Changes the rebalance threshold of the pool to 10.
-     * 6. Checks the total staked assets, total assets, available assets, and minimum asset balance of the pool.
+     * 2. Checks the total staked assets, total assets, available assets, and minimum asset balance of the vault.
+     * 3. Adds liquidity of 100 ether to the vault.
+     * 4. Checks the total staked assets, total assets, available assets, and minimum asset balance of the vault.
+     * 5. Changes the rebalance threshold of the vault to 10.
+     * 6. Checks the total staked assets, total assets, available assets, and minimum asset balance of the vault.
      * 7. Withdraws 100 ether from the vault.
-     * 8. Checks the total staked assets, total assets, available assets, and minimum asset balance of the pool.
-     * 9. Logs the ending balances of the pool and vault.
+     * 8. Checks the total staked assets, total assets, available assets, and minimum asset balance of the vault.
+     * 9. Logs the ending balances of the vault and vault.
      */
     function testFullCycle() public {
         uint16 destChainId = 42;
@@ -458,10 +454,10 @@ contract GeniusPoolAccounting is Test {
         VAULT.deposit(depositAmount, TRADER);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // =================== SWAP AND DEPOSIT ===================
         vm.startPrank(ORCHESTRATOR);
@@ -500,47 +496,47 @@ contract GeniusPoolAccounting is Test {
 
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 150 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 125 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 125 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
-        POOL.setRebalanceThreshold(10);
+        VAULT.setRebalanceThreshold(10);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 150 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 60 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 60 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
         VAULT.withdraw(depositAmount, TRADER, TRADER);
 
-        assertEq(POOL.totalStakedAssets(), 0, "Total staked assets does not equal 0");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 50 ether, "Available assets mismatch");
+        assertEq(VAULT.availableAssets(), 50 ether, "Available assets mismatch");
 
         vm.stopPrank();
 
         LogEntry[] memory entries = new LogEntry[](5);
-        entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 0);
-        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 50 ether);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 50 ether);
-        entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 0);
-        entries[4] = LogEntry("Vault Balance", VAULT.totalAssets(), 0);
+        entries[0] = LogEntry("Total Staked Assets", VAULT.totalStakedAssets(), 0);
+        entries[1] = LogEntry("Total Assets", VAULT.stablecoinBalance(), 50 ether);
+        entries[2] = LogEntry("Available Assets", VAULT.availableAssets(), 50 ether);
+        entries[3] = LogEntry("Min Asset Balance", VAULT.minAssetBalance(), 0);
+        entries[4] = LogEntry("Vault Balance", VAULT.stablecoinBalance(), 0);
 
         logValues("testFullCycle Ending balances", entries);
     } 
 
         /**
-         * @dev This function tests the full cycle of a GeniusPoolAccounting contract with donations.
+         * @dev This function tests the full cycle of a GeniusVaultAccounting contract with donations.
          * It performs the following steps:
          * 1. Makes an initial donation.
          * 2. Deposits assets into the vault.
-         * 3. Adds liquidity to the pool.
+         * 3. Adds liquidity to the vault.
          * 4. Changes the rebalance threshold.
          * 5. Withdraws assets from the vault.
          * 6. Logs the final state of the contract.
@@ -568,11 +564,11 @@ contract GeniusPoolAccounting is Test {
         VAULT.deposit(depositAmount, TRADER);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.totalAssets(), depositAmount, "Vault Total assets mismatch");
-        assertEq(POOL.totalAssets(), 110 ether, "Pool Total assets mismatch");
-        assertEq(POOL.availableAssets(), 85 ether, "#1 Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.stablecoinBalance(), 110 ether, "Vault Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 85 ether, "#1 Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // Donate +10 before adding liquidity
         donateAndAssert(100 ether, 120 ether, 95 ether, 25 ether);
@@ -614,23 +610,23 @@ contract GeniusPoolAccounting is Test {
 
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 170 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 145 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 170 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 145 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // Donate + 10 before changing threshold
         donateAndAssert(100 ether, 180 ether, 155 ether, 25 ether);
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
-        POOL.setRebalanceThreshold(10);
+        VAULT.setRebalanceThreshold(10);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 180 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 90 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 180 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 90 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
 
         // Donate +10 before withdrawing
         donateAndAssert(100 ether, 190 ether, 100 ether, 90 ether);
@@ -640,17 +636,17 @@ contract GeniusPoolAccounting is Test {
         VAULT.withdraw(depositAmount, TRADER, TRADER);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 0, "Total staked assets does not equal 0");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 90 ether, "Available assets mismatch");
+        assertEq(VAULT.availableAssets(), 90 ether, "Available assets mismatch");
 
         // Final state logging
         LogEntry[] memory entries = new LogEntry[](5);
-        entries[0] = LogEntry("Total Staked Assets", POOL.totalStakedAssets(), 0);
-        entries[1] = LogEntry("Total Assets", POOL.totalAssets(), 100 ether);
-        entries[2] = LogEntry("Available Assets", POOL.availableAssets(), 100 ether);
-        entries[3] = LogEntry("Min Asset Balance", POOL.minAssetBalance(), 0);
-        entries[4] = LogEntry("Vault Balance", VAULT.totalAssets(), 0);
+        entries[0] = LogEntry("Total Staked Assets", VAULT.totalStakedAssets(), 0);
+        entries[1] = LogEntry("Total Assets", VAULT.totalAssets(), 100 ether);
+        entries[2] = LogEntry("Available Assets", VAULT.availableAssets(), 100 ether);
+        entries[3] = LogEntry("Min Asset Balance", VAULT.minAssetBalance(), 0);
+        entries[4] = LogEntry("Vault Balance", VAULT.stablecoinBalance(), 0);
 
         logValues("testFullCycleWithDonations Ending balances", entries);
     }

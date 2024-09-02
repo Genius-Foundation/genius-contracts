@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
-import { IGeniusPool } from "./IGeniusPool.sol";
+import { IGeniusVault } from "./IGeniusVault.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /**
@@ -14,7 +14,7 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
  *         in a single transaction. This interface allows for the aggregation
  *         of multiple token transfers and permits utilizing the Permit2 contract,
  *         as well as facilitating interactions with the GeniusVault contract
- *         and the GeniusPool contract.
+ *         and the GeniusVault contract.
  */
 interface IGeniusExecutor {
     // =============================================================
@@ -70,7 +70,7 @@ interface IGeniusExecutor {
     ) external payable;
 
     /**
-     * @notice Executes a token swap and deposits the result into the GeniusPool.
+     * @notice Executes a token swap and deposits the result into the GeniusVault.
      * @param target The address of the swap router to call.
      * @param data The calldata to forward to the target.
      * @param permitBatch The permit information for batch transfer.
@@ -114,7 +114,7 @@ interface IGeniusExecutor {
     ) external payable;
 
     /**
-     * @notice Simplified function to perform a single swap with native tokens and then deposit stablecoins to the GeniusPool.
+     * @notice Simplified function to perform a single swap with native tokens and then deposit stablecoins to the GeniusVault.
      * @param target The address of the swap router to call.
      * @param data The calldata to forward to the target.
      * @param value How much ETH to forward to the target.
@@ -174,16 +174,4 @@ interface IGeniusExecutor {
      * @return IERC20 The STABLECOIN token interface.
      */
     function STABLECOIN() external view returns (IERC20);
-
-    /**
-     * @notice The address of the GeniusPool contract.
-     * @return IGeniusPool The GeniusPool contract interface.
-     */
-    function POOL() external view returns (IGeniusPool);
-
-    /**
-     * @notice The address of the GeniusVault contract.
-     * @return IERC4626 The GeniusVault contract interface (ERC4626).
-     */
-    function VAULT() external view returns (IERC4626);
 }

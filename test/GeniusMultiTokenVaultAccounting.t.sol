@@ -9,16 +9,15 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer, IEIP712} from "permit2/interfaces/IAllowanceTransfer.sol";
 
-import {GeniusMultiTokenPool} from "../src/GeniusMultiTokenPool.sol";
+import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
-import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockSwapTarget} from "./mocks/MockSwapTarget.sol";
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
-contract GeniusMultiTokenPoolAccounting is Test {
+contract GeniusMultiTokenVaultAccounting is Test {
     // ============ Network ============
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -29,8 +28,7 @@ contract GeniusMultiTokenPoolAccounting is Test {
     IEIP712 public permit2 = IEIP712(permit2Address);
     
     // ============ Internal Contracts ============
-    GeniusMultiTokenPool public POOL;
-    GeniusVault public VAULT;
+    GeniusMultiTokenVault public VAULT;
     GeniusExecutor public EXECUTOR;
     MockDEXRouter public DEX_ROUTER;
     PermitSignature public sigUtils;
@@ -97,11 +95,11 @@ contract GeniusMultiTokenPoolAccounting is Test {
     }
 
     function donateAndAssert(uint256 expectedTotalStaked, uint256 expectedTotal, uint256 expectedAvailable, uint256 expectedMin) internal {
-        USDC.transfer(address(POOL), 10 ether);
-        assertEq(POOL.totalStakedAssets(), expectedTotalStaked, "Total staked assets mismatch after donation");
-        assertEq(POOL.totalAssets(), expectedTotal, "Total assets mismatch after donation");
-        assertEq(POOL.availableAssets(), expectedAvailable, "Available assets mismatch after donation");
-        assertEq(POOL.minAssetBalance(), expectedMin, "Minimum asset balance mismatch after donation");
+        USDC.transfer(address(VAULT), 10 ether);
+        assertEq(VAULT.totalStakedAssets(), expectedTotalStaked, "Total staked assets mismatch after donation");
+        assertEq(VAULT.stablecoinBalance(), expectedTotal, "Total assets mismatch after donation");
+        assertEq(VAULT.availableAssets(), expectedAvailable, "Available assets mismatch after donation");
+        assertEq(VAULT.minAssetBalance(), expectedMin, "Minimum asset balance mismatch after donation");
     }
 
     function _getTokenSymbol(address token) internal view returns (string memory) {
@@ -137,13 +135,12 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.startPrank(OWNER);
 
         // Deploy contracts
-        POOL = new GeniusMultiTokenPool(address(USDC), OWNER);
-        VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(permit2Address, address(POOL), address(VAULT), OWNER);
+        VAULT = new GeniusMultiTokenVault(address(USDC), OWNER);
+        EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER);
         DEX_ROUTER = new MockDEXRouter();
         BRIDGE = makeAddr("bridge");
 
-        // Initialize pool with supported tokens
+        // Initialize vault with supported tokens
         address[] memory supportedTokens = new address[](4);
         supportedTokens[0] = NATIVE;
         supportedTokens[1] = address(TOKEN1);
@@ -156,17 +153,15 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
         
-        VAULT.initialize(address(POOL));
-        POOL.initialize(
+        VAULT.initialize(
             address(EXECUTOR),
-            address(VAULT),
             supportedTokens,
             bridges,
             routers
         );
         
         // Add Orchestrator
-        POOL.grantRole(POOL.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         vm.stopPrank();
 
@@ -190,10 +185,10 @@ contract GeniusMultiTokenPoolAccounting is Test {
         VAULT.deposit(100 ether, TRADER);
 
         // Check the staked value
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch after deposit");
-        assertEq(POOL.totalAssets(), 100 ether, "Total assets mismatch after deposit");
-        assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch after deposit");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch after deposit");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch after deposit");
+        assertEq(VAULT.stablecoinBalance(), 100 ether, "Total assets mismatch after deposit");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch after deposit");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch after deposit");
 
         vm.stopPrank(); // Stop acting as TRADER
     }
@@ -208,25 +203,25 @@ contract GeniusMultiTokenPoolAccounting is Test {
         VAULT.deposit(100 ether, TRADER);
 
         // Check the staked value
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 100 ether, "Total assets mismatch");
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets and total assets mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 100 ether, "Total assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets and total assets mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         vm.stopPrank(); // Stop acting as TRADER
 
         // Change the threshold
         vm.startPrank(OWNER);
-        POOL.setRebalanceThreshold(10);
+        VAULT.setRebalanceThreshold(10);
         vm.stopPrank();
 
 
         // Check the staked value
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(POOL.totalAssets(), 100 ether, "Total assets mismatch");
-        assertEq(POOL.availableAssets(), 10 ether, "Available assets mismatch");
-        assertEq(POOL.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 100 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 10 ether, "Available assets mismatch");
+        assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
     }
 
     function testStakeAndDeposit() public {
@@ -236,28 +231,28 @@ contract GeniusMultiTokenPoolAccounting is Test {
         USDC.approve(address(VAULT), 100 ether);
         VAULT.deposit(100 ether, TRADER);
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 100 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 100 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
         vm.stopPrank();
         
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 100 ether);
-        USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000));
+        USDC.approve(address(VAULT), 100 ether);
+        VAULT.addLiquiditySwap(TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000));
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 200 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 175 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 200 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 175 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         // Test balances of other supported tokens
-        (GeniusMultiTokenPool.TokenBalance[] memory tokenBalances) = POOL.supportedTokenBalances();
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token != address(USDC)) {
-                assertEq(tokenBalances[i].balance, 0, "Non-USDC token balance should be 0");
+            if (VAULT.supportedTokensIndex(i) != address(USDC)) {
+                assertEq(tokenBalances[i], 0, "Non-USDC token balance should be 0");
             }
         }
     }
@@ -269,22 +264,22 @@ contract GeniusMultiTokenPoolAccounting is Test {
         VAULT.deposit(100 ether, TRADER);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 100 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 100 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
         assertEq(VAULT.totalAssets(), 100 ether, "Total assets in VAULT mismatch");
         
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 100 ether);
-        USDC.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000));
+        USDC.approve(address(VAULT), 100 ether);
+        VAULT.addLiquiditySwap(TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000));
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 200 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 175 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 200 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 175 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
         assertEq(VAULT.totalAssets(), 100 ether, "Total assets in VAULT mismatch");
 
         // Start acting as TRADER again
@@ -292,15 +287,15 @@ contract GeniusMultiTokenPoolAccounting is Test {
         VAULT.withdraw(100 ether, TRADER, TRADER);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 0, "Total staked stables does not equal 0");
-        assertEq(POOL.availableAssets(), 100 ether, "Available stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total staked stables does not equal 0");
+        assertEq(VAULT.availableAssets(), 100 ether, "Available stable balance mismatch");
         assertEq(VAULT.totalAssets(), 0, "Total assets in VAULT mismatch");
 
         // Check balances of other supported tokens
-        GeniusMultiTokenPool.TokenBalance[] memory tokenBalances = POOL.supportedTokenBalances();
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token != address(USDC)) {
-                assertEq(tokenBalances[i].balance, 0, "Non-USDC token balance should be 0");
+            if (VAULT.supportedTokensIndex(i) != address(USDC)) {
+                assertEq(tokenBalances[i], 0, "Non-USDC token balance should be 0");
             }
         }
     }
@@ -327,10 +322,10 @@ contract GeniusMultiTokenPoolAccounting is Test {
         VAULT.deposit(100 ether, TRADER);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 100 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 75 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 100 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
         
         // =================== SWAP AND DEPOSIT ===================
         vm.startPrank(ORCHESTRATOR);
@@ -366,40 +361,40 @@ contract GeniusMultiTokenPoolAccounting is Test {
             fillDeadline
         );
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 150 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 125 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 125 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         vm.stopPrank();
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
-        POOL.setRebalanceThreshold(10);
+        VAULT.setRebalanceThreshold(10);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 150 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 60 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 60 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
         VAULT.withdraw(100 ether, TRADER, TRADER);
 
-        assertEq(POOL.totalStakedAssets(), 0, "Total staked stables does not equal 0");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total staked stables does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Vault total assets mismatch");
-        assertEq(POOL.availableAssets(), 50 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 50 ether, "Available stable balance mismatch");
 
         vm.stopPrank();
 
         // Check balances of other supported tokens
-        GeniusMultiTokenPool.TokenBalance[] memory tokenBalances = POOL.supportedTokenBalances();
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token != address(USDC)) {
-                assertEq(tokenBalances[i].balance, 0, "Non-USDC token balance should be 0");
+            if (VAULT.supportedTokensIndex(i) != address(USDC)) {
+                assertEq(tokenBalances[i], 0, "Non-USDC token balance should be 0");
             } else {
-                assertEq(tokenBalances[i].balance, 100 ether, "USDC balance in pool should be 100 ether");
+                assertEq(tokenBalances[i], 100 ether, "USDC balance in vault should be 100 ether");
             }
         }
     }
@@ -430,10 +425,10 @@ contract GeniusMultiTokenPoolAccounting is Test {
         VAULT.deposit(100 ether, TRADER);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 110 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 85 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 110 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 85 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         // Donate before swap and deposit
         donateAndAssert(100 ether, 120 ether, 95 ether, 25 ether);
@@ -474,23 +469,23 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 170 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 145 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 170 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 145 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         // Donate before changing threshold
         donateAndAssert(100 ether, 180 ether, 155 ether, 25 ether);
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
-        POOL.setRebalanceThreshold(10);
+        VAULT.setRebalanceThreshold(10);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(POOL.totalAssets(), 180 ether, "Total stables mismatch");
-        assertEq(POOL.availableAssets(), 90 ether, "Available stable balance mismatch");
-        assertEq(POOL.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
+        assertEq(VAULT.stablecoinBalance(), 180 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 90 ether, "Available stable balance mismatch");
+        assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
 
         // Donate before withdrawing
         donateAndAssert(100 ether, 190 ether, 100 ether, 90 ether);
@@ -500,17 +495,17 @@ contract GeniusMultiTokenPoolAccounting is Test {
         VAULT.withdraw(100 ether, TRADER, TRADER);
         vm.stopPrank();
 
-        assertEq(POOL.totalStakedAssets(), 0, "Total staked stables does not equal 0");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total staked stables does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Vault total assets mismatch");
-        assertEq(POOL.availableAssets(), 90 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 90 ether, "Available stable balance mismatch");
 
         // Check balances of other supported tokens
-        GeniusMultiTokenPool.TokenBalance[] memory tokenBalances = POOL.supportedTokenBalances();
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token != address(USDC)) {
-                assertEq(tokenBalances[i].balance, 0, "Non-USDC token balance should be 0");
+            if (VAULT.supportedTokensIndex(i) != address(USDC)) {
+                assertEq(tokenBalances[i], 0, "Non-USDC token balance should be 0");
             } else {
-                assertEq(tokenBalances[i].balance, 170 ether, "USDC balance in pool should be 170 ether");
+                assertEq(tokenBalances[i], 170 ether, "USDC balance in vault should be 170 ether");
             }
         }
     }
@@ -519,10 +514,10 @@ contract GeniusMultiTokenPoolAccounting is Test {
         uint256 depositAmount = 100 ether;
 
         // Check that each token is supported
-        assertEq(POOL.isTokenSupported(NATIVE), true, "NATIVE token not supported");
-        assertEq(POOL.isTokenSupported(address(TOKEN1)), true, "TOKEN1 not supported");
-        assertEq(POOL.isTokenSupported(address(TOKEN2)), true, "TOKEN2 not supported");
-        assertEq(POOL.isTokenSupported(address(TOKEN3)), true, "TOKEN3 not supported");
+        assertEq(VAULT.isTokenSupported(NATIVE), true, "NATIVE token not supported");
+        assertEq(VAULT.isTokenSupported(address(TOKEN1)), true, "TOKEN1 not supported");
+        assertEq(VAULT.isTokenSupported(address(TOKEN2)), true, "TOKEN2 not supported");
+        assertEq(VAULT.isTokenSupported(address(TOKEN3)), true, "TOKEN3 not supported");
 
 
         // Deal Tokens to the EXECUTOR to spend
@@ -533,45 +528,46 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         vm.startPrank(address(EXECUTOR));
         // Test USDC deposit
-        USDC.approve(address(POOL), depositAmount);
-        POOL.addLiquiditySwap(TRADER, address(USDC), depositAmount, 42, uint32(block.timestamp + 1000));
-        assertEq(POOL.totalAssets(), depositAmount, "USDC deposit failed");
-        assertEq(USDC.balanceOf(address(POOL)), depositAmount, "USDC balance mismatch");
+        USDC.approve(address(VAULT), depositAmount);
+        VAULT.addLiquiditySwap(TRADER, address(USDC), depositAmount, 42, uint32(block.timestamp + 1000));
+        assertEq(VAULT.stablecoinBalance(), depositAmount, "USDC deposit failed");
+        assertEq(USDC.balanceOf(address(VAULT)), depositAmount, "USDC balance mismatch");
 
         // Test TOKEN1 deposit
-        TOKEN1.approve(address(POOL), depositAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN1), depositAmount, 42, uint32(block.timestamp + 1000));
-        assertEq(TOKEN1.balanceOf(address(POOL)), depositAmount, "TOKEN1 balance mismatch");
+        TOKEN1.approve(address(VAULT), depositAmount);
+        VAULT.addLiquiditySwap(TRADER, address(TOKEN1), depositAmount, 42, uint32(block.timestamp + 1000));
+        assertEq(TOKEN1.balanceOf(address(VAULT)), depositAmount, "TOKEN1 balance mismatch");
 
         // Test TOKEN2 deposit
-        TOKEN2.approve(address(POOL), depositAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN2), depositAmount, 42, uint32(block.timestamp + 1000));
-        assertEq(TOKEN2.balanceOf(address(POOL)), depositAmount, "TOKEN2 balance mismatch");
+        TOKEN2.approve(address(VAULT), depositAmount);
+        VAULT.addLiquiditySwap(TRADER, address(TOKEN2), depositAmount, 42, uint32(block.timestamp + 1000));
+        assertEq(TOKEN2.balanceOf(address(VAULT)), depositAmount, "TOKEN2 balance mismatch");
 
         // Test TOKEN3 deposit
-        TOKEN3.approve(address(POOL), depositAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN3), depositAmount, 42, uint32(block.timestamp + 1000));
-        assertEq(TOKEN3.balanceOf(address(POOL)), depositAmount, "TOKEN3 balance mismatch");
+        TOKEN3.approve(address(VAULT), depositAmount);
+        VAULT.addLiquiditySwap(TRADER, address(TOKEN3), depositAmount, 42, uint32(block.timestamp + 1000));
+        assertEq(TOKEN3.balanceOf(address(VAULT)), depositAmount, "TOKEN3 balance mismatch");
 
         // Test native ETH deposit
-        uint256 initialETHBalance = address(POOL).balance;
+        uint256 initialETHBalance = address(VAULT).balance;
         vm.deal(address(EXECUTOR), depositAmount); // Ensure TRADER has enough ETH
-        POOL.addLiquiditySwap{value: depositAmount}(TRADER, NATIVE, depositAmount, 42, uint32(block.timestamp + 1000));
-        assertEq(address(POOL).balance - initialETHBalance, depositAmount, "ETH deposit failed");
+        VAULT.addLiquiditySwap{value: depositAmount}(TRADER, NATIVE, depositAmount, 42, uint32(block.timestamp + 1000));
+        assertEq(address(VAULT).balance - initialETHBalance, depositAmount, "ETH deposit failed");
 
-        // Verify token balances using supportedTokenBalances
-        GeniusMultiTokenPool.TokenBalance[] memory tokenBalances = POOL.supportedTokenBalances();
+        // Verify token balances using supportedTokensBalances
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token == address(USDC)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "USDC balance mismatch in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(TOKEN1)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "TOKEN1 balance mismatch in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(TOKEN2)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "TOKEN2 balance mismatch in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(TOKEN3)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "TOKEN3 balance mismatch in supportedTokenBalances");
-            } else if (tokenBalances[i].token == NATIVE) {
-                assertEq(tokenBalances[i].balance, depositAmount, "ETH balance mismatch in supportedTokenBalances");
+            address token = VAULT.supportedTokensIndex(i);
+            if (token == address(USDC)) {
+                assertEq(tokenBalances[i], depositAmount, "USDC balance mismatch in supportedTokensBalances");
+            } else if (token == address(TOKEN1)) {
+                assertEq(tokenBalances[i], depositAmount, "TOKEN1 balance mismatch in supportedTokensBalances");
+            } else if (token == address(TOKEN2)) {
+                assertEq(tokenBalances[i], depositAmount, "TOKEN2 balance mismatch in supportedTokensBalances");
+            } else if (token == address(TOKEN3)) {
+                assertEq(tokenBalances[i], depositAmount, "TOKEN3 balance mismatch in supportedTokensBalances");
+            } else if (token == NATIVE) {
+                assertEq(tokenBalances[i], depositAmount, "ETH balance mismatch in supportedTokensBalances");
             }
         }
 
@@ -592,13 +588,13 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.stopPrank();
 
         // Check that each token is supported
-        assertEq(POOL.isTokenSupported(NATIVE), true, "NATIVE token not supported");
-        assertEq(POOL.isTokenSupported(address(TOKEN1)), true, "TOKEN1 not supported");
-        assertEq(POOL.isTokenSupported(address(TOKEN2)), true, "TOKEN2 not supported");
-        assertEq(POOL.isTokenSupported(address(TOKEN3)), true, "TOKEN3 not supported");
+        assertEq(VAULT.isTokenSupported(NATIVE), true, "NATIVE token not supported");
+        assertEq(VAULT.isTokenSupported(address(TOKEN1)), true, "TOKEN1 not supported");
+        assertEq(VAULT.isTokenSupported(address(TOKEN2)), true, "TOKEN2 not supported");
+        assertEq(VAULT.isTokenSupported(address(TOKEN3)), true, "TOKEN3 not supported");
 
         // Prepare for native ETH deposit
-        uint256 initialETHBalance = address(POOL).balance;
+        uint256 initialETHBalance = address(VAULT).balance;
         vm.deal(TRADER, depositAmount); // Ensure TRADER has enough ETH
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
 
@@ -617,16 +613,17 @@ contract GeniusMultiTokenPoolAccounting is Test {
             fillDeadline
         );
 
-        assertEq(address(POOL).balance - initialETHBalance, 0, "ETH should not be held in POOL");
-        assertEq(USDC.balanceOf(address(POOL)), depositAmount / 2, "USDC balance mismatch after swap");
+        assertEq(address(VAULT).balance - initialETHBalance, 0, "ETH should not be held in VAULT");
+        assertEq(USDC.balanceOf(address(VAULT)), depositAmount / 2, "USDC balance mismatch after swap");
 
-        // Verify token balances using supportedTokenBalances
-        GeniusMultiTokenPool.TokenBalance[] memory tokenBalances = POOL.supportedTokenBalances();
+        // Verify token balances using supportedTokensBalances
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
-            if (tokenBalances[i].token == NATIVE) {
-                assertEq(tokenBalances[i].balance, 0, "ETH balance should be 0 in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(USDC)) {
-                assertEq(tokenBalances[i].balance, depositAmount, "USDC balance mismatch in supportedTokenBalances");
+            address token = VAULT.supportedTokensIndex(i);
+            if (token == NATIVE) {
+                assertEq(tokenBalances[i], 0, "ETH balance should be 0 in supportedTokensBalances");
+            } else if (token == address(USDC)) {
+                assertEq(tokenBalances[i], depositAmount, "USDC balance mismatch in supportedTokensBalances");
             }
         }
     }
@@ -649,14 +646,14 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.stopPrank();
 
         vm.startPrank(address(EXECUTOR));
-        TOKEN1.approve(address(POOL), swapAmount);
+        TOKEN1.approve(address(VAULT), swapAmount);
         deal(address(TOKEN1), address(EXECUTOR), swapAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000));
+        VAULT.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000));
         deal(address(USDC), address(DEX_ROUTER), swapAmount);
         vm.stopPrank();
 
         // Check initial balances
-        uint256 initialTotalStables = POOL.totalAssets();
+        uint256 initialTotalStables = VAULT.stablecoinBalance();
 
         // Create the calldata for the tokenSwapAndDeposit function
         bytes memory calldataSwap = abi.encodeWithSignature(
@@ -690,23 +687,24 @@ contract GeniusMultiTokenPoolAccounting is Test {
         );
 
         // Assertions
-        assertEq(TOKEN1.balanceOf(address(POOL)), 100 ether, "TOKEN1 balance should be 0");
-        assertEq(USDC.balanceOf(address(POOL)), swapAmount / 2, "USDC balance should increase by swapAmount");
-        assertEq(POOL.totalAssets(), initialTotalStables + swapAmount / 2, "Total stables should increase by swapAmount");
+        assertEq(TOKEN1.balanceOf(address(VAULT)), 100 ether, "TOKEN1 balance should be 0");
+        assertEq(USDC.balanceOf(address(VAULT)), swapAmount / 2, "USDC balance should increase by swapAmount");
+        assertEq(VAULT.stablecoinBalance(), initialTotalStables + swapAmount / 2, "Total stables should increase by swapAmount");
 
-        // Verify token balances using supportedTokenBalances
-        GeniusMultiTokenPool.TokenBalance[] memory tokenBalances = POOL.supportedTokenBalances();
+        // Verify token balances using supportedTokensBalances
+        uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         LogEntry[] memory finalEntries = new LogEntry[](tokenBalances.length);
         for (uint i = 0; i < tokenBalances.length; i++) {
+            address token = VAULT.supportedTokensIndex(i);
             finalEntries[i] = LogEntry(
-                string(abi.encodePacked("Final Balance of ", _getTokenSymbol(tokenBalances[i].token))),
-                tokenBalances[i].balance,
+                string(abi.encodePacked("Final Balance of ", _getTokenSymbol(token))),
+                tokenBalances[i],
                 0
             );
-            if (tokenBalances[i].token == address(TOKEN1)) {
-                assertEq(tokenBalances[i].balance, 100 ether, "TOKEN1 balance should be 100 in supportedTokenBalances");
-            } else if (tokenBalances[i].token == address(USDC)) {
-                assertEq(tokenBalances[i].balance, swapAmount, "USDC balance mismatch in supportedTokenBalances");
+            if (token == address(TOKEN1)) {
+                assertEq(tokenBalances[i], 100 ether, "TOKEN1 balance should be 100 in supportedTokensBalances");
+            } else if (token == address(USDC)) {
+                assertEq(tokenBalances[i], swapAmount, "USDC balance mismatch in supportedTokensBalances");
             }
         }
     }
@@ -729,9 +727,9 @@ contract GeniusMultiTokenPoolAccounting is Test {
         vm.stopPrank();
 
         vm.startPrank(address(EXECUTOR));
-        TOKEN1.approve(address(POOL), swapAmount);
+        TOKEN1.approve(address(VAULT), swapAmount);
         deal(address(TOKEN1), address(EXECUTOR), swapAmount);
-        POOL.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000));
+        VAULT.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000));
         deal(address(USDC), address(DEX_ROUTER), swapAmount);
         vm.stopPrank();
 
@@ -744,40 +742,40 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         vm.startPrank(OWNER);
         // Test Paused error
-        POOL.pause();
+        VAULT.pause();
         vm.stopPrank();
 
-        assertEq(POOL.paused(), true, "Contract should be paused");
+        assertEq(VAULT.paused(), true, "Contract should be paused");
 
         vm.startPrank(ORCHESTRATOR);
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        POOL.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwap);
+        VAULT.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwap);
         vm.stopPrank();
 
         vm.startPrank(OWNER);
-        POOL.unpause();
+        VAULT.unpause();
 
         // Test NotInitialized error
-        GeniusMultiTokenPool uninitializedPool = new GeniusMultiTokenPool(address(USDC), OWNER);
+        GeniusMultiTokenVault uninitializedVault = new GeniusMultiTokenVault(address(USDC), OWNER);
         // Add the orchestrator as an orchestrator
-        uninitializedPool.grantRole(uninitializedPool.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        uninitializedVault.grantRole(uninitializedVault.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
         vm.startPrank(ORCHESTRATOR);
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        uninitializedPool.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwap);
+        uninitializedVault.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwap);
 
         // Test InvalidAmount error
         vm.expectRevert(GeniusErrors.InvalidAmount.selector);
-        POOL.swapToStables(address(TOKEN1), 0, address(DEX_ROUTER), calldataSwap);
+        VAULT.swapToStables(address(TOKEN1), 0, address(DEX_ROUTER), calldataSwap);
 
         // Test InvalidToken error
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidToken.selector, address(0xdeadbeef)));
-        POOL.swapToStables(address(0xdeadbeef), swapAmount, address(DEX_ROUTER), calldataSwap);
+        VAULT.swapToStables(address(0xdeadbeef), swapAmount, address(DEX_ROUTER), calldataSwap);
 
         // Test InsufficientBalance error
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InsufficientBalance.selector, address(TOKEN1), swapAmount * 2, swapAmount));
-        POOL.swapToStables(address(TOKEN1), swapAmount * 2, address(DEX_ROUTER), calldataSwap);
+        VAULT.swapToStables(address(TOKEN1), swapAmount * 2, address(DEX_ROUTER), calldataSwap);
 
         bytes memory calldataNoSwap = abi.encodeWithSignature(
                 "swapWithNoEffect(address,address)",
@@ -786,14 +784,14 @@ contract GeniusMultiTokenPoolAccounting is Test {
             );
 
         vm.expectRevert(GeniusErrors.InvalidDelta.selector);
-        POOL.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataNoSwap);
+        VAULT.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataNoSwap);
 
         // Test ExternalCallFailed error
         bytes memory calldataSwapFail = abi.encodeWithSignature(
             "nonExistentFunction()"
         );
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.ExternalCallFailed.selector, address(DEX_ROUTER), 0));
-        POOL.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwapFail);
+        VAULT.swapToStables(address(TOKEN1), swapAmount, address(DEX_ROUTER), calldataSwapFail);
          
         vm.stopPrank();
     }
@@ -806,54 +804,54 @@ contract GeniusMultiTokenPoolAccounting is Test {
         deal(address(USDC), ORCHESTRATOR, bridgeAmount);
 
         // Record initial balances
-        uint256 initialTotalStables = POOL.totalAssets();
-        uint256 initialavailableAssets = POOL.availableAssets();
-        uint256 initialminAssetBalance = POOL.minAssetBalance();
+        uint256 initialTotalStables = VAULT.stablecoinBalance();
+        uint256 initialavailableAssets = VAULT.availableAssets();
+        uint256 initialminAssetBalance = VAULT.minAssetBalance();
         
-        GeniusMultiTokenPool.TokenBalance[] memory initialBalances = POOL.supportedTokenBalances();
+        uint256[] memory initialBalances = VAULT.supportedTokensBalances();
 
         // Perform addBridgeLiquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(POOL), bridgeAmount);
+        USDC.transfer(address(VAULT), bridgeAmount);
         vm.stopPrank();
 
         // Assert total stables increased correctly
-        assertEq(POOL.totalAssets(), initialTotalStables + bridgeAmount, "Total stables should increase by bridge amount");
+        assertEq(VAULT.stablecoinBalance(), initialTotalStables + bridgeAmount, "Total stables should increase by bridge amount");
 
         // Assert available stable balance increased
-        assertEq(POOL.availableAssets(), initialavailableAssets + bridgeAmount, "Available stable balance should increase by bridge amount");
+        assertEq(VAULT.availableAssets(), initialavailableAssets + bridgeAmount, "Available stable balance should increase by bridge amount");
 
         // Assert min stable balance remains unchanged
-        assertEq(POOL.minAssetBalance(), initialminAssetBalance, "Minimum stable balance should remain unchanged");
+        assertEq(VAULT.minAssetBalance(), initialminAssetBalance, "Minimum stable balance should remain unchanged");
 
         // Assert balances for all supported tokens
-        GeniusMultiTokenPool.TokenBalance[] memory finalBalances = POOL.supportedTokenBalances();
+        uint256[] memory finalBalances = VAULT.supportedTokensBalances();
         assertEq(finalBalances.length, initialBalances.length, "Number of supported tokens should remain the same");
 
         for (uint i = 0; i < finalBalances.length; i++) {
-            if (finalBalances[i].token == address(USDC)) {
-                assertEq(finalBalances[i].balance, initialBalances[i].balance + bridgeAmount, "USDC balance should increase by bridge amount");
+            if (VAULT.supportedTokensIndex(i) == address(USDC)) {
+                assertEq(finalBalances[i], initialBalances[i] + bridgeAmount, "USDC balance should increase by bridge amount");
             } else {
-                assertEq(finalBalances[i].balance, initialBalances[i].balance, "Non-USDC token balances should remain unchanged");
+                assertEq(finalBalances[i], initialBalances[i], "Non-USDC token balances should remain unchanged");
             }
         }
 
         // Verify USDC transfer
-        assertEq(USDC.balanceOf(address(POOL)), initialBalances[0].balance + bridgeAmount, "USDC balance in pool should increase by bridge amount");
+        assertEq(USDC.balanceOf(address(VAULT)), initialBalances[0] + bridgeAmount, "USDC balance in vault should increase by bridge amount");
     }
 
     function testRemoveBridgeLiquidity() public {
         uint256 bridgeAmount = 100 ether;
         uint16 testChainId = 1; // Example chain ID
 
-        // Setup: Add liquidity to the pool
+        // Setup: Add liquidity to the vault
         deal(address(USDC), address(DEX_ROUTER), bridgeAmount);
         vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(POOL), bridgeAmount);
+        USDC.transfer(address(VAULT), bridgeAmount);
 
         // Prepare for removal
-        uint256 initialTotalStables = POOL.totalAssets();
-        uint256 initialPoolUSDCBalance = USDC.balanceOf(address(POOL));
+        uint256 initialTotalStables = VAULT.stablecoinBalance();
+        uint256 initialVaultUSDCBalance = USDC.balanceOf(address(VAULT));
 
         // Prepare mock data for external calls
         address[] memory targets = new address[](1);
@@ -868,42 +866,42 @@ contract GeniusMultiTokenPoolAccounting is Test {
             bridgeAmount
         );
 
-        vm.startPrank(address(POOL));
+        vm.startPrank(address(VAULT));
         USDC.approve(address(DEX_ROUTER), bridgeAmount);
         vm.stopPrank();
 
         // Perform removeBridgeLiquidity
         vm.startPrank(ORCHESTRATOR);
-        POOL.removeBridgeLiquidity(bridgeAmount, testChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(bridgeAmount, testChainId, targets, values, data);
         vm.stopPrank();
 
         // Assert state changes
-        assertEq(POOL.totalAssets(), initialTotalStables - bridgeAmount, "Total stables should decrease");
-        assertEq(USDC.balanceOf(address(POOL)), initialPoolUSDCBalance - bridgeAmount, "POOL USDC balance should decrease");
+        assertEq(VAULT.stablecoinBalance(), initialTotalStables - bridgeAmount, "Total stables should decrease");
+        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance - bridgeAmount, "VAULT USDC balance should decrease");
 
         // Test with zero amount (should revert)
         vm.prank(ORCHESTRATOR);
         vm.expectRevert(GeniusErrors.InvalidAmount.selector);
-        POOL.removeBridgeLiquidity(0, testChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(0, testChainId, targets, values, data);
 
-        // Test when pool is paused
+        // Test when vault is paused
         vm.prank(OWNER);
-        POOL.pause();
+        VAULT.pause();
         vm.prank(ORCHESTRATOR);
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        POOL.removeBridgeLiquidity(bridgeAmount, testChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(bridgeAmount, testChainId, targets, values, data);
         vm.prank(OWNER);
-        POOL.unpause();
+        VAULT.unpause();
 
         // Test when called by non-orchestrator
         vm.prank(TRADER);
         vm.expectRevert();
-        POOL.removeBridgeLiquidity(bridgeAmount, testChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(bridgeAmount, testChainId, targets, values, data);
 
         // Test when trying to remove more than available balance
         vm.prank(ORCHESTRATOR);
         vm.expectRevert();
-        POOL.removeBridgeLiquidity(initialTotalStables + 1 ether, testChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(initialTotalStables + 1 ether, testChainId, targets, values, data);
     }
 
 
@@ -914,40 +912,40 @@ contract GeniusMultiTokenPoolAccounting is Test {
         deal(address(USDC), ORCHESTRATOR, bridgeAmount);
 
         // Record initial balances
-        uint256 initialTotalStables = POOL.totalAssets();
-        uint256 initialavailableAssets = POOL.availableAssets();
-        uint256 initialminAssetBalance = POOL.minAssetBalance();
+        uint256 initialTotalStables = VAULT.stablecoinBalance();
+        uint256 initialavailableAssets = VAULT.availableAssets();
+        uint256 initialminAssetBalance = VAULT.minAssetBalance();
         
-        GeniusMultiTokenPool.TokenBalance[] memory initialBalances = POOL.supportedTokenBalances();
+        uint256[] memory initialBalances = VAULT.supportedTokensBalances();
 
         // Perform addBridgeLiquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(POOL), bridgeAmount);
+        USDC.transfer(address(VAULT), bridgeAmount);
         vm.stopPrank();
 
         // Assert total stables increased correctly
         assertEq(
-            POOL.totalAssets(),
+            VAULT.stablecoinBalance(),
             initialTotalStables + bridgeAmount,
             "Total stables should increase by bridge amount"
         );
 
         // Assert available stable balance increased
         assertEq(
-            POOL.availableAssets(),
+            VAULT.availableAssets(),
             initialavailableAssets + bridgeAmount,
             "Available stable balance should increase by bridge amount"
         );
 
         // Assert min stable balance remains unchanged
         assertEq(
-            POOL.minAssetBalance(),
+            VAULT.minAssetBalance(),
             initialminAssetBalance,
             "Minimum stable balance should remain unchanged"
         );
 
         // Assert balances for all supported tokens
-        GeniusMultiTokenPool.TokenBalance[] memory finalBalances = POOL.supportedTokenBalances();
+        uint256[] memory finalBalances = VAULT.supportedTokensBalances();
         assertEq(
             finalBalances.length,
             initialBalances.length,
@@ -955,19 +953,19 @@ contract GeniusMultiTokenPoolAccounting is Test {
         );
 
         for (uint i = 0; i < finalBalances.length; i++) {
-            if (finalBalances[i].token == address(USDC)) {
+            if (VAULT.supportedTokensIndex(i) == address(USDC)) {
 
                 assertEq(
-                    finalBalances[i].balance,
-                    initialBalances[i].balance + bridgeAmount,
+                    finalBalances[i],
+                    initialBalances[i] + bridgeAmount,
                     "USDC balance should increase by bridge amount"
                 );
 
             } else {
 
                 assertEq(
-                    finalBalances[i].balance,
-                    initialBalances[i].balance,
+                    finalBalances[i],
+                    initialBalances[i],
                     "Non-USDC token balances should remain unchanged"
                 );
 
@@ -976,49 +974,49 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Verify USDC transfer
         assertEq(
-            USDC.balanceOf(address(POOL)),
-            initialBalances[0].balance + bridgeAmount,
-            "USDC balance in pool should increase by bridge amount"
+            USDC.balanceOf(address(VAULT)),
+            initialBalances[0] + bridgeAmount,
+            "USDC balance in vault should increase by bridge amount"
         );
 
-        // Additional Step: Simulate a donation to the pool
+        // Additional Step: Simulate a donation to the vault
 
 
         // Manually reconcile the balances due to donation
         donateAndAssert(
-            POOL.totalStakedAssets(), 
-            POOL.totalAssets() + 10 ether, // Account for the 10 ether donation
-            POOL.availableAssets() +  10 ether, // Account for the 10 ether donation
-            POOL.minAssetBalance()
+            VAULT.totalStakedAssets(), 
+            VAULT.stablecoinBalance() + 10 ether, // Account for the 10 ether donation
+            VAULT.availableAssets() +  10 ether, // Account for the 10 ether donation
+            VAULT.minAssetBalance()
         );
 
         // Assert the balances have been updated correctly to include the donation
-        GeniusMultiTokenPool.TokenBalance[] memory postDonationBalances = POOL.supportedTokenBalances();
+        uint256[] memory postDonationBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < postDonationBalances.length; i++) {
-            if (postDonationBalances[i].token == address(USDC)) {
+            if (VAULT.supportedTokensIndex(i) == address(USDC)) {
                 
                 assertEq(
-                    postDonationBalances[i].balance,
-                    finalBalances[i].balance + 10 ether,
+                    postDonationBalances[i],
+                    finalBalances[i] + 10 ether,
                     "USDC balance should include donation amount"
                 );
 
             } else {
 
                 assertEq(
-                    postDonationBalances[i].balance,
-                    finalBalances[i].balance,
+                    postDonationBalances[i],
+                    finalBalances[i],
                     "Non-USDC token balances should remain unchanged"
                 );
 
             }
         }
 
-        // Verify USDC balance in the pool contract
+        // Verify USDC balance in the vault contract
         assertEq(
-            USDC.balanceOf(address(POOL)),
-            initialBalances[0].balance + bridgeAmount + 10 ether,
-            "USDC balance in pool should include donation amount"
+            USDC.balanceOf(address(VAULT)),
+            initialBalances[0] + bridgeAmount + 10 ether,
+            "USDC balance in vault should include donation amount"
         );
     }
 
@@ -1031,96 +1029,96 @@ contract GeniusMultiTokenPoolAccounting is Test {
         MockERC20 newToken = new MockERC20("New Token", "NTK", 18);
 
         // Initial checks
-        assertFalse(POOL.isTokenSupported(address(newToken)), "New token should not be supported initially");
-        uint256 initialSupportedTokensCount = POOL.supportedTokensCount();
+        assertFalse(VAULT.isTokenSupported(address(newToken)), "New token should not be supported initially");
+        uint256 initialSupportedTokensCount = VAULT.supportedTokensCount();
 
         // Test adding a new token
         vm.prank(OWNER);
-        POOL.manageToken(address(newToken), true);
+        VAULT.manageToken(address(newToken), true);
 
-        assertTrue(POOL.isTokenSupported(address(newToken)), "New token should now be supported");
-        assertEq(POOL.supportedTokensCount(), initialSupportedTokensCount + 1, "Supported tokens count should increase");
+        assertTrue(VAULT.isTokenSupported(address(newToken)), "New token should now be supported");
+        assertEq(VAULT.supportedTokensCount(), initialSupportedTokensCount + 1, "Supported tokens count should increase");
 
         // Test adding a duplicate token (should revert)
         vm.prank(OWNER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.DuplicateToken.selector, address(newToken)));
-        POOL.manageToken(address(newToken), true);
+        VAULT.manageToken(address(newToken), true);
 
         // Test removing the token
         vm.prank(OWNER);
-        POOL.manageToken(address(newToken), false);
+        VAULT.manageToken(address(newToken), false);
 
-        assertFalse(POOL.isTokenSupported(address(newToken)), "New token should no longer be supported");
-        assertEq(POOL.supportedTokensCount(), initialSupportedTokensCount, "Supported tokens count should be back to initial value");
+        assertFalse(VAULT.isTokenSupported(address(newToken)), "New token should no longer be supported");
+        assertEq(VAULT.supportedTokensCount(), initialSupportedTokensCount, "Supported tokens count should be back to initial value");
 
         // Test removing a token that's not supported (should revert)
         vm.prank(OWNER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidToken.selector, address(newToken)));
-        POOL.manageToken(address(newToken), false);
+        VAULT.manageToken(address(newToken), false);
 
         // Test removing a token with non-zero balance (should revert)
         // First, add the token back and simulate some balance
         vm.prank(OWNER);
-        POOL.manageToken(address(newToken), true);
+        VAULT.manageToken(address(newToken), true);
 
         deal(address(newToken), address(EXECUTOR), 100 ether);
         vm.startPrank(address(EXECUTOR));
-        newToken.approve(address(POOL), 100 ether);
-        POOL.addLiquiditySwap(TRADER, address(newToken), 100 ether, 42, uint32(block.timestamp + 1000));
+        newToken.approve(address(VAULT), 100 ether);
+        VAULT.addLiquiditySwap(TRADER, address(newToken), 100 ether, 42, uint32(block.timestamp + 1000));
 
         vm.startPrank(OWNER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.RemainingBalance.selector, 100 ether));
-        POOL.manageToken(address(newToken), false);
+        VAULT.manageToken(address(newToken), false);
 
         // Test managing STABLECOIN (should revert)
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidToken.selector, address(USDC)));
-        POOL.manageToken(address(USDC), false);
+        VAULT.manageToken(address(USDC), false);
 
         // Test calling from non-owner address (should revert)
         vm.startPrank(TRADER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector));
-        POOL.manageToken(address(newToken), false);
+        VAULT.manageToken(address(newToken), false);
     }
 
     function testManageBridge() public {
         address newBridge = makeAddr("newBridge");
 
         // Initial check
-        assertEq(POOL.supportedBridges(newBridge), 0, "Bridge should not be supported initially");
+        assertEq(VAULT.supportedBridges(newBridge), 0, "Bridge should not be supported initially");
 
         // Test authorizing a new bridge
         vm.prank(OWNER);
-        POOL.manageBridge(newBridge, true);
-        assertEq(POOL.supportedBridges(newBridge), 1, "Bridge should be supported after authorization");
+        VAULT.manageBridge(newBridge, true);
+        assertEq(VAULT.supportedBridges(newBridge), 1, "Bridge should be supported after authorization");
 
         // Test authorizing an already authorized bridge (should revert)
         vm.prank(OWNER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, newBridge));
-        POOL.manageBridge(newBridge, true);
+        VAULT.manageBridge(newBridge, true);
 
         // Test unauthorizing the bridge
         vm.prank(OWNER);
-        POOL.manageBridge(newBridge, false);
-        assertEq(POOL.supportedBridges(newBridge), 0, "Bridge should not be supported after unauthorized");
+        VAULT.manageBridge(newBridge, false);
+        assertEq(VAULT.supportedBridges(newBridge), 0, "Bridge should not be supported after unauthorized");
 
         // Test unauthorizing an already unauthorized bridge (should revert)
         vm.prank(OWNER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, newBridge));
-        POOL.manageBridge(newBridge, false);
+        VAULT.manageBridge(newBridge, false);
 
         // Test calling from non-owner address (should revert)
         vm.prank(TRADER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector));
-        POOL.manageBridge(newBridge, true);
+        VAULT.manageBridge(newBridge, true);
 
         // Test with address(0) as bridge address
         vm.prank(OWNER);
-        POOL.manageBridge(address(0), true);
-        assertEq(POOL.supportedBridges(address(0)), 1, "Zero address should be allowed as a bridge");
+        VAULT.manageBridge(address(0), true);
+        assertEq(VAULT.supportedBridges(address(0)), 1, "Zero address should be allowed as a bridge");
 
         vm.prank(OWNER);
-        POOL.manageBridge(address(0), false);
-        assertEq(POOL.supportedBridges(address(0)), 0, "Zero address should be removable as a bridge");
+        VAULT.manageBridge(address(0), false);
+        assertEq(VAULT.supportedBridges(address(0)), 0, "Zero address should be removable as a bridge");
 
         // Test multiple authorizations and unauthorizations
         address[] memory bridges = new address[](3);
@@ -1130,13 +1128,13 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         vm.startPrank(OWNER);
         for (uint i = 0; i < bridges.length; i++) {
-            POOL.manageBridge(bridges[i], true);
-            assertEq(POOL.supportedBridges(bridges[i]), 1, "Bridge should be supported after authorization");
+            VAULT.manageBridge(bridges[i], true);
+            assertEq(VAULT.supportedBridges(bridges[i]), 1, "Bridge should be supported after authorization");
         }
 
         for (uint i = 0; i < bridges.length; i++) {
-            POOL.manageBridge(bridges[i], false);
-            assertEq(POOL.supportedBridges(bridges[i]), 0, "Bridge should not be supported after unauthorized");
+            VAULT.manageBridge(bridges[i], false);
+            assertEq(VAULT.supportedBridges(bridges[i]), 0, "Bridge should not be supported after unauthorized");
         }
         vm.stopPrank();
     }
@@ -1146,41 +1144,41 @@ contract GeniusMultiTokenPoolAccounting is Test {
         address unRouter = address(UNAUTHORIZED_ROUTER);
 
         // Initial check
-        assertEq(POOL.supportedRouters(unRouter), 0, "Router should not be supported initially");
+        assertEq(VAULT.supportedRouters(unRouter), 0, "Router should not be supported initially");
 
         // Test authorizing a new router
         vm.prank(OWNER);
-        POOL.manageRouter(unRouter, true);
-        assertEq(POOL.supportedRouters(unRouter), 1, "Router should be supported after authorization");
+        VAULT.manageRouter(unRouter, true);
+        assertEq(VAULT.supportedRouters(unRouter), 1, "Router should be supported after authorization");
 
         // Test authorizing an already authorized router (should revert)
         vm.prank(OWNER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.DuplicateRouter.selector, unRouter));
-        POOL.manageRouter(unRouter, true);
+        VAULT.manageRouter(unRouter, true);
 
         // Test unauthorizing the router
         vm.prank(OWNER);
-        POOL.manageRouter(unRouter, false);
-        assertEq(POOL.supportedRouters(unRouter), 0, "Router should not be supported after unauthorized");
+        VAULT.manageRouter(unRouter, false);
+        assertEq(VAULT.supportedRouters(unRouter), 0, "Router should not be supported after unauthorized");
 
         // Test unauthorizing an already unauthorized router (should revert)
         vm.prank(OWNER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidRouter.selector, unRouter));
-        POOL.manageRouter(unRouter, false);
+        VAULT.manageRouter(unRouter, false);
 
         // Test calling from non-owner address (should revert)
         vm.prank(TRADER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector));
-        POOL.manageRouter(unRouter, true);
+        VAULT.manageRouter(unRouter, true);
 
         // Test with address(0) as router address
         vm.prank(OWNER);
-        POOL.manageRouter(address(0), true);
-        assertEq(POOL.supportedRouters(address(0)), 1, "Zero address should be allowed as a router");
+        VAULT.manageRouter(address(0), true);
+        assertEq(VAULT.supportedRouters(address(0)), 1, "Zero address should be allowed as a router");
 
         vm.prank(OWNER);
-        POOL.manageRouter(address(0), false);
-        assertEq(POOL.supportedRouters(address(0)), 0, "Zero address should be removable as a router");
+        VAULT.manageRouter(address(0), false);
+        assertEq(VAULT.supportedRouters(address(0)), 0, "Zero address should be removable as a router");
 
         // Test multiple authorizations and unauthorizations
         address[] memory routers = new address[](3);
@@ -1190,13 +1188,13 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         vm.startPrank(OWNER);
         for (uint i = 0; i < routers.length; i++) {
-            POOL.manageRouter(routers[i], true);
-            assertEq(POOL.supportedRouters(routers[i]), 1, "Router should be supported after authorization");
+            VAULT.manageRouter(routers[i], true);
+            assertEq(VAULT.supportedRouters(routers[i]), 1, "Router should be supported after authorization");
         }
 
         for (uint i = 0; i < routers.length; i++) {
-            POOL.manageRouter(routers[i], false);
-            assertEq(POOL.supportedRouters(routers[i]), 0, "Router should not be supported after unauthorized");
+            VAULT.manageRouter(routers[i], false);
+            assertEq(VAULT.supportedRouters(routers[i]), 0, "Router should not be supported after unauthorized");
         }
         vm.stopPrank();
 
@@ -1208,24 +1206,24 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
         // Add mockToken as a supported token
         vm.prank(OWNER);
-        POOL.manageToken(address(mockToken), true);
+        VAULT.manageToken(address(mockToken), true);
 
         // Attempt to swap with an unauthorized router (should revert)
         vm.prank(ORCHESTRATOR);
         console.log("MAN WHAT THE HELL");
         deal(address(mockToken), address(EXECUTOR), amount);
         vm.expectRevert(); // The exact error will depend on how swapToStables is implemented
-        POOL.swapToStables(address(mockToken), amount, address(UNAUTHORIZED_ROUTER), data);
+        VAULT.swapToStables(address(mockToken), amount, address(UNAUTHORIZED_ROUTER), data);
         console.log("BOOMBACLOT");
 
         vm.prank(OWNER);
-        POOL.manageRouter(unRouter, true);
+        VAULT.manageRouter(unRouter, true);
 
         deal(address(mockToken), ORCHESTRATOR, amount);
         deal(address(USDC), address(UNAUTHORIZED_ROUTER), amount);
         vm.startPrank(address(EXECUTOR));
-        mockToken.approve(address(POOL), amount);
-        POOL.addLiquiditySwap(TRADER, address(mockToken), amount, 42, uint32(block.timestamp + 1000));
+        mockToken.approve(address(VAULT), amount);
+        VAULT.addLiquiditySwap(TRADER, address(mockToken), amount, 42, uint32(block.timestamp + 1000));
 
 
 
@@ -1235,8 +1233,8 @@ contract GeniusMultiTokenPoolAccounting is Test {
 
 
         vm.startPrank(ORCHESTRATOR);
-        console.log("Mock Token balance in POOL before swap: ", mockToken.balanceOf(address(POOL)));
-        POOL.swapToStables(address(mockToken), amount, address(DEX_ROUTER), data);
+        console.log("Mock Token balance in VAULT before swap: ", mockToken.balanceOf(address(VAULT)));
+        VAULT.swapToStables(address(mockToken), amount, address(DEX_ROUTER), data);
     }
 
 }
