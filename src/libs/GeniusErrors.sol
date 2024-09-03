@@ -159,6 +159,12 @@ library GeniusErrors {
      */
     error InsufficientNativeBalance(uint256 expectedAmount, uint256 actualAmount);
 
+    /**
+     * @dev Error thrown when there is insufficient fees to collect.
+     * @param attemptedAmount The amount that was attempted to be collected.
+     * @param actualAmount The amount that was actually collected.
+     * @param token The address of the token that was attempted to be collected.
+     */
     error InsufficientFees(uint256 attemptedAmount, uint256 actualAmount, address token);
 
     /**
