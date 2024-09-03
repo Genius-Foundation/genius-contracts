@@ -27,7 +27,6 @@ contract GeniusExecutorDrain is Test {
     address public coinReceiver;
 
     address public permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    address public feeCollector = makeAddr("feeCollector");
 
     TestERC20 public USDC;
     TestERC20 public WETH;
@@ -44,7 +43,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(MALICIOUS);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         deal(address(USDC), address(EXECUTOR), 100 ether);
@@ -195,7 +194,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         // Fund EXECUTOR
@@ -435,7 +434,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
 
@@ -469,7 +468,6 @@ contract GeniusExecutorDrain is Test {
         assertEq(USDC.balanceOf(trader), initialTraderUSDCBalance - 10 ether, "Trader USDC balance should decrease by 10 ether");
         assertEq(WETH.balanceOf(trader), initialTraderWETHBalance - 5 ether, "Trader WETH balance should decrease by 5 ether");
         assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + 9 ether, "Vault should receive the deposited USDC");
-        assertEq(USDC.balanceOf(feeCollector), 1 ether, "Fee collector should receive the fee");
     }
 
     /**
@@ -491,7 +489,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         (address[] memory targets, bytes[] memory data,) = setupMultiSwapParams();
@@ -538,7 +536,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         (address[] memory targets, bytes[] memory data, uint256[] memory values) = setupMultiSwapParams();
@@ -588,7 +586,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
@@ -629,7 +627,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory initialRouters = new address[](1);
         initialRouters[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(initialRouters, feeCollector);
+        EXECUTOR.initialize(initialRouters);
         vm.stopPrank();
 
         // Fund trader with ETH

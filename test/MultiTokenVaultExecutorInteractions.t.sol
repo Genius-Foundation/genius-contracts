@@ -45,7 +45,6 @@ contract MultiTokenVaultExecutorInteractions is Test {
     address public TRADER;
     address public ORCHESTRATOR;
     address public BRIDGE;
-    address public FEE_COLLECTOR = makeAddr("feeCollector");
 
     // ============ Private Key ============
     uint256 P_KEY;
@@ -116,7 +115,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         bridges[0] = BRIDGE;
         
         MULTI_VAULT.initialize(address(EXECUTOR), supportedTokens, bridges, routers);
-        EXECUTOR.initialize(routers, FEE_COLLECTOR);
+        EXECUTOR.initialize(routers);
         
         // Add Orchestrator
         MULTI_VAULT.grantRole(MULTI_VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);

@@ -119,7 +119,7 @@ function testReentrancyMultiSwapAndDeposit() public {
         address[] memory routers = new address[](2);
         routers[0] = address(DEX_ROUTER);
         routers[1] = address(ATTACKER);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         address[] memory targets = new address[](4);
@@ -163,7 +163,7 @@ function testReentrancyMultiSwapAndDeposit() public {
         address[] memory routers = new address[](2);
         routers[0] = address(DEX_ROUTER);
         routers[1] = address(ATTACKER);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         address[] memory targets = new address[](4);
@@ -203,7 +203,7 @@ function testReentrancyMultiSwapAndDeposit() public {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(ATTACKER);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         address[] memory targets = new address[](1);
@@ -229,7 +229,7 @@ function testReentrancyMultiSwapAndDeposit() public {
         address[] memory routers = new address[](2);
         routers[0] = address(DEX_ROUTER);
         routers[1] = address(MALICIOUS_TOKEN);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         // Deal 1 ether to the EXECUTOR

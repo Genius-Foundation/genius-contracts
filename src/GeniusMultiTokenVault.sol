@@ -345,8 +345,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
             (bool success, ) = msg.sender.call{value: amount}("");
             if (!success) revert GeniusErrors.TransferFailed(NATIVE, amount);
         } else {
-            (bool success, ) = _transferERC20(token, msg.sender, amount);
-            if (!success) revert GeniusErrors.TransferFailed(token, amount);
+            _transferERC20(token, msg.sender, amount);
         }
 
         emit FeesClaimed(token, amount);

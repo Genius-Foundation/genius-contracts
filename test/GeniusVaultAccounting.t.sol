@@ -259,7 +259,7 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers, feeCollecter);
+        EXECUTOR.initialize(routers);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -343,7 +343,7 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);  // Assuming EXECUTOR can act as a router
-        EXECUTOR.initialize(routers, feeCollecter);
+        EXECUTOR.initialize(routers);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -446,7 +446,7 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers, feeCollecter);
+        EXECUTOR.initialize(routers);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -554,7 +554,7 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers, feeCollecter);
+        EXECUTOR.initialize(routers);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 

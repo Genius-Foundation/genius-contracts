@@ -26,7 +26,7 @@ interface IGeniusExecutor {
      * @param routers An array of router addresses to be set as allowed targets.
      * @dev This function can only be called by the contract owner.
      */
-    function initialize(address[] calldata routers, address feeCollector) external;
+    function initialize(address[] calldata routers) external;
 
     /**
      * @notice Sets the allowed status for a target address.

@@ -114,7 +114,7 @@ contract GeniusExecutorTest is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(ROUTER);
 
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
         vm.stopPrank();
 
         deal(address(wavaxContract), TRADER, 100 ether);
@@ -157,7 +157,7 @@ contract GeniusExecutorTest is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(mockRouter);
         vm.prank(OWNER);
-        EXECUTOR.initialize(routers, feeCollector);
+        EXECUTOR.initialize(routers);
 
         // Approve MockDEXRouter to spend USDC on behalf of EXECUTOR
         vm.prank(address(EXECUTOR));

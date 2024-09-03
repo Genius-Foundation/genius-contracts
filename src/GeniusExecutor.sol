@@ -72,7 +72,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     /**
      * @dev See {IGeniusExecutor-initialize}.
      */
-    function initialize(address[] calldata routers, address initialFeeCollecter) external override onlyAdmin {
+    function initialize(address[] calldata routers) external override onlyAdmin {
         uint256 length = routers.length;
         for (uint256 i = 0; i < length;) {
             address router = routers[i];
@@ -180,7 +180,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _depositAmount
         );
 
-        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
+        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
 
         _sweepERC20s(permitBatch, owner);
     }
@@ -224,7 +224,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
-        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
+        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
 
         _sweepERC20s(permitBatch, owner);
         if (msg.value > 0) _sweepNative(msg.sender);
@@ -264,7 +264,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _depositAmount
         );
 
-        VAULT.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline);
+        VAULT.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
 
         if (msg.value > 0) _sweepNative(msg.sender);
     }
