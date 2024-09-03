@@ -36,6 +36,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
     //                          VARIABLES
     // =============================================================
 
+    uint256 public totalUnclaimedFees; // The total amount of fees that have not been claimed
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
     uint256 public rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
 
@@ -158,7 +159,8 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
         address tokenIn,
         uint256 amountIn,
         uint16 destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 fee
     ) external payable virtual override onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
@@ -173,25 +175,27 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
             srcChainId: uint16(_currentChainId()),
             destChainId: destChainId,
             fillDeadline: fillDeadline,
-            tokenIn: tokenIn
+            tokenIn: tokenIn,
+            fee: fee
         });
+
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.InvalidOrderStatus();
 
         // Pre transfer check
         uint256 _preTotalAssets = stablecoinBalance();
 
-        _transferERC20From(address(STABLECOIN), msg.sender, address(this), order.amountIn);
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), order.amountIn + order.fee);
 
         // Check that the transfer was successful
         uint256 _postTotalAssets = stablecoinBalance();
 
-        if (_postTotalAssets != _preTotalAssets + order.amountIn) revert GeniusErrors.TransferFailed(
+        if (_postTotalAssets != _preTotalAssets + order.amountIn + order.fee) revert GeniusErrors.TransferFailed(
             address(STABLECOIN),
-            order.amountIn
+            order.amountIn + order.fee
         );
 
-
+        totalUnclaimedFees += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;        
 
         emit SwapDeposit(
@@ -201,7 +205,8 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
             order.amountIn,
             order.srcChainId,
             order.destChainId,
-            order.fillDeadline
+            order.fillDeadline,
+            order.fee
         );
     }
 
@@ -267,6 +272,27 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
     }
 
     // =============================================================
+    //                        FEE LIQUIDITY
+    // =============================================================
+
+    /**
+     * @dev See {IGeniusVault-claimFees}.
+     */
+    function claimFees(uint256 amount, address token) external override virtual onlyOrchestrator whenNotPaused {
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (amount > totalUnclaimedFees) revert GeniusErrors.InsufficientFees(amount, totalUnclaimedFees, address(STABLECOIN));
+        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
+
+        totalUnclaimedFees -= amount;
+        _transferERC20(address(STABLECOIN), msg.sender, amount);
+
+        emit FeesClaimed(
+            address(STABLECOIN),
+            amount
+        );
+    }
+
+    // =============================================================
     //                      ORDER MANAGEMENT
     // =============================================================
 
@@ -288,7 +314,8 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
             order.amountIn,
             order.srcChainId,
             order.destChainId,
-            order.fillDeadline
+            order.fillDeadline,
+            order.fee
         );
     }
 
@@ -324,7 +351,8 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
             order.amountIn,
             order.srcChainId,
             order.destChainId,
-            order.fillDeadline
+            order.fillDeadline,
+            order.fee
         );
     }
 
@@ -406,11 +434,12 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
     /**
      * @dev See {IGeniusVault-allAssets}.
      */
-    function allAssets() public override view returns (uint256, uint256, uint256) {
+    function allAssets() public override view returns (uint256, uint256, uint256, uint256) {
         return (
             stablecoinBalance(),
             availableAssets(),
-            totalStakedAssets
+            totalStakedAssets,
+            totalUnclaimedFees
         );
     }
 

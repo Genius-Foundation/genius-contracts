@@ -84,7 +84,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             unchecked { ++i; }
         }
 
-        feeCollector = initialFeeCollecter;
         isInitialized = 1;
     }
 
@@ -93,13 +92,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      */
     function setAllowedTarget(address target, bool isAllowed) external override onlyAdmin {
         allowedTargets[target] = isAllowed ? 1 : 0;
-    }
-
-    /**
-     * @dev See {IGeniusExecutor-setFeeCollector}.
-     */
-    function setFeeCollector(address newFeeCollecter) external override onlyAdmin {
-        feeCollector = newFeeCollecter;
     }
 
     /**
@@ -153,7 +145,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address owner,
         uint16 destChainId,
         uint32 fillDeadline,
-        uint256 feeAmount
+        uint256 fee
     ) external override onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
@@ -173,8 +165,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         (bool _success, ) = target.call{value: 0}(data);
         if(!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
-
-        _transferERC20(address(STABLECOIN), feeCollector, feeAmount);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
         uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
@@ -207,7 +197,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address owner,
         uint16 destChainId,
         uint32 fillDeadline,
-        uint256 feeAmount
+        uint256 fee
     ) external override payable nonReentrant {
         if (
             targets.length != data.length ||
@@ -222,8 +212,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
-
-        _transferERC20(address(STABLECOIN), feeCollector, feeAmount);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
         uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
@@ -251,7 +239,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint256 value,
         uint16 destChainId,
         uint32 fillDeadline,
-        uint256 feeAmount
+        uint256 fee
     ) external override payable {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
@@ -266,8 +254,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         (bool _success, ) = target.call{value: value}(data);
 
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
-
-        _transferERC20(address(STABLECOIN), feeCollector, feeAmount);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
         uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;

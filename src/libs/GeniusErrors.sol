@@ -159,6 +159,8 @@ library GeniusErrors {
      */
     error InsufficientNativeBalance(uint256 expectedAmount, uint256 actualAmount);
 
+    error InsufficientFees(uint256 attemptedAmount, uint256 actualAmount, address token);
+
     /**
      * @dev Error thrown when there is remaining balance of a supported token when
      *      attempting to remove support for the token.

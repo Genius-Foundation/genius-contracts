@@ -41,6 +41,7 @@ interface IGeniusVault {
         uint16 destChainId;
         uint32 fillDeadline; 
         address tokenIn;
+        uint256 fee;
     }
 
     /**
@@ -60,7 +61,8 @@ interface IGeniusVault {
         uint256 amountIn,
         uint16 srcChainId,
         uint16 indexed destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 fee
     );
 
     /**
@@ -100,7 +102,8 @@ interface IGeniusVault {
         uint256 amountIn,
         uint16 srcChainId,
         uint16 indexed destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 fee
     );
 
     /**
@@ -120,7 +123,8 @@ interface IGeniusVault {
         uint256 amountIn,
         uint16 srcChainId,
         uint16 indexed destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 fee
     );
 
     /**
@@ -131,6 +135,16 @@ interface IGeniusVault {
     event RemovedLiquidity(
         uint256 amount,
         uint16 chainId
+    );
+
+    /**
+     * @notice Emitted when fees are claimed from the Vault contract.
+     * @param token The address of the token the fees were claimed in.
+     * @param amount The amount of fees claimed.
+     */
+    event FeesClaimed(
+        address token,
+        uint256 amount
     );
 
     function stablecoinBalance() external view returns (uint256);
@@ -178,7 +192,8 @@ interface IGeniusVault {
         address tokenIn,
         uint256 amountIn,
         uint16 destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 fee
     ) external payable;
 
     /**
@@ -217,6 +232,13 @@ interface IGeniusVault {
     function removeRewardLiquidity(uint256 amount) external;
 
     /**
+     * @notice Claims fees from the GeniusVault contract.
+     * @param amount The amount of fees to claim.
+     * @param token The address of the token to claim fees in.
+     */
+    function claimFees(uint256 amount, address token) external;
+
+    /**
      * @notice Sets the rebalance threshold for the GeniusVault contract.
      * @param threshold The new rebalance threshold to be set.
      */
@@ -245,7 +267,7 @@ interface IGeniusVault {
      * @return availableAssets The number of assets available for use.
      * @return totalStakedAssets The total number of assets currently staked in the vault.
      */
-    function allAssets() external view returns (uint256, uint256, uint256);
+    function allAssets() external view returns (uint256, uint256, uint256, uint256);
 
     /**
      * @notice Calculates the hash of an order.

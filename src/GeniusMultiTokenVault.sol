@@ -36,6 +36,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
     mapping(address => bool) public isSupported; // Mapping of token addresses to TokenInfo structs
     mapping(uint256 => address) public supportedTokensIndex; // Mapping of supported token index to token address
     mapping(address router => uint256 isSupported) public supportedRouters; // Mapping of router address to support status
+    mapping(address token => uint256) public unclaimedFees; // Mapping of token address to total unclaimed fees
 
     // =============================================================
     //                          CONSTRUCTOR
@@ -217,7 +218,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
         address tokenIn,
         uint256 amountIn,
         uint16 destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 fee
     ) external payable override(GeniusVault, IGeniusVault) onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
@@ -231,8 +233,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
             srcChainId: uint16(_currentChainId()),
             destChainId: destChainId,
             fillDeadline: fillDeadline,
-            tokenIn: tokenIn
+            tokenIn: tokenIn,
+            fee: fee
         });
+
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.InvalidOrderStatus();
 
@@ -241,28 +245,29 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
 
         if (tokenIn == address(STABLECOIN)) {
             preBalance = stablecoinBalance();
-            _transferERC20From(tokenIn, msg.sender, address(this), amountIn);
+            _transferERC20From(tokenIn, msg.sender, address(this), order.amountIn + order.fee);
             postBalance = stablecoinBalance();
 
-            if (postBalance - preBalance != amountIn) revert GeniusErrors.UnexpectedBalanceChange(
+            if (postBalance - preBalance != order.amountIn + order.fee) revert GeniusErrors.UnexpectedBalanceChange(
                 tokenIn,
-                amountIn,
+                order.amountIn + order.fee,
                 postBalance - preBalance
             );
         } else if (isSupported[tokenIn]) {
             if (tokenIn == NATIVE) {
-                if (msg.value != amountIn) revert GeniusErrors.InvalidAmount();
+                if (msg.value != order.amountIn + order.fee) revert GeniusErrors.InvalidAmount();
                 preBalance = address(this).balance - msg.value;
                 postBalance = address(this).balance;
             } else {
                 preBalance = tokenBalance(tokenIn);
-                _transferERC20From(tokenIn, msg.sender, address(this), amountIn);
+                _transferERC20From(tokenIn, msg.sender, address(this), order.amountIn + order.fee);
                 postBalance = tokenBalance(tokenIn);
             }
         } else {
             revert GeniusErrors.InvalidToken(tokenIn);
         }
 
+        unclaimedFees[tokenIn] += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;        
 
         emit SwapDeposit(
@@ -272,9 +277,14 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
             order.amountIn,
             order.srcChainId,
             order.destChainId,
-            order.fillDeadline
+            order.fillDeadline,
+            order.fee
         );
     }
+
+    // =============================================================
+    //                      REWARD LIQUIDITY
+    // =============================================================
 
     /**
      * @dev See {IGeniusMultiTokenPool-removeLiquiditySwap}.
@@ -313,6 +323,33 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
             order.destChainId,
             order.fillDeadline
         );
+    }
+
+    // =============================================================
+    //                        FEE LIQUIDITY
+    // =============================================================
+
+    /**
+     * @dev See {IGeniusVault-claimFees}.
+     */
+    function claimFees(uint256 amount, address token) external override(IGeniusVault, GeniusVault) onlyOrchestrator whenNotPaused {
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (!isSupported[token]) revert GeniusErrors.InvalidToken(token);
+        if (unclaimedFees[token] < amount) revert GeniusErrors.InsufficientFees(
+            amount,
+            unclaimedFees[token],
+            token
+        );
+
+        if (token == NATIVE) {
+            (bool success, ) = msg.sender.call{value: amount}("");
+            if (!success) revert GeniusErrors.TransferFailed(NATIVE, amount);
+        } else {
+            (bool success, ) = _transferERC20(token, msg.sender, amount);
+            if (!success) revert GeniusErrors.TransferFailed(token, amount);
+        }
+
+        emit FeesClaimed(token, amount);
     }
 
     // =============================================================

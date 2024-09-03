@@ -37,13 +37,6 @@ interface IGeniusExecutor {
     function setAllowedTarget(address target, bool isAllowed) external;
 
     /**
-     * @notice Sets the address of the fee collector.
-     * @param newFeeCollector The address of the new fee collector.
-     * @dev This function can only be called by the contract owner.
-     */
-    function setFeeCollector(address newFeeCollector) external;
-
-    /**
      * @notice Aggregates multiple calls in a single transaction with Permit2 integration.
      * @param targets An array of addresses to call.
      * @param data An array of calldata to forward to the targets.
