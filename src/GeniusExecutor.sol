@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { console } from "forge-std/Test.sol";
-
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
@@ -22,11 +21,14 @@ import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
  *         and the GeniusVault contract.
  */
 contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
+    using SafeERC20 for IERC20;
+
     // =============================================================
     //                           VARIABLES
     // =============================================================
     uint256 public override isInitialized;
     mapping(address => uint256) private allowedTargets;
+    address public feeCollector;
 
     // =============================================================
     //                          IMMUTABLES
@@ -71,7 +73,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     /**
      * @dev See {IGeniusExecutor-initialize}.
      */
-    function initialize(address[] calldata routers) external override onlyAdmin {
+    function initialize(address[] calldata routers, address initialFeeCollecter) external override onlyAdmin {
         uint256 length = routers.length;
         for (uint256 i = 0; i < length;) {
             address router = routers[i];
@@ -83,6 +85,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             unchecked { ++i; }
         }
 
+        feeCollector = initialFeeCollecter;
         isInitialized = 1;
     }
 
@@ -91,6 +94,13 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      */
     function setAllowedTarget(address target, bool isAllowed) external override onlyAdmin {
         allowedTargets[target] = isAllowed ? 1 : 0;
+    }
+
+    /**
+     * @dev See {IGeniusExecutor-setFeeCollector}.
+     */
+    function setFeeCollector(address newFeeCollecter) external override onlyAdmin {
+        feeCollector = newFeeCollecter;
     }
 
     /**
@@ -143,7 +153,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata signature,
         address owner,
         uint16 destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 feeAmount
     ) external override onlyOrchestrator nonReentrant {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
@@ -163,6 +174,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         (bool _success, ) = target.call{value: 0}(data);
         if(!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+
+        _transferERC20(address(STABLECOIN), feeCollector, feeAmount);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
         uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
@@ -194,7 +207,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata signature,
         address owner,
         uint16 destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 feeAmount
     ) external override payable nonReentrant {
         if (
             targets.length != data.length ||
@@ -209,6 +223,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
+
+        _transferERC20(address(STABLECOIN), feeCollector, feeAmount);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
         uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
@@ -235,7 +251,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata data,
         uint256 value,
         uint16 destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 feeAmount
     ) external override payable {
         if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
@@ -250,6 +267,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         (bool _success, ) = target.call{value: value}(data);
 
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+
+        _transferERC20(address(STABLECOIN), feeCollector, feeAmount);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
         uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
@@ -310,6 +329,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // =============================================================
     //                      INTERNAL FUNCTIONS
     // =============================================================
+
+    function _transferERC20(
+        address token,
+        address to,
+        uint256 amount
+    ) internal {
+        IERC20(token).safeTransfer(to, amount);
+    }
 
     function _checkTargets(
         address[] memory targets,

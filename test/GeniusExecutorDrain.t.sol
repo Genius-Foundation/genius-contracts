@@ -27,6 +27,7 @@ contract GeniusExecutorDrain is Test {
     address public coinReceiver;
 
     address public permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address public feeCollector = makeAddr("feeCollector");
 
     TestERC20 public USDC;
     TestERC20 public WETH;
@@ -43,7 +44,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(MALICIOUS);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
         deal(address(USDC), address(EXECUTOR), 100 ether);
@@ -194,7 +195,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
         // Fund EXECUTOR
@@ -434,7 +435,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
 
@@ -460,13 +461,15 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             42,
-            uint32(block.timestamp + 1000)
+            uint32(block.timestamp + 1000),
+            1 ether
         );
 
         // Assert final balances
         assertEq(USDC.balanceOf(trader), initialTraderUSDCBalance - 10 ether, "Trader USDC balance should decrease by 10 ether");
         assertEq(WETH.balanceOf(trader), initialTraderWETHBalance - 5 ether, "Trader WETH balance should decrease by 5 ether");
-        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + 10 ether, "Vault should receive the deposited USDC");
+        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + 9 ether, "Vault should receive the deposited USDC");
+        assertEq(USDC.balanceOf(feeCollector), 1 ether, "Fee collector should receive the fee");
     }
 
     /**
@@ -488,7 +491,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
         (address[] memory targets, bytes[] memory data,) = setupMultiSwapParams();
@@ -505,7 +508,8 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
     }
 
@@ -534,7 +538,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
         (address[] memory targets, bytes[] memory data, uint256[] memory values) = setupMultiSwapParams();
@@ -555,7 +559,8 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             42,
-            uint32(block.timestamp + 1000)
+            uint32(block.timestamp + 1000),
+            1 ether
         );
     }
 
@@ -583,7 +588,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
         (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
@@ -614,7 +619,8 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             42,
-            uint32(block.timestamp + 1000)
+            uint32(block.timestamp + 1000),
+            1 ether
         );
     }
 
@@ -623,7 +629,7 @@ contract GeniusExecutorDrain is Test {
         vm.startPrank(OWNER);
         address[] memory initialRouters = new address[](1);
         initialRouters[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(initialRouters);
+        EXECUTOR.initialize(initialRouters, feeCollector);
         vm.stopPrank();
 
         // Fund trader with ETH
@@ -642,13 +648,14 @@ contract GeniusExecutorDrain is Test {
         // Execute nativeSwapAndDeposit
         vm.prank(trader);
         // Deal the DEX_ROUTER contract some USDC
-        deal(address(USDC), address(DEX_ROUTER), 1 ether);
-        EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
+        deal(address(USDC), address(DEX_ROUTER), 100 ether);
+        EXECUTOR.nativeSwapAndDeposit{value: 100 ether}(
             address(DEX_ROUTER),
             swapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000)
+            uint32(block.timestamp + 1000),
+            1 ether
         );
 
         // Assert final balances
@@ -664,7 +671,8 @@ contract GeniusExecutorDrain is Test {
             swapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000)
+            uint32(block.timestamp + 1000),
+            1 ether
         );
 
         // 2. External call failed
@@ -681,7 +689,8 @@ contract GeniusExecutorDrain is Test {
             invalidSwapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000)
+            uint32(block.timestamp + 1000),
+            1 ether
         );
 
         // 3. Insufficient ETH sent
@@ -692,7 +701,8 @@ contract GeniusExecutorDrain is Test {
             swapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000)
+            uint32(block.timestamp + 1000),
+            1 ether
         );
     }
 }

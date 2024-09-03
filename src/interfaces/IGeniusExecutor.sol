@@ -26,7 +26,7 @@ interface IGeniusExecutor {
      * @param routers An array of router addresses to be set as allowed targets.
      * @dev This function can only be called by the contract owner.
      */
-    function initialize(address[] calldata routers) external;
+    function initialize(address[] calldata routers, address feeCollector) external;
 
     /**
      * @notice Sets the allowed status for a target address.
@@ -35,6 +35,13 @@ interface IGeniusExecutor {
      * @dev This function can only be called by the contract owner.
      */
     function setAllowedTarget(address target, bool isAllowed) external;
+
+    /**
+     * @notice Sets the address of the fee collector.
+     * @param newFeeCollector The address of the new fee collector.
+     * @dev This function can only be called by the contract owner.
+     */
+    function setFeeCollector(address newFeeCollector) external;
 
     /**
      * @notice Aggregates multiple calls in a single transaction with Permit2 integration.
@@ -88,7 +95,8 @@ interface IGeniusExecutor {
         bytes calldata signature,
         address owner,
         uint16 destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 feeAmount
     ) external;
 
     /**
@@ -110,7 +118,8 @@ interface IGeniusExecutor {
         bytes calldata signature,
         address owner,
         uint16 destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 feeAmount
     ) external payable;
 
     /**
@@ -126,7 +135,8 @@ interface IGeniusExecutor {
         bytes calldata data,
         uint256 value,
         uint16 destChainId,
-        uint32 fillDeadline
+        uint32 fillDeadline,
+        uint256 feeAmount
     ) external payable;
 
     /**

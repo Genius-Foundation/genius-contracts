@@ -26,6 +26,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
     ERC20 public USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
     address public permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     IEIP712 public permit2 = IEIP712(permit2Address);
+    address public feeCollecter = makeAddr("feeCollector");
     
     // ============ Internal Contracts ============
     GeniusMultiTokenVault public VAULT;
@@ -311,7 +312,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollecter);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE() ,ORCHESTRATOR);
         vm.stopPrank();
 
@@ -358,12 +359,13 @@ contract GeniusMultiTokenVaultAccounting is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 125 ether, "Available stable balance mismatch");
+        assertEq(VAULT.stablecoinBalance(), 149 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 124 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         vm.stopPrank();
@@ -374,8 +376,8 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 60 ether, "Available stable balance mismatch");
+        assertEq(VAULT.stablecoinBalance(), 149 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 59 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
 
         // =================== WITHDRAW FROM VAULT ===================
@@ -384,7 +386,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked stables does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Vault total assets mismatch");
-        assertEq(VAULT.availableAssets(), 50 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 49 ether, "Available stable balance mismatch");
 
         vm.stopPrank();
 
@@ -410,7 +412,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollecter);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -464,18 +466,19 @@ contract GeniusMultiTokenVaultAccounting is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(VAULT.stablecoinBalance(), 170 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 145 ether, "Available stable balance mismatch");
+        assertEq(VAULT.stablecoinBalance(), 169 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 144 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         // Donate before changing threshold
-        donateAndAssert(100 ether, 180 ether, 155 ether, 25 ether);
+        donateAndAssert(100 ether, 179 ether, 154 ether, 25 ether);
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
@@ -483,12 +486,12 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(VAULT.stablecoinBalance(), 180 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 90 ether, "Available stable balance mismatch");
+        assertEq(VAULT.stablecoinBalance(), 179 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 89 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
 
         // Donate before withdrawing
-        donateAndAssert(100 ether, 190 ether, 100 ether, 90 ether);
+        donateAndAssert(100 ether, 189 ether, 99 ether, 90 ether);
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
@@ -583,7 +586,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollecter);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -610,11 +613,12 @@ contract GeniusMultiTokenVaultAccounting is Test {
             calldataSwap,
             depositAmount,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
         assertEq(address(VAULT).balance - initialETHBalance, 0, "ETH should not be held in VAULT");
-        assertEq(USDC.balanceOf(address(VAULT)), depositAmount / 2, "USDC balance mismatch after swap");
+        assertEq(USDC.balanceOf(address(VAULT)), (depositAmount / 2) - 1 ether, "USDC balance mismatch after swap");
 
         // Verify token balances using supportedTokensBalances
         uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
@@ -635,7 +639,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollecter);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -683,13 +687,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
             signature,
             TRADER,
             42,
-            uint32(block.timestamp + 1000)
+            uint32(block.timestamp + 1000),
+            1 ether
         );
 
         // Assertions
         assertEq(TOKEN1.balanceOf(address(VAULT)), 100 ether, "TOKEN1 balance should be 0");
-        assertEq(USDC.balanceOf(address(VAULT)), swapAmount / 2, "USDC balance should increase by swapAmount");
-        assertEq(VAULT.stablecoinBalance(), initialTotalStables + swapAmount / 2, "Total stables should increase by swapAmount");
+        assertEq(USDC.balanceOf(address(VAULT)), (swapAmount / 2) - 1 ether, "USDC balance should increase by swapAmount");
+        assertEq(VAULT.stablecoinBalance(), initialTotalStables + (swapAmount / 2) - 1 ether, "Total stables should increase by swapAmount");
 
         // Verify token balances using supportedTokensBalances
         uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
@@ -716,7 +721,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollecter);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 

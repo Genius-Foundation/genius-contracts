@@ -27,6 +27,7 @@ contract GeniusVaultAccounting is Test {
 
     // ============ Constants ============
     address public PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address public feeCollecter = makeAddr("feeCollector");
     address public OWNER;
     address public TRADER;
     address public ORCHESTRATOR;
@@ -258,7 +259,7 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollecter);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -307,7 +308,8 @@ contract GeniusVaultAccounting is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
         vm.stopPrank();
@@ -321,8 +323,8 @@ contract GeniusVaultAccounting is Test {
         logValues("Post Stake and Deposit Values", entries);
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 125 ether, "Available assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 149 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 124 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
     }
 
@@ -341,7 +343,7 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);  // Assuming EXECUTOR can act as a router
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollecter);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -390,14 +392,15 @@ contract GeniusVaultAccounting is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
-        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 125 ether, "Available assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 149 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 124 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // Start acting as TRADER
@@ -406,7 +409,7 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 50 ether, "Available assets mismatch");
+        assertEq(VAULT.availableAssets(), 49 ether, "Available assets mismatch");
 
         LogEntry[] memory entries = new LogEntry[](5);
         entries[0] = LogEntry("Total Staked Assets", VAULT.totalStakedAssets(), 0);
@@ -443,7 +446,7 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollecter);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -491,14 +494,15 @@ contract GeniusVaultAccounting is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 125 ether, "Available assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 149 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 124 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // =================== CHANGE THRESHOLD ===================
@@ -507,8 +511,8 @@ contract GeniusVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 60 ether, "Available assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 149 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 59 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
 
         // =================== WITHDRAW FROM VAULT ===================
@@ -517,7 +521,7 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 50 ether, "Available assets mismatch");
+        assertEq(VAULT.availableAssets(), 49 ether, "Available assets mismatch");
 
         vm.stopPrank();
 
@@ -550,7 +554,7 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollecter);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -605,18 +609,19 @@ contract GeniusVaultAccounting is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.stablecoinBalance(), 170 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 145 ether, "Available assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 169 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 144 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
         // Donate + 10 before changing threshold
-        donateAndAssert(100 ether, 180 ether, 155 ether, 25 ether);
+        donateAndAssert(100 ether, 179 ether, 154 ether, 25 ether);
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
@@ -624,12 +629,12 @@ contract GeniusVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.stablecoinBalance(), 180 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 90 ether, "Available assets mismatch");
+        assertEq(VAULT.stablecoinBalance(), 179 ether, "Total assets mismatch");
+        assertEq(VAULT.availableAssets(), 89 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum asset balance mismatch");
 
         // Donate +10 before withdrawing
-        donateAndAssert(100 ether, 190 ether, 100 ether, 90 ether);
+        donateAndAssert(100 ether, 189 ether, 99 ether, 89 ether);
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);

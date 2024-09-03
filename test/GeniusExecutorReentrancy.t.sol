@@ -27,6 +27,7 @@ contract GeniusExecutorReentrancy is Test {
     uint48 private nonce;
 
     address public permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address public feeCollector = makeAddr("feeCollector");
 
     TestERC20 public USDC;
     TestERC20 public WETH;
@@ -118,7 +119,7 @@ function testReentrancyMultiSwapAndDeposit() public {
         address[] memory routers = new address[](2);
         routers[0] = address(DEX_ROUTER);
         routers[1] = address(ATTACKER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
         address[] memory targets = new address[](4);
@@ -152,7 +153,8 @@ function testReentrancyMultiSwapAndDeposit() public {
             signature,
             trader,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
     }
 
@@ -161,7 +163,7 @@ function testReentrancyMultiSwapAndDeposit() public {
         address[] memory routers = new address[](2);
         routers[0] = address(DEX_ROUTER);
         routers[1] = address(ATTACKER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
         address[] memory targets = new address[](4);
@@ -201,7 +203,7 @@ function testReentrancyMultiSwapAndDeposit() public {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(ATTACKER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
         address[] memory targets = new address[](1);
@@ -227,7 +229,7 @@ function testReentrancyMultiSwapAndDeposit() public {
         address[] memory routers = new address[](2);
         routers[0] = address(DEX_ROUTER);
         routers[1] = address(MALICIOUS_TOKEN);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, feeCollector);
         vm.stopPrank();
 
         // Deal 1 ether to the EXECUTOR

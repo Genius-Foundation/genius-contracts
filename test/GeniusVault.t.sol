@@ -27,6 +27,7 @@ contract GeniusVaultTest is Test {
     uint256 targetPoolId = 1;
 
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address FEE_COLLECTOR = makeAddr("FEE_COLLECTOR");
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
@@ -65,7 +66,7 @@ contract GeniusVaultTest is Test {
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, FEE_COLLECTOR);
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
@@ -231,19 +232,20 @@ contract GeniusVaultTest is Test {
             swapData,
             1 ether,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
-        assertEq(USDC.balanceOf(address(VAULT)), 500 ether, "GeniusVault balance should be 1,000 ether");
+        assertEq(USDC.balanceOf(address(VAULT)), 499 ether, "GeniusVault balance should be 499 ether");
 
         uint256 totalAssets = VAULT.stablecoinBalance();
         uint256 availableAssets = VAULT.availableAssets();
         uint256 totalStakedAssets = VAULT.totalStakedAssets();
         uint256 traderBalance = USDC.balanceOf(TRADER);
 
-        assertEq(totalAssets, 500 ether, "Total assets should be 1,000 ether");
+        assertEq(totalAssets, 499 ether, "Total assets should be 1,000 ether");
         assertEq(totalStakedAssets, 0, "Total staked assets should be0 ether");
-        assertEq(availableAssets, 500 ether, "Available assets should be 1,000 ether");
+        assertEq(availableAssets, 499 ether, "Available assets should be 1,000 ether");
         assertEq(traderBalance, 1000 ether, "Orchestrator balance should be unchanged");
     }
 

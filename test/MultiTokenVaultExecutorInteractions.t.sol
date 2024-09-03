@@ -45,6 +45,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
     address public TRADER;
     address public ORCHESTRATOR;
     address public BRIDGE;
+    address public FEE_COLLECTOR = makeAddr("feeCollector");
 
     // ============ Private Key ============
     uint256 P_KEY;
@@ -115,7 +116,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         bridges[0] = BRIDGE;
         
         MULTI_VAULT.initialize(address(EXECUTOR), supportedTokens, bridges, routers);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.initialize(routers, FEE_COLLECTOR);
         
         // Add Orchestrator
         MULTI_VAULT.grantRole(MULTI_VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
@@ -189,13 +190,14 @@ contract MultiTokenVaultExecutorInteractions is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 5 ether, "MULTI_VAULT should have 5 test tokens");
-        assertEq(MULTI_VAULT.stablecoinBalance(), 5 ether, "MULTI_VAULT should have 5 test tokens available");
-        assertEq(MULTI_VAULT.availableAssets(), 5 ether, "MULTI_VAULT should have 90% of test tokens available");
+        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 4 ether, "MULTI_VAULT should have 5 test tokens");
+        assertEq(MULTI_VAULT.stablecoinBalance(), 4 ether, "MULTI_VAULT should have 5 test tokens available");
+        assertEq(MULTI_VAULT.availableAssets(), 4 ether, "MULTI_VAULT should have 90% of test tokens available");
         assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 test tokens staked");
 
     }
@@ -273,13 +275,14 @@ contract MultiTokenVaultExecutorInteractions is Test {
             signature,
             TRADER,
             42,
-            uint32(block.timestamp + 1000)
+            uint32(block.timestamp + 1000),
+            1 ether
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 10 ether, "MULTI_VAULT should have 10 test tokens");
-        assertEq(MULTI_VAULT.stablecoinBalance(), 10 ether, "MULTI_VAULT should have 10 test tokens available");
-        assertEq(MULTI_VAULT.availableAssets(), 10 ether, "MULTI_VAULT should have 90% of test tokens available");
+        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 9 ether, "MULTI_VAULT should have 10 test tokens");
+        assertEq(MULTI_VAULT.stablecoinBalance(), 9 ether, "MULTI_VAULT should have 10 test tokens available");
+        assertEq(MULTI_VAULT.availableAssets(), 9 ether, "MULTI_VAULT should have 90% of test tokens available");
         assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 test tokens staked ");
     }
 
@@ -287,7 +290,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         uint16 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 initialBalance = TRADER.balance;
-        uint256 swapAmount = 1 ether;
+        uint256 swapAmount = 100 ether;
 
         // Prepare swap calldata
         bytes memory swapCalldata = abi.encodeWithSelector(
@@ -306,15 +309,16 @@ contract MultiTokenVaultExecutorInteractions is Test {
             swapCalldata,
             swapAmount,
             destChainId,
-            fillDeadline
+            fillDeadline,
+            1 ether
         );
 
         // Prepare log entries for assertion checks
         LogEntry[] memory entries = new LogEntry[](6);
         entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
-        entries[1] = LogEntry("MULTI_VAULT USDC balance", USDC.balanceOf(address(MULTI_VAULT)), swapAmount / 2);
-        entries[2] = LogEntry("MULTI_VAULT stablecoinBalance", MULTI_VAULT.stablecoinBalance(), swapAmount / 2);
-        entries[3] = LogEntry("MULTI_VAULT availableAssets", MULTI_VAULT.availableAssets(), swapAmount / 2);
+        entries[1] = LogEntry("MULTI_VAULT USDC balance", USDC.balanceOf(address(MULTI_VAULT)), (swapAmount / 2) - 1 ether);
+        entries[2] = LogEntry("MULTI_VAULT stablecoinBalance", MULTI_VAULT.stablecoinBalance(), (swapAmount / 2) - 1 ether);
+        entries[3] = LogEntry("MULTI_VAULT availableAssets", MULTI_VAULT.availableAssets(), (swapAmount / 2) - 1 ether);
         entries[4] = LogEntry("MULTI_VAULT totalStakedAssets", MULTI_VAULT.totalStakedAssets(), 0);
         entries[5] = LogEntry("TRADER ETH balance change", initialBalance - TRADER.balance, swapAmount);
 
