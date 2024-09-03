@@ -28,7 +28,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // =============================================================
     uint256 public override isInitialized;
     mapping(address => uint256) private allowedTargets;
-    address public feeCollector;
 
     // =============================================================
     //                          IMMUTABLES

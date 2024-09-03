@@ -1,0 +1,3 @@
+Fix implementation of the fee collection in the executor:
+- [ ] Still utilize feeAmount, but keep the fee in the executor's balance
+           - This should utilize a read function to get the fee amount

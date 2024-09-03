@@ -178,7 +178,19 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.InvalidOrderStatus();
 
+        // Pre transfer check
+        uint256 _preTotalAssets = stablecoinBalance();
+
         _transferERC20From(address(STABLECOIN), msg.sender, address(this), order.amountIn);
+
+        // Check that the transfer was successful
+        uint256 _postTotalAssets = stablecoinBalance();
+
+        if (_postTotalAssets != _preTotalAssets + order.amountIn) revert GeniusErrors.TransferFailed(
+            address(STABLECOIN),
+            order.amountIn
+        );
+
 
         orderStatus[orderHash_] = OrderStatus.Created;        
 
