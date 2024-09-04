@@ -39,6 +39,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     //                          VARIABLES
     // =============================================================
 
+    uint256 public crosschainFee = 30;
     uint256 public unclaimedFees; // The total amount of fees that have not been claimed
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
     uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
@@ -323,16 +324,18 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
 
         uint256 _totalAssetsPreRevert = stablecoinBalance();
+        uint256 _feeRefund = _calculateRefundedFee(order.amountIn);
+
+        if (unclaimedFees < _feeRefund) revert GeniusErrors.InsufficientFees(_feeRefund, unclaimedFees, address(STABLECOIN));
+        unclaimedFees -= _feeRefund;
 
         _batchExecution(targets, data, values);
+        _transferERC20(address(STABLECOIN), order.trader, _feeRefund);
 
         uint256 _totalAssetsPostRevert = stablecoinBalance();
         uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
 
-        if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
-
-        if (unclaimedFees < order.fee) revert GeniusErrors.InsufficientFees(order.fee, unclaimedFees, address(STABLECOIN));
-        unclaimedFees -= order.fee;
+        if (_delta != order.amountIn - _feeRefund) revert GeniusErrors.InvalidDelta();
 
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
@@ -415,6 +418,13 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         EXECUTOR = executor_;
     }
 
+    /**
+     * @dev See {IGeniusVault-setCrosschainFee}.
+     */
+    function setCrosschainFee(uint256 fee) external override onlyAdmin {
+        crosschainFee = fee;
+    }
+
     // =============================================================
     //                        BRIDGE MANAGEMENT
     // =============================================================
@@ -492,12 +502,11 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     /**
      * @dev See {IGeniusVault-allAssets}.
      */
-    function allAssets() public override view returns (uint256, uint256, uint256, uint256) {
+    function allAssets() public override view returns (uint256, uint256, uint256) {
         return (
             stablecoinBalance(),
             availableAssets(),
-            totalStakedAssets,
-            unclaimedFees
+            totalStakedAssets
         );
     }
 
@@ -576,6 +585,10 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
             unchecked { i++; }
         }
+    }
+
+    function _calculateRefundedFee(uint256 amount) internal view returns (uint256) {
+        return (amount * crosschainFee) / 100;
     }
 
     function _transferERC20(

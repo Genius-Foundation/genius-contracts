@@ -306,6 +306,12 @@ interface IGeniusVault {
     function manageBridge(address bridge, bool authorize) external;
 
     /**
+     * @notice Sets the cross-chain fee for the GeniusVault contract.
+     * @param fee The new cross-chain fee to be set.
+     */
+    function setCrosschainFee(uint256 fee) external;
+
+    /**
      * @notice Sets the executor address for the GeniusVault contract.
      * @param executor_ The address of the executor to be set.
      */
@@ -327,7 +333,7 @@ interface IGeniusVault {
      * @return availableAssets The number of assets available for use.
      * @return totalStakedAssets The total number of assets currently staked in the vault.
      */
-    function allAssets() external view returns (uint256, uint256, uint256, uint256);
+    function allAssets() external view returns (uint256, uint256, uint256);
 
     /**
      * @notice Calculates the hash of an order.

@@ -86,9 +86,6 @@ contract GeniusVaultFees is Test {
     }
 
     function testAddLiquidity() public {
-        
-        uint256 initialOrchestatorBalance = USDC.balanceOf(ORCHESTRATOR);
-
         vm.startPrank(address(EXECUTOR));
         USDC.approve(address(VAULT), 1_000 ether);
         VAULT.addLiquiditySwap(keccak256("order") ,TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
@@ -128,13 +125,9 @@ contract GeniusVaultFees is Test {
             fee: 1 ether
         });
 
-        uint256 initOrchBalance = USDC.balanceOf(address(EXECUTOR));
-
         // Remove liquidity
         vm.startPrank(address(EXECUTOR));
         VAULT.removeLiquiditySwap(order);
-
-        uint256 finalOrchBalance = USDC.balanceOf(address(EXECUTOR));
 
         // Add assertions to check the state after removing liquidity
         assertEq(USDC.balanceOf(address(VAULT)), 1 ether, "GeniusVault balance should be 1 ether (only fees left)");

@@ -247,38 +247,25 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             preBalance = stablecoinBalance();
             _transferERC20From(tokenIn, msg.sender, address(this), order.amountIn);
             postBalance = stablecoinBalance();
-
-            if (postBalance - preBalance != order.amountIn) revert GeniusErrors.UnexpectedBalanceChange(
-                tokenIn,
-                order.amountIn,
-                postBalance - preBalance
-            );
         } else if (supportedTokens[tokenIn]) {
             if (tokenIn == NATIVE) {
                 if (msg.value != order.amountIn) revert GeniusErrors.InvalidAmount();
                 preBalance = address(this).balance - msg.value;
                 postBalance = address(this).balance;
-
-                if (postBalance - preBalance != order.amountIn) revert GeniusErrors.UnexpectedBalanceChange(
-                    tokenIn,
-                    order.amountIn,
-                    postBalance - preBalance
-                );
-
             } else {
                 preBalance = tokenBalance(tokenIn);
                 _transferERC20From(tokenIn, msg.sender, address(this), order.amountIn);
                 postBalance = tokenBalance(tokenIn);
-
-                if (postBalance - preBalance != order.amountIn) revert GeniusErrors.UnexpectedBalanceChange(
-                    tokenIn,
-                    order.amountIn,
-                    postBalance - preBalance
-                );
             }
         } else {
             revert GeniusErrors.InvalidToken(tokenIn);
         }
+
+        if (postBalance - preBalance != order.amountIn) revert GeniusErrors.UnexpectedBalanceChange(
+            tokenIn,
+            order.amountIn,
+            postBalance - preBalance
+        );
 
         supportedTokenFees[tokenIn] += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;        

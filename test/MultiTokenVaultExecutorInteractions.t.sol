@@ -287,7 +287,6 @@ contract MultiTokenVaultExecutorInteractions is Test {
     }
 
     function testNativeSwapAndDeposit() public {
-        uint256 initialBalance = TRADER.balance;
         uint256 swapAmount = 100 ether;
 
         // Prepare swap calldata
