@@ -13,6 +13,15 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 interface IGeniusVault {
 
+    event StakeDeposit(address indexed caller, address indexed owner, uint256 amount);
+
+    event StakeWithdraw(
+        address indexed caller,
+        address indexed receiver,
+        address indexed owner,
+        uint256 amount
+    );
+
     /**
      * @notice Enum representing the possible statuses of an order.
      */
@@ -170,6 +179,14 @@ interface IGeniusVault {
      * @return The amount of available assets.
      */
     function availableAssets() external view returns (uint256);
+
+    function stakeDeposit(uint256 amount, address receiver) external;
+
+    function stakeWithdraw(
+        uint256 amount,
+        address receiver,
+        address owner
+    ) external;
 
     /**
      * @notice Removes liquidity from a bridge vault 
