@@ -112,7 +112,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     ) external payable override virtual onlyOrchestrator whenNotPaused {
         _checkBridgeTargets(targets);
  
-        uint256 totalAssetsBeforeTransfer = stablecoinBalance();
+        uint256 totalAssetsBeforeTransfer = totalBalanceExcludingFees();
         uint256 neededLiquidty_ = minAssetBalance();
 
         _isAmountValid(amountIn, _availableAssets(totalAssetsBeforeTransfer, neededLiquidty_));
@@ -125,7 +125,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
         _batchExecution(targets, data, values);
 
-        uint256 _stableDelta = totalAssetsBeforeTransfer - stablecoinBalance();
+        uint256 _stableDelta = totalAssetsBeforeTransfer - totalBalanceExcludingFees();
 
         if (_stableDelta != amountIn) revert GeniusErrors.AmountInAndDeltaMismatch(amountIn, _stableDelta);
 
@@ -151,7 +151,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         uint32 fillDeadline,
         uint256 fee
     ) external payable virtual override onlyExecutor whenNotPaused {
-        if (seed == bytes32(0)) revert GeniusErrors.InvalidSeed();
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (tokenIn != address(STABLECOIN)) revert GeniusErrors.InvalidToken(tokenIn);
@@ -214,7 +213,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
 
         // Gas saving
-        uint256 _totalAssets = stablecoinBalance();
+        uint256 _totalAssets = totalBalanceExcludingFees();
         uint256 _neededLiquidity = minAssetBalance();
 
         _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
@@ -248,7 +247,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @dev See {IGeniusVault-removeRewardLiquidity}.
      */
     function removeRewardLiquidity(uint256 amount) external override onlyOrchestrator whenNotPaused {
-        uint256 _totalAssets = stablecoinBalance();
+        uint256 _totalAssets = totalBalanceExcludingFees();
         uint256 _neededLiquidity = minAssetBalance();
 
         _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
@@ -332,6 +331,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
         if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
 
+        if (totalUnclaimedFees < order.fee) revert GeniusErrors.InsufficientFees(order.fee, totalUnclaimedFees, address(STABLECOIN));
+        totalUnclaimedFees -= order.fee;
+
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
         emit OrderReverted(
@@ -413,6 +415,10 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         EXECUTOR = executor_;
     }
 
+    // =============================================================
+    //                        BRIDGE MANAGEMENT
+    // =============================================================
+
     /**
      * @dev See {IGeniusMultiTokenVault-manageBridge}.
      */
@@ -440,7 +446,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     /**
      * @dev See {IGeniusVault-emergencyUnlock}.
      */
-    function unpause() external override onlyAdmin {
+    function unpause() external override onlyPauser {
         _unpause();
     }
 
@@ -467,7 +473,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      */
     function minAssetBalance() public override view returns (uint256) {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-        
         uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
         
         return minBalance;
