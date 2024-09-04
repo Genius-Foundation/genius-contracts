@@ -13,8 +13,21 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 interface IGeniusVault {
 
+    /**
+     * @notice Emitted when assets are staked in the GeniusVault contract.
+     * @param caller The address of the caller.
+     * @param owner The address of the owner of the staked assets.
+     * @param amount The amount of assets staked.
+     */
     event StakeDeposit(address indexed caller, address indexed owner, uint256 amount);
 
+    /**
+     * @notice Emitted when assets are withdrawn from the GeniusVault contract.
+     * @param caller The address of the caller.
+     * @param receiver The address of the receiver of the withdrawn assets.
+     * @param owner The address of the owner of the staked assets.
+     * @param amount The amount of assets withdrawn.
+     */
     event StakeWithdraw(
         address indexed caller,
         address indexed receiver,
@@ -180,8 +193,21 @@ interface IGeniusVault {
      */
     function availableAssets() external view returns (uint256);
 
+    /**
+     * @notice Stake assets in the GeniusVault contract.
+     * @param amount The amount of assets to stake.
+     * @param receiver The address of the receiver of the staked assets.
+     * @dev The receiver is the address that will receive gUSD tokens 
+     * in exchange for the staked assets with a 1:1 ratio.
+     */
     function stakeDeposit(uint256 amount, address receiver) external;
 
+    /**
+     * @notice Withdraws staked assets from the GeniusVault contract.
+     * @param amount The amount of assets to withdraw.
+     * @param receiver The address of the receiver of the withdrawn assets.
+     * @param owner The address of the owner of the staked assets.
+     */
     function stakeWithdraw(
         uint256 amount,
         address receiver,
