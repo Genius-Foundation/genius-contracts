@@ -279,6 +279,12 @@ interface IGeniusVault {
     function manageBridge(address bridge, bool authorize) external;
 
     /**
+     * @notice Sets the executor address for the GeniusVault contract.
+     * @param executor_ The address of the executor to be set.
+     */
+    function setExecutor(address executor_) external;
+
+    /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.
      */
     function pause() external;

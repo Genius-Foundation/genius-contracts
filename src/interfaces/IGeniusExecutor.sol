@@ -22,13 +22,6 @@ interface IGeniusExecutor {
     // =============================================================
 
     /**
-     * @notice Initializes the contract with a list of allowed router addresses.
-     * @param routers An array of router addresses to be set as allowed targets.
-     * @dev This function can only be called by the contract owner.
-     */
-    function initialize(address[] calldata routers) external;
-
-    /**
      * @notice Sets the allowed status for a target address.
      * @param target The address to set the allowed status for.
      * @param isAllowed The allowed status to set. True for allowed, false for not allowed.
@@ -159,12 +152,6 @@ interface IGeniusExecutor {
     // =============================================================
     //                           VARIABLES
     // =============================================================
-    
-    /**
-     * @notice Returns whether the contract has been initialized.
-     * @return 1 if initialized, 0 otherwise.
-     */
-    function isInitialized() external view returns (uint256);
 
     /**
      * @notice The address of the Permit2 contract.

@@ -56,12 +56,11 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultAbstract {
     function initialize(
         address stablecoin,
         address admin,
-        address executor,
         address[] memory tokens,
         address[] memory bridges,
         address[] memory routers
     ) external initializer {
-        GeniusVaultAbstract._initialize(stablecoin, admin, executor);
+        GeniusVaultAbstract._initialize(stablecoin, admin);
 
         isSupported[address(STABLECOIN)] = true;
 

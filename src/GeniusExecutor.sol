@@ -26,7 +26,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // =============================================================
     //                           VARIABLES
     // =============================================================
-    uint256 public override isInitialized;
     mapping(address => uint256) private allowedTargets;
 
     // =============================================================
@@ -42,13 +41,25 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     constructor(
         address permit2,
         address vault,
-        address admin
+        address admin,
+        address[] memory routers
     ) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IGeniusVault(vault);
         STABLECOIN = IERC20(VAULT.STABLECOIN());
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+
+        uint256 length = routers.length;
+        for (uint256 i = 0; i < length;) {
+            address router = routers[i];
+            if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
+            if (allowedTargets[router] == 1) revert GeniusErrors.DuplicateRouter(router);
+
+            allowedTargets[router] = 1;
+
+            unchecked { ++i; }
+        }
     }
 
     // =============================================================
@@ -70,24 +81,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // =============================================================
 
     /**
-     * @dev See {IGeniusExecutor-initialize}.
-     */
-    function initialize(address[] calldata routers) external override onlyAdmin {
-        uint256 length = routers.length;
-        for (uint256 i = 0; i < length;) {
-            address router = routers[i];
-            if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
-            if (allowedTargets[router] == 1) revert GeniusErrors.DuplicateRouter(router);
-
-            allowedTargets[router] = 1;
-
-            unchecked { ++i; }
-        }
-
-        isInitialized = 1;
-    }
-
-    /**
      * @dev See {IGeniusExecutor-setAllowedTarget}.
      */
     function setAllowedTarget(address target, bool isAllowed) external override onlyAdmin {
@@ -105,7 +98,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata signature,
         address owner
     ) external override payable nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
@@ -125,7 +117,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes[] calldata data,
         uint256[] calldata values
     ) external payable override nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();        
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
         _checkTargets(targets, emptyPermitDetails, msg.sender);
         _checkNative(_sum(values));
@@ -147,7 +138,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 fillDeadline,
         uint256 fee
     ) external override onlyOrchestrator nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
 
         address[] memory targets = new address[](1);
@@ -203,7 +193,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             targets.length != data.length ||
             data.length != values.length
         ) revert GeniusErrors.ArrayLengthsMismatch();
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
@@ -241,8 +230,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 fillDeadline,
         uint256 fee
     ) external override payable {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
-
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
         address[] memory targets = new address[](1);
         targets[0] = target;
@@ -277,7 +264,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata signature,
         address owner
     ) external override onlyOrchestrator nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.ArrayLengthsMismatch();
         if (permitBatch.details[0].token != address(STABLECOIN)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
@@ -296,7 +282,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata signature,
         address owner
     ) external override onlyOrchestrator nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details[0].token != address(VAULT)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
         }

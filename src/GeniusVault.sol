@@ -10,9 +10,8 @@ contract GeniusVault is GeniusVaultAbstract {
 
     function initialize(
         address stablecoin,
-        address admin,
-        address executor
+        address admin
     ) external initializer {
-        GeniusVaultAbstract._initialize(stablecoin, admin, executor);
+        GeniusVaultAbstract._initialize(stablecoin, admin);
     }
 }

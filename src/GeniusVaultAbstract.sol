@@ -81,19 +81,16 @@ abstract contract GeniusVaultAbstract is IGeniusVault, UUPSUpgradeable, ERC20Upg
      */
     function _initialize(
         address stablecoin,
-        address admin,
-        address executor
+        address admin
     ) internal onlyInitializing {
         if (stablecoin == address(0)) revert GeniusErrors.NonAddress0();
         if (admin == address(0)) revert GeniusErrors.NonAddress0();
-        if (executor == address(0)) revert GeniusErrors.NonAddress0();
 
         __ERC20_init("Genius USD", "gUSD");
         __AccessControl_init();
         __Pausable_init();
 
         STABLECOIN = IERC20(stablecoin);
-        EXECUTOR = executor;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(PAUSER_ROLE, admin);
@@ -348,7 +345,7 @@ abstract contract GeniusVaultAbstract is IGeniusVault, UUPSUpgradeable, ERC20Upg
     }
 
     // =============================================================
-    //                     REBALANCE THRESHOLD
+    //                     ADMIN
     // =============================================================
 
     /**
@@ -358,9 +355,13 @@ abstract contract GeniusVaultAbstract is IGeniusVault, UUPSUpgradeable, ERC20Upg
         rebalanceThreshold = threshold;
     }
 
-    // =============================================================
-    //                        BRIDGE MANAGEMENT
-    // =============================================================
+    /**
+     * @dev See {IGeniusVault-setExecutor}.
+     */
+    function setExecutor(address executor_) external override onlyAdmin {
+        if (executor_ == address(0)) revert GeniusErrors.NonAddress0();
+        EXECUTOR = executor_;
+    }
 
     /**
      * @dev See {IGeniusMultiTokenVault-manageBridge}.
@@ -389,7 +390,7 @@ abstract contract GeniusVaultAbstract is IGeniusVault, UUPSUpgradeable, ERC20Upg
     /**
      * @dev See {IGeniusVault-emergencyUnlock}.
      */
-    function unpause() external override onlyPauser {
+    function unpause() external override onlyAdmin {
         _unpause();
     }
 
