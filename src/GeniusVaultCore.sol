@@ -347,6 +347,54 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     }
 
     // =============================================================
+    //                      STAKING
+    // =============================================================
+
+    /**
+     * @dev See {IGeniusVault-stakeDeposit}.
+     */
+    function stakeDeposit(uint256 amount, address receiver) external override whenNotPaused {
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+
+        // Need to transfer before minting or ERC777s could reenter.
+        STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
+
+        _mint(receiver, amount);
+
+        emit StakeDeposit(msg.sender, receiver, amount);
+
+        totalStakedAssets += amount;
+    }
+
+    /**
+     * @dev See {IGeniusVault-stakeWithdraw}.
+     */
+    function stakeWithdraw(
+        uint256 amount,
+        address receiver,
+        address owner
+    ) external override whenNotPaused {
+        if (_msgSender() != owner) {
+            _spendAllowance(owner, _msgSender(), amount);
+        }
+
+        if (amount > stablecoinBalance()) revert GeniusErrors.InvalidAmount();
+        if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
+            address(STABLECOIN),
+            amount,
+            totalStakedAssets
+        );
+
+        totalStakedAssets -= amount;
+
+        _burn(owner, amount);
+
+        emit StakeWithdraw(msg.sender, receiver, owner, amount);
+
+        STABLECOIN.safeTransfer(receiver, amount);
+    }
+
+    // =============================================================
     //                     ADMIN
     // =============================================================
 
@@ -420,15 +468,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     function minAssetBalance() public override view returns (uint256) {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
         
-        // Calculate the minimum balance based on staked assets
         uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
         
-        // Add the unclaimed fees to the minimum balance
-        uint256 totalMinBalance = minBalance + totalUnclaimedFees;
-        
-        // Ensure we're not returning a value larger than totalStakedAssets + totalUnclaimedFees
-        uint256 totalLiabilities = totalStakedAssets + totalUnclaimedFees;
-        return totalMinBalance > totalLiabilities ? totalLiabilities : totalMinBalance;
+        return minBalance;
     }
 
     /**
@@ -566,44 +608,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
     function _currentTimeStamp() internal view returns (uint256) {
         return block.timestamp;
-    }
-
-    function stakeDeposit(uint256 amount, address receiver) external override whenNotPaused {
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-
-        // Need to transfer before minting or ERC777s could reenter.
-        STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
-
-        _mint(receiver, amount);
-
-        emit StakeDeposit(msg.sender, receiver, amount);
-
-        totalStakedAssets += amount;
-    }
-
-    function stakeWithdraw(
-        uint256 amount,
-        address receiver,
-        address owner
-    ) external override whenNotPaused {
-        if (_msgSender() != owner) {
-            _spendAllowance(owner, _msgSender(), amount);
-        }
-
-        if (amount > stablecoinBalance()) revert GeniusErrors.InvalidAmount();
-        if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
-            address(STABLECOIN),
-            amount,
-            totalStakedAssets
-        );
-
-        totalStakedAssets -= amount;
-
-        _burn(owner, amount);
-
-        emit StakeWithdraw(msg.sender, receiver, owner, amount);
-
-        STABLECOIN.safeTransfer(receiver, amount);
     }
 
     /**
