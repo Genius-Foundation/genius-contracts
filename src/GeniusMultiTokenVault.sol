@@ -9,7 +9,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusMultiTokenVault} from "./interfaces/IGeniusMultiTokenVault.sol";
 import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
-import {GeniusVaultAbstract} from "./GeniusVault.sol";
+import {GeniusVaultCore} from "./GeniusVault.sol";
 
 /**
  * @title GeniusMultiTokenPool
@@ -18,7 +18,7 @@ import {GeniusVaultAbstract} from "./GeniusVault.sol";
  * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
  *         liquidity management and swaps and can utilize multiple sources of liquidity.
  */
-contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultAbstract {
+contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     using SafeERC20 for IERC20;
 
     // =============================================================
@@ -60,7 +60,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultAbstract {
         address[] memory bridges,
         address[] memory routers
     ) external initializer {
-        GeniusVaultAbstract._initialize(stablecoin, admin);
+        GeniusVaultCore._initialize(stablecoin, admin);
 
         isSupported[address(STABLECOIN)] = true;
 
@@ -153,7 +153,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultAbstract {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata data
-    ) external payable override(GeniusVaultAbstract, IGeniusVault) onlyOrchestrator whenNotPaused {
+    ) external payable override(GeniusVaultCore, IGeniusVault) onlyOrchestrator whenNotPaused {
         uint256 preTransferAssets = stablecoinBalance();
         uint256 neededLiquidity_ = minAssetBalance();
         // Checks
@@ -218,7 +218,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultAbstract {
         uint16 destChainId,
         uint32 fillDeadline,
         uint256 fee
-    ) external payable override(GeniusVaultAbstract, IGeniusVault) onlyExecutor whenNotPaused {
+    ) external payable override(GeniusVaultCore, IGeniusVault) onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (destChainId == _currentChainId()) revert GeniusErrors.InvalidDestChainId(destChainId);
@@ -289,7 +289,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultAbstract {
      */
     function removeLiquiditySwap(
         Order memory order
-    ) external override(IGeniusVault, GeniusVaultAbstract) onlyExecutor whenNotPaused {
+    ) external override(IGeniusVault, GeniusVaultCore) onlyExecutor whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
         if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
@@ -330,7 +330,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultAbstract {
     /**
      * @dev See {IGeniusVault-claimFees}.
      */
-    function claimFees(uint256 amount, address token) external override(IGeniusVault, GeniusVaultAbstract) onlyOrchestrator whenNotPaused {
+    function claimFees(uint256 amount, address token) external override(IGeniusVault, GeniusVaultCore) onlyOrchestrator whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (!isSupported[token]) revert GeniusErrors.InvalidToken(token);
         if (unclaimedFees[token] < amount) revert GeniusErrors.InsufficientFees(

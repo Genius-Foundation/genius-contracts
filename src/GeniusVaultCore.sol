@@ -22,7 +22,7 @@ import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
  *         liquidity management and swaps utilizing stablecoins as the
  *         primary asset.
  */
-abstract contract GeniusVaultAbstract is IGeniusVault, UUPSUpgradeable, ERC20Upgradeable, AccessControlUpgradeable, PausableUpgradeable {
+abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgradeable, AccessControlUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
 
     // =============================================================
