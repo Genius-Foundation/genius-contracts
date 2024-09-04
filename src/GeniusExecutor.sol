@@ -128,12 +128,13 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      * @dev See {IGeniusExecutor-tokenSwapAndDeposit}.
      */
     function tokenSwapAndDeposit(
+        bytes32 seed,
         address target,
         bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
     ) external override onlyOrchestrator nonReentrant {
@@ -169,7 +170,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _depositAmount
         );
 
-        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
+        VAULT.addLiquiditySwap(seed, owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
 
         _sweepERC20s(permitBatch, owner);
     }
@@ -178,13 +179,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      * @dev See {IGeniusExecutor-multiSwapAndDeposit}.
      */
     function multiSwapAndDeposit(
+        bytes32 seed,
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
     ) external override payable nonReentrant {
@@ -212,7 +214,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
-        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
+        VAULT.addLiquiditySwap(seed, owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
 
         _sweepERC20s(permitBatch, owner);
         if (msg.value > 0) _sweepNative(msg.sender);
@@ -222,10 +224,11 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      * @dev See {IGeniusExecutor-nativeSwapAndDeposit}.
      */
     function nativeSwapAndDeposit(
+        bytes32 seed,
         address target,
         bytes calldata data,
         uint256 value,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
     ) external override payable {
@@ -250,7 +253,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _depositAmount
         );
 
-        VAULT.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
+        VAULT.addLiquiditySwap(seed, msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
 
         if (msg.value > 0) _sweepNative(msg.sender);
     }

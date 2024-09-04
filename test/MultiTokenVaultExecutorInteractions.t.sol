@@ -25,7 +25,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
-    uint16 destChainId = 42;
+    uint32 destChainId = 42;
 
     uint160 depositAmount = 10 ether;
 
@@ -182,6 +182,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         // Perform the swap and deposit via GeniusExecutor
         vm.prank(ORCHESTRATOR);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(ROUTER),
             swapCalldata,
             permitBatch,
@@ -266,6 +267,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
 
         // Perform the swap and deposit via GeniusExecutor
         EXECUTOR.multiSwapAndDeposit(
+            keccak256("order"),
             targets,
             data,
             values,
@@ -301,6 +303,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         // Perform the native swap and deposit via GeniusExecutor
         vm.prank(TRADER);
         EXECUTOR.nativeSwapAndDeposit{value: swapAmount}(
+            keccak256("order"),
             address(ROUTER),
             swapCalldata,
             swapAmount,

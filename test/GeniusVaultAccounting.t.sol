@@ -17,7 +17,7 @@ contract GeniusVaultAccounting is Test {
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
-    uint16 destChainId = 42;
+    uint32 destChainId = 42;
     uint256 depositAmount = 100 ether;
 
     // ============ External Contracts ============
@@ -272,6 +272,7 @@ contract GeniusVaultAccounting is Test {
         // Execute the tokenSwapAndDeposit function
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -341,6 +342,7 @@ contract GeniusVaultAccounting is Test {
         // deal(address(testToken), address(EXECUTOR), depositAmount);
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -429,6 +431,7 @@ contract GeniusVaultAccounting is Test {
         // Execute the tokenSwapAndDeposit function
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -530,6 +533,7 @@ contract GeniusVaultAccounting is Test {
         // Execute the tokenSwapAndDeposit function
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,

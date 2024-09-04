@@ -249,7 +249,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 100 ether);
         USDC.approve(address(VAULT), 100 ether);
-        VAULT.addLiquiditySwap(TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000), 1 ether);
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
@@ -282,7 +282,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 100 ether);
         USDC.approve(address(VAULT), 100 ether);
-        VAULT.addLiquiditySwap(TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 100 ether, 42, uint32(block.timestamp + 1000), 1 ether);
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
@@ -356,6 +356,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         // Execute the tokenSwapAndDeposit function
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -459,6 +460,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         // Execute the tokenSwapAndDeposit function
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -530,29 +532,29 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         // Test USDC deposit
         USDC.approve(address(VAULT), bridgeAmount);
-        VAULT.addLiquiditySwap(TRADER, address(USDC), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         assertEq(VAULT.stablecoinBalance(), bridgeAmount, "USDC deposit failed");
         assertEq(USDC.balanceOf(address(VAULT)), bridgeAmount, "USDC balance mismatch");
 
         // Test TOKEN1 deposit
         TOKEN1.approve(address(VAULT), bridgeAmount);
-        VAULT.addLiquiditySwap(TRADER, address(TOKEN1), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(TOKEN1), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         assertEq(TOKEN1.balanceOf(address(VAULT)), bridgeAmount, "TOKEN1 balance mismatch");
 
         // Test TOKEN2 deposit
         TOKEN2.approve(address(VAULT), bridgeAmount);
-        VAULT.addLiquiditySwap(TRADER, address(TOKEN2), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(TOKEN2), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         assertEq(TOKEN2.balanceOf(address(VAULT)), bridgeAmount, "TOKEN2 balance mismatch");
 
         // Test TOKEN3 deposit
         TOKEN3.approve(address(VAULT), bridgeAmount);
-        VAULT.addLiquiditySwap(TRADER, address(TOKEN3), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(TOKEN3), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         assertEq(TOKEN3.balanceOf(address(VAULT)), bridgeAmount, "TOKEN3 balance mismatch");
 
         // Test native ETH deposit
         uint256 initialETHBalance = address(VAULT).balance;
         vm.deal(address(EXECUTOR), bridgeAmount); // Ensure TRADER has enough ETH
-        VAULT.addLiquiditySwap{value: bridgeAmount}(TRADER, NATIVE, bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap{value: bridgeAmount}(keccak256("order"), TRADER, NATIVE, bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         assertEq(address(VAULT).balance - initialETHBalance, bridgeAmount, "ETH deposit failed");
 
         // Verify token balances using supportedTokensBalances
@@ -601,6 +603,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         vm.prank(TRADER);
         EXECUTOR.nativeSwapAndDeposit{value: bridgeAmount}(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             bridgeAmount,
@@ -642,7 +645,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         TOKEN1.approve(address(VAULT), swapAmount);
         deal(address(TOKEN1), address(EXECUTOR), swapAmount);
-        VAULT.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         deal(address(USDC), address(DEX_ROUTER), swapAmount);
         vm.stopPrank();
 
@@ -671,6 +674,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         vm.startPrank(ORCHESTRATOR);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -717,7 +721,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.startPrank(address(EXECUTOR));
         TOKEN1.approve(address(VAULT), swapAmount);
         deal(address(TOKEN1), address(EXECUTOR), swapAmount);
-        VAULT.addLiquiditySwap(TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(TOKEN1), swapAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         deal(address(USDC), address(DEX_ROUTER), swapAmount);
         vm.stopPrank();
 
@@ -1026,7 +1030,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         deal(address(newToken), address(EXECUTOR), 100 ether);
         vm.startPrank(address(EXECUTOR));
         newToken.approve(address(VAULT), 100 ether);
-        VAULT.addLiquiditySwap(TRADER, address(newToken), 100 ether, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(newToken), 100 ether, 42, uint32(block.timestamp + 1000), 1 ether);
 
         vm.startPrank(OWNER);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.RemainingBalance.selector, 100 ether));
@@ -1183,7 +1187,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         deal(address(USDC), address(UNAUTHORIZED_ROUTER), amount);
         vm.startPrank(address(EXECUTOR));
         mockToken.approve(address(VAULT), amount);
-        VAULT.addLiquiditySwap(TRADER, address(mockToken), amount, 42, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(mockToken), amount, 42, uint32(block.timestamp + 1000), 1 ether);
 
 
 

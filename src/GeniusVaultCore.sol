@@ -45,7 +45,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
     mapping(address bridge => uint256 isSupported) public supportedBridges; // Mapping of bridge address to support status
 
-    uint32 public totalOrders;
     mapping(bytes32 => OrderStatus) public orderStatus;
 
     // =============================================================
@@ -144,13 +143,15 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @dev See {IGeniusVault-addLiquiditySwap}.
      */
     function addLiquiditySwap(
+        bytes32 seed,
         address trader,
         address tokenIn,
         uint256 amountIn,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
     ) external payable virtual override onlyExecutor whenNotPaused {
+        if (seed == bytes32(0)) revert GeniusErrors.InvalidSeed();
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (tokenIn != address(STABLECOIN)) revert GeniusErrors.InvalidToken(tokenIn);
@@ -160,7 +161,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         Order memory order = Order({
             trader: trader,
             amountIn: amountIn,
-            orderId: totalOrders++,
+            seed: seed,
             srcChainId: uint16(_currentChainId()),
             destChainId: destChainId,
             fillDeadline: fillDeadline,
@@ -188,7 +189,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit SwapDeposit(
-            order.orderId,
+            order.seed,
             order.trader,
             order.tokenIn,
             order.amountIn,
@@ -229,7 +230,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         _transferERC20(address(STABLECOIN), msg.sender, order.amountIn);
         
         emit SwapWithdrawal(
-            order.orderId,
+            order.seed,
             order.trader,
             address(STABLECOIN),
             order.amountIn,
@@ -297,7 +298,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         orderStatus[orderHash_] = OrderStatus.Filled;
 
         emit OrderFilled(
-            order.orderId,
+            order.seed,
             order.trader,
             order.tokenIn,
             order.amountIn,
@@ -334,7 +335,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
         emit OrderReverted(
-            order.orderId,
+            order.seed,
             order.trader,
             order.tokenIn,
             order.amountIn,

@@ -64,6 +64,7 @@ interface IGeniusExecutor {
 
     /**
      * @notice Executes a token swap and deposits the result into the GeniusVault.
+     * @param seed The unique identifier for the swap and deposit.
      * @param target The address of the swap router to call.
      * @param data The calldata to forward to the target.
      * @param permitBatch The permit information for batch transfer.
@@ -75,18 +76,20 @@ interface IGeniusExecutor {
      *      for the span of its execution. This method does not support reentrancy.
      */
     function tokenSwapAndDeposit(
+        bytes32 seed,
         address target,
         bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 feeAmount
     ) external;
 
     /**
      * @notice Executes multiple swaps and deposits in a single transaction.
+     * @param seed The unique identifier for the swap and deposit.
      * @param targets The array of target addresses to call.
      * @param data The array of data to pass to each target address.
      * @param values The array of values to send to each target address.
@@ -97,19 +100,21 @@ interface IGeniusExecutor {
      * @param fillDeadline The deadline for filling the liquidity request.
      */
     function multiSwapAndDeposit(
+        bytes32 seed,
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 feeAmount
     ) external payable;
 
     /**
      * @notice Simplified function to perform a single swap with native tokens and then deposit stablecoins to the GeniusVault.
+     * @param seed The unique identifier for the swap and deposit.
      * @param target The address of the swap router to call.
      * @param data The calldata to forward to the target.
      * @param value How much ETH to forward to the target.
@@ -117,10 +122,11 @@ interface IGeniusExecutor {
      * @param fillDeadline The deadline for filling the liquidity request.
      */
     function nativeSwapAndDeposit(
+        bytes32 seed,
         address target,
         bytes calldata data,
         uint256 value,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 feeAmount
     ) external payable;

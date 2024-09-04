@@ -298,7 +298,7 @@ contract GeniusExecutorTest is Test {
 
 
     function testTokenSwapAndDeposit() public {
-        uint16 destChainId = 42;
+        uint32 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         uint160 transferAmount = 10 ether;  // Define the amount of WAVAX to swap
@@ -342,6 +342,7 @@ contract GeniusExecutorTest is Test {
         // Perform the swap and deposit via GeniusExecutor
         vm.startPrank(ORCHESTRATOR);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(ROUTER), // Targeting the LBRouter for the swap
             swapCalldata,
             permitBatch,
@@ -377,6 +378,7 @@ contract GeniusExecutorTest is Test {
         );
 
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
+            keccak256("order"),
             address(dexRouter),
             swapData,
             1 ether,
@@ -470,6 +472,7 @@ contract GeniusExecutorTest is Test {
 
         vm.prank(TRADER);
         EXECUTOR.multiSwapAndDeposit(
+            keccak256("order"),
             targets,
             data,
             values,

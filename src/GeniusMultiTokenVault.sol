@@ -212,10 +212,11 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      * @dev See {IGeniusMultiTokenPool-addLiquiditySwap}.
      */
     function addLiquiditySwap(
+        bytes32 seed,
         address trader,
         address tokenIn,
         uint256 amountIn,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
     ) external payable override(GeniusVaultCore, IGeniusVault) onlyExecutor whenNotPaused {
@@ -227,7 +228,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         Order memory order = Order({
             trader: trader,
             amountIn: amountIn,
-            orderId: totalOrders++,
+            seed: seed,
             srcChainId: uint16(_currentChainId()),
             destChainId: destChainId,
             fillDeadline: fillDeadline,
@@ -269,7 +270,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         orderStatus[orderHash_] = OrderStatus.Created;        
 
         emit SwapDeposit(
-            order.orderId,
+            order.seed,
             order.trader,
             order.tokenIn,
             order.amountIn,
@@ -313,7 +314,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         _transferERC20(address(STABLECOIN), msg.sender, order.amountIn);
         
         emit SwapWithdrawal(
-            order.orderId,
+            order.seed,
             order.trader,
             address(STABLECOIN),
             order.amountIn,

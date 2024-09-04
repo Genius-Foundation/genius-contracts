@@ -48,7 +48,7 @@ interface IGeniusVault {
     /**
      * @notice Struct representing an order in the system.
      * @param amountIn The amount of tokens to be swapped.
-     * @param orderId Unique identifier for the order.
+     * @param seed Seed used for the order, to avoid 2 same orders having the same hash.
      * @param trader Address of the trader initiating the order.
      * @param srcChainId The source chain ID.
      * @param destChainId The destination chain ID.
@@ -56,11 +56,11 @@ interface IGeniusVault {
      * @param tokenIn The address of the token to be swapped.
      */
     struct Order {
+        bytes32 seed;
         uint256 amountIn;
-        uint32 orderId;
         address trader;
         uint16 srcChainId;
-        uint16 destChainId;
+        uint32 destChainId;
         uint32 fillDeadline; 
         address tokenIn;
         uint256 fee;
@@ -68,7 +68,7 @@ interface IGeniusVault {
 
     /**
      * @notice Emitted on the source chain when a swap deposit is made.
-     * @param orderId The unique identifier of the order.
+     * @param seed The unique seed of the order.
      * @param trader The address of the trader.
      * @param tokenIn The address of the input token.
      * @param amountIn The amount of input tokens.
@@ -77,19 +77,19 @@ interface IGeniusVault {
      * @param fillDeadline The deadline for filling the order.
      */
     event SwapDeposit(
-        uint32 indexed orderId,
+        bytes32 indexed seed,
         address indexed trader,
         address tokenIn,
         uint256 amountIn,
         uint16 srcChainId,
-        uint16 indexed destChainId,
+        uint32 indexed destChainId,
         uint32 fillDeadline,
         uint256 fee
     );
 
     /**
      * @notice Emitted on the destination chain when a swap withdrawal occurs.
-     * @param orderId The unique identifier of the order.
+     * @param seed The unique seed of the order.
      * @param trader The address of the trader.
      * @param tokenOut The address of the output token.
      * @param amountOut The amount of output tokens.
@@ -98,18 +98,18 @@ interface IGeniusVault {
      * @param fillDeadline The deadline for filling the order.
      */
     event SwapWithdrawal(
-        uint32 indexed orderId,
+        bytes32 indexed seed,
         address indexed trader,
         address tokenOut,
         uint256 amountOut,
         uint16 indexed srcChainId,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline
     );
 
     /**
      * @notice Emitted on the source chain when an order is filled.
-     * @param orderId The unique identifier of the order.
+     * @param seed The unique seed of the order.
      * @param trader The address of the trader.
      * @param tokenIn The address of the input token.
      * @param amountIn The amount of input tokens.
@@ -118,19 +118,19 @@ interface IGeniusVault {
      * @param fillDeadline The deadline for filling the order.
      */
     event OrderFilled(
-        uint32 indexed orderId,
+        bytes32 indexed seed,
         address indexed trader,
         address tokenIn,
         uint256 amountIn,
         uint16 srcChainId,
-        uint16 indexed destChainId,
+        uint32 indexed destChainId,
         uint32 fillDeadline,
         uint256 fee
     );
 
     /**
      * @notice Emitted on the source chain when an order is reverted.
-     * @param orderId The unique identifier of the order.
+     * @param seed The unique seed of the order.
      * @param trader The address of the trader.
      * @param tokenIn The address of the input token.
      * @param amountIn The amount of input tokens.
@@ -139,12 +139,12 @@ interface IGeniusVault {
      * @param fillDeadline The deadline for filling the order.
      */
     event OrderReverted(
-        uint32 indexed orderId,
+        bytes32 indexed seed,
         address indexed trader,
         address tokenIn,
         uint256 amountIn,
         uint16 srcChainId,
-        uint16 indexed destChainId,
+        uint32 indexed destChainId,
         uint32 fillDeadline,
         uint256 fee
     );
@@ -241,10 +241,11 @@ interface IGeniusVault {
      * @param fillDeadline The deadline for filling the order.
      */
     function addLiquiditySwap(
+        bytes32 seed,
         address trader,
         address tokenIn,
         uint256 amountIn,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
     ) external payable;

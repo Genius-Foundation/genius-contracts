@@ -448,6 +448,7 @@ contract GeniusExecutorDrain is Test {
         // Execute multiSwapAndDeposit
         vm.prank(trader);
         EXECUTOR.multiSwapAndDeposit(
+            keccak256("order"),
             targets,
             data,
             values,
@@ -492,6 +493,7 @@ contract GeniusExecutorDrain is Test {
         vm.prank(trader);
         vm.expectRevert(GeniusErrors.ArrayLengthsMismatch.selector);
         EXECUTOR.multiSwapAndDeposit(
+            keccak256("order"),
             targets,
             data,
             new uint256[](1), // Mismatched length
@@ -541,6 +543,7 @@ contract GeniusExecutorDrain is Test {
         vm.prank(trader);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, fakeRouter));
         EXECUTOR.multiSwapAndDeposit(
+            keccak256("order"),
             targets,
             data,
             values,
@@ -599,6 +602,7 @@ contract GeniusExecutorDrain is Test {
         vm.prank(trader);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, address(MALICIOUS)));
         EXECUTOR.multiSwapAndDeposit{value: 1 ether}(
+            keccak256("order"),
             maliciousTargets,
             maliciousData,
             maliciousValues,
@@ -635,6 +639,7 @@ contract GeniusExecutorDrain is Test {
         // Deal the DEX_ROUTER contract some USDC
         deal(address(USDC), address(DEX_ROUTER), 100 ether);
         EXECUTOR.nativeSwapAndDeposit{value: 100 ether}(
+            keccak256("order"),
             address(DEX_ROUTER),
             swapData,
             100 ether,
@@ -652,6 +657,7 @@ contract GeniusExecutorDrain is Test {
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, invalidTarget));
         vm.prank(trader);
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
+            keccak256("order"),
             invalidTarget,
             swapData,
             1 ether,
@@ -670,6 +676,7 @@ contract GeniusExecutorDrain is Test {
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.ExternalCallFailed.selector, address(DEX_ROUTER), 0));
         vm.prank(trader);
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
+            keccak256("order"),
             address(DEX_ROUTER),
             invalidSwapData,
             1 ether,
@@ -682,6 +689,7 @@ contract GeniusExecutorDrain is Test {
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidNativeAmount.selector, 1 ether));
         vm.prank(trader);
         EXECUTOR.nativeSwapAndDeposit{value: 0.5 ether}(
+            keccak256("order"),
             address(DEX_ROUTER),
             swapData,
             1 ether,
