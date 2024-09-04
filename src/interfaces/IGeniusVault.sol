@@ -147,6 +147,16 @@ interface IGeniusVault {
         uint256 amount
     );
 
+    /**
+     * @notice Returns the total balance of the vault excluding fees.
+     * @return The total balance of the vault excluding fees.
+     */
+    function totalBalanceExcludingFees() external view returns (uint256);
+
+    /**
+     * @notice Returns the total balance of the vault.
+     * @return The total balance of the vault.
+     */
     function stablecoinBalance() external view returns (uint256);
 
     /**

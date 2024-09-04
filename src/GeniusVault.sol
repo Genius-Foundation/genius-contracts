@@ -409,6 +409,13 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
     // =============================================================
 
     /**
+     * @dev See {IGeniusVault-totalBalanceExcludingFees}.
+     */
+    function totalBalanceExcludingFees() public view returns (uint256) {
+        return stablecoinBalance() - totalUnclaimedFees;
+    }
+
+    /**
      * @dev See {IGeniusVault-totalAssets}.
      */
     function stablecoinBalance() public override view returns (uint256) {
@@ -420,14 +427,23 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
      */
     function minAssetBalance() public override view returns (uint256) {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-        return totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
+        
+        // Calculate the minimum balance based on staked assets
+        uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
+        
+        // Add the unclaimed fees to the minimum balance
+        uint256 totalMinBalance = minBalance + totalUnclaimedFees;
+        
+        // Ensure we're not returning a value larger than totalStakedAssets + totalUnclaimedFees
+        uint256 totalLiabilities = totalStakedAssets + totalUnclaimedFees;
+        return totalMinBalance > totalLiabilities ? totalLiabilities : totalMinBalance;
     }
 
     /**
      * @dev See {IGeniusVault-availableAssets}.
      */
     function availableAssets() public override view returns (uint256) {
-        uint256 _totalAssets = stablecoinBalance();
+        uint256 _totalAssets = totalBalanceExcludingFees();
         uint256 _neededLiquidity = minAssetBalance();
 
         return _availableAssets(_totalAssets, _neededLiquidity);
