@@ -8,7 +8,6 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
-import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
 import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
 
@@ -448,11 +447,11 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     }
 
     function _depositToVault(address receiver, uint256 amount) private {
-        IERC4626(address(VAULT)).deposit(amount, receiver);
+        VAULT.stakeDeposit(amount, receiver);
     }
 
     function _withdrawFromVault(address receiver, uint256 amount) private {
-        IERC4626(address(VAULT)).withdraw(amount, receiver, address(this));
+        VAULT.stakeWithdraw(amount, receiver, address(this));
     }
 
     receive() external payable {

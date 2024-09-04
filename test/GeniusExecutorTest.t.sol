@@ -10,6 +10,7 @@ import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 
 // Interfaces
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { IAllowanceTransfer, IEIP712 } from "permit2/interfaces/IAllowanceTransfer.sol";
 
@@ -93,31 +94,37 @@ contract GeniusExecutorTest is Test {
         sigUtils = new PermitSignature();
 
         vm.prank(OWNER);
-        VAULT = new GeniusVault(
+        GeniusVault implementation = new GeniusVault();
+
+        bytes memory data = abi.encodeWithSelector(
+            GeniusVault.initialize.selector,
             address(USDC),
             OWNER
         );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        VAULT = GeniusVault(address(proxy));
 
         vm.startPrank(OWNER);
 
         EXECUTOR = new GeniusExecutor(
             permit2Address,
             address(VAULT),
-            OWNER
+            OWNER,
+            new address[](0)
         );
 
-        VAULT.initialize(address(EXECUTOR));
+        VAULT.setExecutor(address(EXECUTOR));
+
+        EXECUTOR.setAllowedTarget(address(EXECUTOR), true);
         vm.stopPrank();
 
         vm.startPrank(OWNER);
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
-
-        address[] memory routers = new address[](1);
-        routers[0] = address(ROUTER);
-
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(ROUTER), true);
         vm.stopPrank();
 
         deal(address(wavaxContract), TRADER, 100 ether);
@@ -154,10 +161,8 @@ contract GeniusExecutorTest is Test {
         MockDEXRouter mockRouter = new MockDEXRouter();
         
         // Add MockDEXRouter to the list of approved routers
-        address[] memory routers = new address[](1);
-        routers[0] = address(mockRouter);
         vm.prank(OWNER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(mockRouter), true);
 
         // Approve MockDEXRouter to spend USDC on behalf of EXECUTOR
         vm.prank(address(EXECUTOR));

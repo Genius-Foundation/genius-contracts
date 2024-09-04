@@ -8,6 +8,7 @@ import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAllowanceTransfer, IEIP712} from "permit2/interfaces/IAllowanceTransfer.sol";
 
@@ -41,9 +42,7 @@ contract GeniusExecutorDrain is Test {
 
     function setupMaliciousTest() internal {
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(MALICIOUS);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(MALICIOUS), true);
         vm.stopPrank();
 
         deal(address(USDC), address(EXECUTOR), 100 ether);
@@ -141,9 +140,20 @@ contract GeniusExecutorDrain is Test {
         sigUtils = new PermitSignature();
 
         vm.startPrank(OWNER);
-        VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER);
-        VAULT.initialize(address(EXECUTOR));
+        GeniusVault implementation = new GeniusVault();
+
+        bytes memory data = abi.encodeWithSelector(
+            GeniusVault.initialize.selector,
+            address(USDC),
+            OWNER
+        );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        VAULT = GeniusVault(address(proxy));
+        
+        EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER, new address[](0));
+        VAULT.setExecutor(address(EXECUTOR));
         MALICIOUS = new MaliciousContract(address(EXECUTOR));
         DEX_ROUTER = new MockDEXRouter();
         vm.stopPrank();
@@ -192,9 +202,7 @@ contract GeniusExecutorDrain is Test {
         uint256 initialTraderBalance = trader.balance;
 
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
         // Fund EXECUTOR
@@ -424,9 +432,7 @@ contract GeniusExecutorDrain is Test {
      */
     function testSuccessfulMultiSwapAndDeposit() public {
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
 
@@ -476,9 +482,7 @@ contract GeniusExecutorDrain is Test {
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
         (address[] memory targets, bytes[] memory data,) = setupMultiSwapParams();
@@ -523,9 +527,7 @@ contract GeniusExecutorDrain is Test {
      */
     function testMultiSwapAndDepositInvalidRouter() public {
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
         (address[] memory targets, bytes[] memory data, uint256[] memory values) = setupMultiSwapParams();
@@ -573,9 +575,7 @@ contract GeniusExecutorDrain is Test {
      */
     function testMultiSwapAndDepositMaliciousContract() public {
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
         (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
@@ -614,9 +614,7 @@ contract GeniusExecutorDrain is Test {
     function testNativeSwapAndDeposit() public {
         // Setup
         vm.startPrank(OWNER);
-        address[] memory initialRouters = new address[](1);
-        initialRouters[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(initialRouters);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
         // Fund trader with ETH

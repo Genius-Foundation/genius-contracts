@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Test, console} from "forge-std/Test.sol";
 import {PermitSignature} from "./utils/SigUtils.sol";
 
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import { IAllowanceTransfer, IEIP712 } from "permit2/interfaces/IAllowanceTransfer.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -83,8 +84,6 @@ contract MultiTokenVaultExecutorInteractions is Test {
         vm.startPrank(OWNER);
 
         // Deploy contracts
-        MULTI_VAULT = new GeniusMultiTokenVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(address(PERMIT2), address(MULTI_VAULT), OWNER);
         ROUTER = new MockSwapTarget();
 
         // Initialize pool with supported tokens
@@ -99,9 +98,25 @@ contract MultiTokenVaultExecutorInteractions is Test {
 
         address[] memory bridges = new address[](1);
         bridges[0] = BRIDGE;
-        
-        MULTI_VAULT.initialize(address(EXECUTOR), supportedTokens, bridges, routers);
-        EXECUTOR.initialize(routers);
+
+        GeniusMultiTokenVault implementation = new GeniusMultiTokenVault();
+
+        bytes memory data = abi.encodeWithSelector(
+            GeniusMultiTokenVault.initialize.selector,
+            address(USDC),
+            OWNER,
+            supportedTokens, 
+            bridges, 
+            routers
+        );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        MULTI_VAULT = GeniusMultiTokenVault(address(proxy));
+        EXECUTOR = new GeniusExecutor(address(PERMIT2), address(MULTI_VAULT), OWNER, new address[](0));
+
+        MULTI_VAULT.setExecutor(address(EXECUTOR));
+        EXECUTOR.setAllowedTarget(address(ROUTER), true);
         
         // Add Orchestrator
         MULTI_VAULT.grantRole(MULTI_VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
@@ -341,7 +356,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 USDC");
-        assertEq(MULTI_VAULT.totalAssets(), depositAmount, "VAULT should have 10 USDC");
+        assertEq(MULTI_VAULT.totalStakedAssets(), depositAmount, "VAULT should have 10 USDC");
         assertEq(MULTI_VAULT.balanceOf(TRADER), depositAmount, "TRADER should have 10 vault shares");
         assertEq(USDC.balanceOf(TRADER), 90 ether, "TRADER should have 90 USDC");
     }
@@ -422,7 +437,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 USDC");
         assertEq(USDC.balanceOf(address(MULTI_VAULT)), 9 ether, "MULTI_VAULT should have 9 USDC");
-        assertEq(MULTI_VAULT.totalAssets(), 9 ether, "VAULT should have 9 USDC");
+        assertEq(MULTI_VAULT.totalStakedAssets(), 9 ether, "VAULT should have 9 USDC");
         assertEq(MULTI_VAULT.balanceOf(TRADER), 9 ether, "TRADER should have 9 vault shares");
         assertEq(USDC.balanceOf(TRADER), 991 ether, "TRADER should have 991 USDC");
     }

@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import { IGeniusVault } from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
@@ -75,8 +76,18 @@ contract GeniusVaultTest is Test {
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
 
         vm.startPrank(OWNER, OWNER);
-        VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
+        GeniusVault implementation = new GeniusVault();
+
+        bytes memory data = abi.encodeWithSelector(
+            GeniusVault.initialize.selector,
+            address(USDC),
+            OWNER
+        );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        VAULT = GeniusVault(address(proxy));
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER, new address[](0));
         DEX_ROUTER = new MockDEXRouter();
 
         vm.stopPrank();
@@ -84,12 +95,10 @@ contract GeniusVaultTest is Test {
         assertEq(VAULT.hasRole(VAULT.DEFAULT_ADMIN_ROLE(), OWNER), true, "Owner should be ORCHESTRATOR");
 
         vm.startPrank(OWNER);
-        VAULT.initialize(address(EXECUTOR));
+        VAULT.setExecutor(address(EXECUTOR));
 
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
@@ -203,7 +212,7 @@ contract GeniusVaultTest is Test {
     function testRevertWhenAlreadyInitialized() public {
         vm.startPrank(OWNER);
         vm.expectRevert();
-        VAULT.initialize(address(EXECUTOR));
+        VAULT.initialize(address(USDC), OWNER);
     }
 
     function testSetRebalanceThreshold() public {
@@ -308,7 +317,7 @@ contract GeniusVaultTest is Test {
     function testStakeLiquidity() public {
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.deposit(1_000 ether, TRADER);
+        VAULT.stakeDeposit(1_000 ether, TRADER);
 
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(VAULT.totalStakedAssets(), 1_000 ether, "Total staked assets should be 1,000 ether");
@@ -320,7 +329,7 @@ contract GeniusVaultTest is Test {
 
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.deposit(1_000 ether, TRADER);
+        VAULT.stakeDeposit(1_000 ether, TRADER);
 
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(VAULT.totalStakedAssets(), 1_000 ether, "Total staked assets should be 1,000 ether");
@@ -329,7 +338,7 @@ contract GeniusVaultTest is Test {
 
         // Remove staked liquidity
         vm.startPrank(TRADER);
-        VAULT.withdraw(1_000 ether, TRADER, TRADER);
+        VAULT.stakeWithdraw(1_000 ether, TRADER, TRADER);
 
         assertEq(VAULT.stablecoinBalance(), 0, "Total assets should be 0 ether");
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should be 0 ether");
@@ -345,7 +354,7 @@ contract GeniusVaultTest is Test {
 
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.deposit(1_000 ether, TRADER);
+        VAULT.stakeDeposit(1_000 ether, TRADER);
 
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Total assets should be 1,000 ether");
         assertEq(VAULT.totalStakedAssets(), 1_000 ether, "Total staked assets should be 1,000 ether");
@@ -363,7 +372,7 @@ contract GeniusVaultTest is Test {
 
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), 500 ether);
-        VAULT.deposit(500 ether, TRADER);
+        VAULT.stakeDeposit(500 ether, TRADER);
 
         assertEq(VAULT.stablecoinBalance(), 2000 ether, "Total assets should be 2,000 ether");
         assertEq(VAULT.totalStakedAssets(), 1_500 ether, "Total staked assets should be 1,500 ether");

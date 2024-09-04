@@ -41,7 +41,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
     uint256 public totalUnclaimedFees; // The total amount of fees that have not been claimed
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
-    uint256 public rebalanceThreshold = 75; // The maximum % of deviation from totalStakedAssets before blocking trades
+    uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
 
     mapping(address bridge => uint256 isSupported) public supportedBridges; // Mapping of bridge address to support status
 
@@ -91,7 +91,8 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         __Pausable_init();
 
         STABLECOIN = IERC20(stablecoin);
-
+        rebalanceThreshold = 75;
+        
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(PAUSER_ROLE, admin);
     }
