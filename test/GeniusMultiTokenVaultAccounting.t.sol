@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {PermitSignature} from "./utils/SigUtils.sol";
 
 import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
@@ -21,6 +21,10 @@ contract GeniusMultiTokenVaultAccounting is Test {
     // ============ Network ============
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
+
+    uint16 destChainId = 42;
+
+    uint256 bridgeAmount = 100 ether;
 
     // ============ External Contracts ============
     ERC20 public USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
@@ -51,13 +55,6 @@ contract GeniusMultiTokenVaultAccounting is Test {
     ERC20 public TOKEN1;
     ERC20 public TOKEN2;
     ERC20 public TOKEN3;
-
-    // ============ Logging ============
-    struct LogEntry {
-        string name;
-        uint256 actual;
-        uint256 expected;
-    }
 
     // ============ Helper Functions ============
     function generatePermitBatchAndSignature(
@@ -302,9 +299,6 @@ contract GeniusMultiTokenVaultAccounting is Test {
     }
 
     function testFullCycle() public {
-        uint16 destChainId = 42;
-        uint32 fillDeadline = uint32(block.timestamp + 1000);
-
         // =================== DEPOSIT THROUGH VAULT ===================
         deal(address(TOKEN1), address(TRADER), 100 ether);
         deal(address(USDC), address(DEX_ROUTER), 100 ether);
@@ -359,13 +353,13 @@ contract GeniusMultiTokenVaultAccounting is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline,
+            uint32(block.timestamp + 1000),
             1 ether
         );
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(VAULT.stablecoinBalance(), 149 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 124 ether, "Available stable balance mismatch");
+        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 125 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         vm.stopPrank();
@@ -376,8 +370,8 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(VAULT.stablecoinBalance(), 149 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 59 ether, "Available stable balance mismatch");
+        assertEq(VAULT.stablecoinBalance(), 150 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 60 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
 
         // =================== WITHDRAW FROM VAULT ===================
@@ -386,7 +380,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked stables does not equal 0");
         assertEq(VAULT.totalAssets(), 0, "Vault total assets mismatch");
-        assertEq(VAULT.availableAssets(), 49 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 50 ether, "Available stable balance mismatch");
 
         vm.stopPrank();
 
@@ -402,8 +396,6 @@ contract GeniusMultiTokenVaultAccounting is Test {
     }
 
     function testFullCycleWithDonations() public {
-        uint16 destChainId = 42;
-        uint32 fillDeadline = uint32(block.timestamp + 1000);
         
         // =================== SETUP ===================
         deal(address(TOKEN1), address(TRADER), 100 ether);
@@ -466,19 +458,19 @@ contract GeniusMultiTokenVaultAccounting is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline,
+            uint32(block.timestamp + 1000),
             1 ether
         );
 
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(VAULT.stablecoinBalance(), 169 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 144 ether, "Available stable balance mismatch");
+        assertEq(VAULT.stablecoinBalance(), 170 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 145 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         // Donate before changing threshold
-        donateAndAssert(100 ether, 179 ether, 154 ether, 25 ether);
+        donateAndAssert(100 ether, 180 ether, 155 ether, 25 ether);
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
@@ -486,12 +478,12 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
-        assertEq(VAULT.stablecoinBalance(), 179 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 89 ether, "Available stable balance mismatch");
+        assertEq(VAULT.stablecoinBalance(), 180 ether, "Total stables mismatch");
+        assertEq(VAULT.availableAssets(), 90 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
 
         // Donate before withdrawing
-        donateAndAssert(100 ether, 189 ether, 99 ether, 90 ether);
+        donateAndAssert(100 ether, 190 ether, 100 ether, 90 ether);
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
@@ -514,7 +506,6 @@ contract GeniusMultiTokenVaultAccounting is Test {
     }
 
     function testAddLiquiditySwapWithDifferentTokens() public {
-        uint256 depositAmount = 100 ether;
 
         // Check that each token is supported
         assertEq(VAULT.isTokenSupported(NATIVE), true, "NATIVE token not supported");
@@ -524,53 +515,53 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
 
         // Deal Tokens to the EXECUTOR to spend
-        deal(address(USDC), address(EXECUTOR), depositAmount);
-        deal(address(TOKEN1), address(EXECUTOR), depositAmount);
-        deal(address(TOKEN2), address(EXECUTOR), depositAmount);
-        deal(address(TOKEN3), address(EXECUTOR), depositAmount);
+        deal(address(USDC), address(EXECUTOR), bridgeAmount);
+        deal(address(TOKEN1), address(EXECUTOR), bridgeAmount);
+        deal(address(TOKEN2), address(EXECUTOR), bridgeAmount);
+        deal(address(TOKEN3), address(EXECUTOR), bridgeAmount);
 
         vm.startPrank(address(EXECUTOR));
         // Test USDC deposit
-        USDC.approve(address(VAULT), depositAmount);
-        VAULT.addLiquiditySwap(TRADER, address(USDC), depositAmount, 42, uint32(block.timestamp + 1000), 1 ether);
-        assertEq(VAULT.stablecoinBalance(), depositAmount, "USDC deposit failed");
-        assertEq(USDC.balanceOf(address(VAULT)), depositAmount, "USDC balance mismatch");
+        USDC.approve(address(VAULT), bridgeAmount);
+        VAULT.addLiquiditySwap(TRADER, address(USDC), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        assertEq(VAULT.stablecoinBalance(), bridgeAmount, "USDC deposit failed");
+        assertEq(USDC.balanceOf(address(VAULT)), bridgeAmount, "USDC balance mismatch");
 
         // Test TOKEN1 deposit
-        TOKEN1.approve(address(VAULT), depositAmount);
-        VAULT.addLiquiditySwap(TRADER, address(TOKEN1), depositAmount, 42, uint32(block.timestamp + 1000), 1 ether);
-        assertEq(TOKEN1.balanceOf(address(VAULT)), depositAmount, "TOKEN1 balance mismatch");
+        TOKEN1.approve(address(VAULT), bridgeAmount);
+        VAULT.addLiquiditySwap(TRADER, address(TOKEN1), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        assertEq(TOKEN1.balanceOf(address(VAULT)), bridgeAmount, "TOKEN1 balance mismatch");
 
         // Test TOKEN2 deposit
-        TOKEN2.approve(address(VAULT), depositAmount);
-        VAULT.addLiquiditySwap(TRADER, address(TOKEN2), depositAmount, 42, uint32(block.timestamp + 1000), 1 ether);
-        assertEq(TOKEN2.balanceOf(address(VAULT)), depositAmount, "TOKEN2 balance mismatch");
+        TOKEN2.approve(address(VAULT), bridgeAmount);
+        VAULT.addLiquiditySwap(TRADER, address(TOKEN2), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        assertEq(TOKEN2.balanceOf(address(VAULT)), bridgeAmount, "TOKEN2 balance mismatch");
 
         // Test TOKEN3 deposit
-        TOKEN3.approve(address(VAULT), depositAmount);
-        VAULT.addLiquiditySwap(TRADER, address(TOKEN3), depositAmount, 42, uint32(block.timestamp + 1000), 1 ether);
-        assertEq(TOKEN3.balanceOf(address(VAULT)), depositAmount, "TOKEN3 balance mismatch");
+        TOKEN3.approve(address(VAULT), bridgeAmount);
+        VAULT.addLiquiditySwap(TRADER, address(TOKEN3), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        assertEq(TOKEN3.balanceOf(address(VAULT)), bridgeAmount, "TOKEN3 balance mismatch");
 
         // Test native ETH deposit
         uint256 initialETHBalance = address(VAULT).balance;
-        vm.deal(address(EXECUTOR), depositAmount); // Ensure TRADER has enough ETH
-        VAULT.addLiquiditySwap{value: depositAmount}(TRADER, NATIVE, depositAmount, 42, uint32(block.timestamp + 1000), 1 ether);
-        assertEq(address(VAULT).balance - initialETHBalance, depositAmount, "ETH deposit failed");
+        vm.deal(address(EXECUTOR), bridgeAmount); // Ensure TRADER has enough ETH
+        VAULT.addLiquiditySwap{value: bridgeAmount}(TRADER, NATIVE, bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
+        assertEq(address(VAULT).balance - initialETHBalance, bridgeAmount, "ETH deposit failed");
 
         // Verify token balances using supportedTokensBalances
         uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
         for (uint i = 0; i < tokenBalances.length; i++) {
             address token = VAULT.supportedTokensIndex(i);
             if (token == address(USDC)) {
-                assertEq(tokenBalances[i], depositAmount, "USDC balance mismatch in supportedTokensBalances");
+                assertEq(tokenBalances[i], bridgeAmount, "USDC balance mismatch in supportedTokensBalances");
             } else if (token == address(TOKEN1)) {
-                assertEq(tokenBalances[i], depositAmount, "TOKEN1 balance mismatch in supportedTokensBalances");
+                assertEq(tokenBalances[i], bridgeAmount, "TOKEN1 balance mismatch in supportedTokensBalances");
             } else if (token == address(TOKEN2)) {
-                assertEq(tokenBalances[i], depositAmount, "TOKEN2 balance mismatch in supportedTokensBalances");
+                assertEq(tokenBalances[i], bridgeAmount, "TOKEN2 balance mismatch in supportedTokensBalances");
             } else if (token == address(TOKEN3)) {
-                assertEq(tokenBalances[i], depositAmount, "TOKEN3 balance mismatch in supportedTokensBalances");
+                assertEq(tokenBalances[i], bridgeAmount, "TOKEN3 balance mismatch in supportedTokensBalances");
             } else if (token == NATIVE) {
-                assertEq(tokenBalances[i], depositAmount, "ETH balance mismatch in supportedTokensBalances");
+                assertEq(tokenBalances[i], bridgeAmount, "ETH balance mismatch in supportedTokensBalances");
             }
         }
 
@@ -578,10 +569,6 @@ contract GeniusMultiTokenVaultAccounting is Test {
     }
 
     function testNativeLiquiditySwap() public {
-        uint16 destChainId = 42;
-        uint32 fillDeadline = uint32(block.timestamp + 1000);
-        uint256 depositAmount = 100 ether;
-
         // Setup
         vm.startPrank(OWNER);
         address[] memory routers = new address[](1);
@@ -598,8 +585,8 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         // Prepare for native ETH deposit
         uint256 initialETHBalance = address(VAULT).balance;
-        vm.deal(TRADER, depositAmount); // Ensure TRADER has enough ETH
-        deal(address(USDC), address(DEX_ROUTER), depositAmount);
+        vm.deal(TRADER, bridgeAmount); // Ensure TRADER has enough ETH
+        deal(address(USDC), address(DEX_ROUTER), bridgeAmount);
 
         // Create the calldata for the nativeSwapAndDeposit function
         bytes memory calldataSwap = abi.encodeWithSignature(
@@ -608,17 +595,17 @@ contract GeniusMultiTokenVaultAccounting is Test {
         );
 
         vm.prank(TRADER);
-        EXECUTOR.nativeSwapAndDeposit{value: depositAmount}(
+        EXECUTOR.nativeSwapAndDeposit{value: bridgeAmount}(
             address(DEX_ROUTER),
             calldataSwap,
-            depositAmount,
+            bridgeAmount,
             destChainId,
-            fillDeadline,
+            uint32(block.timestamp + 1000),
             1 ether
         );
 
         assertEq(address(VAULT).balance - initialETHBalance, 0, "ETH should not be held in VAULT");
-        assertEq(USDC.balanceOf(address(VAULT)), (depositAmount / 2) - 1 ether, "USDC balance mismatch after swap");
+        assertEq(USDC.balanceOf(address(VAULT)), 50 ether, "USDC balance mismatch after swap");
 
         // Verify token balances using supportedTokensBalances
         uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
@@ -627,7 +614,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
             if (token == NATIVE) {
                 assertEq(tokenBalances[i], 0, "ETH balance should be 0 in supportedTokensBalances");
             } else if (token == address(USDC)) {
-                assertEq(tokenBalances[i], depositAmount, "USDC balance mismatch in supportedTokensBalances");
+                assertEq(tokenBalances[i], bridgeAmount, "USDC balance mismatch in supportedTokensBalances");
             }
         }
     }
@@ -693,19 +680,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         // Assertions
         assertEq(TOKEN1.balanceOf(address(VAULT)), 100 ether, "TOKEN1 balance should be 0");
-        assertEq(USDC.balanceOf(address(VAULT)), (swapAmount / 2) - 1 ether, "USDC balance should increase by swapAmount");
-        assertEq(VAULT.stablecoinBalance(), initialTotalStables + (swapAmount / 2) - 1 ether, "Total stables should increase by swapAmount");
+        assertEq(USDC.balanceOf(address(VAULT)), (swapAmount / 2), "USDC balance should increase by swapAmount");
+        assertEq(VAULT.stablecoinBalance(), initialTotalStables + (swapAmount / 2), "Total stables should increase by swapAmount");
 
         // Verify token balances using supportedTokensBalances
         uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
-        LogEntry[] memory finalEntries = new LogEntry[](tokenBalances.length);
         for (uint i = 0; i < tokenBalances.length; i++) {
             address token = VAULT.supportedTokensIndex(i);
-            finalEntries[i] = LogEntry(
-                string(abi.encodePacked("Final Balance of ", _getTokenSymbol(token))),
-                tokenBalances[i],
-                0
-            );
+
             if (token == address(TOKEN1)) {
                 assertEq(tokenBalances[i], 100 ether, "TOKEN1 balance should be 100 in supportedTokensBalances");
             } else if (token == address(USDC)) {
@@ -803,16 +785,9 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
 
     function testAddBridgeLiquidity() public {
-        uint256 bridgeAmount = 100 ether;
 
         // Setup: Fund the ORCHESTRATOR with USDC
         deal(address(USDC), ORCHESTRATOR, bridgeAmount);
-
-        // Record initial balances
-        uint256 initialTotalStables = VAULT.stablecoinBalance();
-        uint256 initialavailableAssets = VAULT.availableAssets();
-        uint256 initialminAssetBalance = VAULT.minAssetBalance();
-        
         uint256[] memory initialBalances = VAULT.supportedTokensBalances();
 
         // Perform addBridgeLiquidity
@@ -821,13 +796,13 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.stopPrank();
 
         // Assert total stables increased correctly
-        assertEq(VAULT.stablecoinBalance(), initialTotalStables + bridgeAmount, "Total stables should increase by bridge amount");
+        assertEq(VAULT.stablecoinBalance(), 0 + bridgeAmount, "Total stables should increase by bridge amount");
 
         // Assert available stable balance increased
-        assertEq(VAULT.availableAssets(), initialavailableAssets + bridgeAmount, "Available stable balance should increase by bridge amount");
+        assertEq(VAULT.availableAssets(), 0 + bridgeAmount, "Available stable balance should increase by bridge amount");
 
         // Assert min stable balance remains unchanged
-        assertEq(VAULT.minAssetBalance(), initialminAssetBalance, "Minimum stable balance should remain unchanged");
+        assertEq(VAULT.minAssetBalance(), 0, "Minimum stable balance should remain unchanged");
 
         // Assert balances for all supported tokens
         uint256[] memory finalBalances = VAULT.supportedTokensBalances();
@@ -846,17 +821,12 @@ contract GeniusMultiTokenVaultAccounting is Test {
     }
 
     function testRemoveBridgeLiquidity() public {
-        uint256 bridgeAmount = 100 ether;
         uint16 testChainId = 1; // Example chain ID
 
         // Setup: Add liquidity to the vault
         deal(address(USDC), address(DEX_ROUTER), bridgeAmount);
         vm.startPrank(ORCHESTRATOR);
         USDC.transfer(address(VAULT), bridgeAmount);
-
-        // Prepare for removal
-        uint256 initialTotalStables = VAULT.stablecoinBalance();
-        uint256 initialVaultUSDCBalance = USDC.balanceOf(address(VAULT));
 
         // Prepare mock data for external calls
         address[] memory targets = new address[](1);
@@ -881,8 +851,8 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.stopPrank();
 
         // Assert state changes
-        assertEq(VAULT.stablecoinBalance(), initialTotalStables - bridgeAmount, "Total stables should decrease");
-        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance - bridgeAmount, "VAULT USDC balance should decrease");
+        assertEq(VAULT.stablecoinBalance(), 0, "Total stables should decrease");
+        assertEq(USDC.balanceOf(address(VAULT)),  0, "VAULT USDC balance should decrease");
 
         // Test with zero amount (should revert)
         vm.prank(ORCHESTRATOR);
@@ -906,20 +876,13 @@ contract GeniusMultiTokenVaultAccounting is Test {
         // Test when trying to remove more than available balance
         vm.prank(ORCHESTRATOR);
         vm.expectRevert();
-        VAULT.removeBridgeLiquidity(initialTotalStables + 1 ether, testChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(1 ether, testChainId, targets, values, data);
     }
 
 
     function testAddBridgeLiquidityWithDonations() public {
-        uint256 bridgeAmount = 100 ether;
-
         // Setup: Fund the ORCHESTRATOR with USDC
         deal(address(USDC), ORCHESTRATOR, bridgeAmount);
-
-        // Record initial balances
-        uint256 initialTotalStables = VAULT.stablecoinBalance();
-        uint256 initialavailableAssets = VAULT.availableAssets();
-        uint256 initialminAssetBalance = VAULT.minAssetBalance();
         
         uint256[] memory initialBalances = VAULT.supportedTokensBalances();
 
@@ -931,21 +894,21 @@ contract GeniusMultiTokenVaultAccounting is Test {
         // Assert total stables increased correctly
         assertEq(
             VAULT.stablecoinBalance(),
-            initialTotalStables + bridgeAmount,
+            0 + bridgeAmount,
             "Total stables should increase by bridge amount"
         );
 
         // Assert available stable balance increased
         assertEq(
             VAULT.availableAssets(),
-            initialavailableAssets + bridgeAmount,
+            0 + bridgeAmount,
             "Available stable balance should increase by bridge amount"
         );
 
         // Assert min stable balance remains unchanged
         assertEq(
             VAULT.minAssetBalance(),
-            initialminAssetBalance,
+            0,
             "Minimum stable balance should remain unchanged"
         );
 
@@ -1215,11 +1178,9 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         // Attempt to swap with an unauthorized router (should revert)
         vm.prank(ORCHESTRATOR);
-        console.log("MAN WHAT THE HELL");
         deal(address(mockToken), address(EXECUTOR), amount);
         vm.expectRevert(); // The exact error will depend on how swapToStables is implemented
         VAULT.swapToStables(address(mockToken), amount, address(UNAUTHORIZED_ROUTER), data);
-        console.log("BOOMBACLOT");
 
         vm.prank(OWNER);
         VAULT.manageRouter(unRouter, true);
@@ -1238,7 +1199,6 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
 
         vm.startPrank(ORCHESTRATOR);
-        console.log("Mock Token balance in VAULT before swap: ", mockToken.balanceOf(address(VAULT)));
         VAULT.swapToStables(address(mockToken), amount, address(DEX_ROUTER), data);
     }
 

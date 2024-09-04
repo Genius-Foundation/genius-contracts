@@ -50,6 +50,9 @@ contract GeniusExecutorTest is Test {
     address WAVAX = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
     address MEOW = 0x8aD25B0083C9879942A64f00F20a70D3278f6187;
 
+    address holderOne = makeAddr("holderOne");
+    address holderTwo = makeAddr("holderTwo");
+
     // External contracts
     TestERC20 public USDC;
     TestERC20 public WETH;
@@ -137,9 +140,6 @@ contract GeniusExecutorTest is Test {
     }
 
     function testAggregateWithoutPermit2() public {
-        address holderOne = makeAddr("holderOne");
-        address holderTwo = makeAddr("holderTwo");
-
         USDC.transfer(holderOne, 100 ether);
         USDC.transfer(holderTwo, 100 ether);
 
@@ -349,9 +349,9 @@ contract GeniusExecutorTest is Test {
         vm.stopPrank();
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(VAULT)), 4 ether, "Executor should have 4 test tokens");
-        assertEq(VAULT.stablecoinBalance(), 4 ether, "Vault should have 4 test tokens available");
-        assertEq(VAULT.availableAssets(), 4 ether, "Vault should have 90% of test tokens available");
+        assertEq(USDC.balanceOf(address(VAULT)), 5 ether, "Executor should have 4 test tokens");
+        assertEq(VAULT.stablecoinBalance(), 5 ether, "Vault should have 4 test tokens available");
+        assertEq(VAULT.availableAssets(), 5 ether, "Vault should have 90% of test tokens available");
         assertEq(VAULT.totalStakedAssets(), 0, "Vault should have 0 test tokens staked");
     }
 
@@ -381,16 +381,14 @@ contract GeniusExecutorTest is Test {
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(VAULT)), 49 ether, "Executor should have 10 test tokens");
-        assertEq(VAULT.stablecoinBalance(), 49 ether, "Vault should have 10 test tokens available");
-        assertEq(VAULT.availableAssets(), 49 ether, "Vault should have 50 test tokens available");
+        assertEq(USDC.balanceOf(address(VAULT)), 50 ether, "Executor should have 10 test tokens");
+        assertEq(VAULT.stablecoinBalance(), 50 ether, "Vault should have 10 test tokens available");
+        assertEq(VAULT.availableAssets(), 50 ether, "Vault should have 50 test tokens available");
         assertEq(VAULT.totalStakedAssets(), 0, "Vault should have 0 test tokens staked");
     }
 
 
     function testMultiSwapAndDeposit() public {
-        address holderOne = makeAddr("holderOne");
-        address holderTwo = makeAddr("holderTwo");
 
         // Create the targets, data, and vlues arrays
         address target = address(USDC);
@@ -479,12 +477,12 @@ contract GeniusExecutorTest is Test {
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(VAULT)), 119 ether, "Executor should have 119 test tokens");
+        assertEq(USDC.balanceOf(address(VAULT)), 120 ether, "Executor should have 120 test tokens");
         assertEq(USDC.balanceOf(holderOne), 90 ether, "Holder One should have 90 test tokens");
         assertEq(USDC.balanceOf(holderTwo), 90 ether, "Holder Two should have 90 test tokens");
         assertEq(USDC.balanceOf(TRADER), traderBalance - 100 ether, "Trader should have expected balance");
-        assertEq(VAULT.stablecoinBalance(), 119 ether, "Vault should have 120 test tokens available");
-        assertEq(VAULT.availableAssets(), 119 ether, "Vault should have 120 test tokens available");
+        assertEq(VAULT.stablecoinBalance(), 120 ether, "Vault should have 120 test tokens available");
+        assertEq(VAULT.availableAssets(), 120 ether, "Vault should have 120 test tokens available");
         assertEq(VAULT.totalStakedAssets(), 0, "Vault should have 0 test tokens staked");
     }
 

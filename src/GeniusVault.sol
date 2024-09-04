@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Test, console} from "forge-std/Test.sol";
+
 import { ERC4626, ERC20 } from "@solmate/tokens/ERC4626.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
@@ -185,18 +187,18 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
         // Pre transfer check
         uint256 _preTotalAssets = stablecoinBalance();
 
-        _transferERC20From(address(STABLECOIN), msg.sender, address(this), order.amountIn + order.fee);
+        _transferERC20From(address(STABLECOIN), msg.sender, address(this), order.amountIn);
 
         // Check that the transfer was successful
         uint256 _postTotalAssets = stablecoinBalance();
 
-        if (_postTotalAssets != _preTotalAssets + order.amountIn + order.fee) revert GeniusErrors.TransferFailed(
+        if (_postTotalAssets != _preTotalAssets + order.amountIn) revert GeniusErrors.TransferFailed(
             address(STABLECOIN),
-            order.amountIn + order.fee
+            order.amountIn
         );
 
         totalUnclaimedFees += order.fee;
-        orderStatus[orderHash_] = OrderStatus.Created;        
+        orderStatus[orderHash_] = OrderStatus.Created;
 
         emit SwapDeposit(
             order.orderId,

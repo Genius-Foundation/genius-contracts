@@ -24,6 +24,10 @@ contract MultiTokenVaultExecutorInteractions is Test {
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
+    uint16 destChainId = 42;
+
+    uint160 depositAmount = 10 ether;
+
     // ============ Mocks ============
     MockSwapTarget public ROUTER;
 
@@ -54,24 +58,6 @@ contract MultiTokenVaultExecutorInteractions is Test {
     ERC20 public TOKEN1;
     ERC20 public TOKEN2;
     ERC20 public TOKEN3;
-
-    // ============ Logging ============
-    struct LogEntry {
-        string name;
-        uint256 actual;
-        uint256 expected;
-    }
-
-    function logValues(string memory title, LogEntry[] memory entries) internal view {
-        console.log("--- ", title, " ---");
-        for (uint i = 0; i < entries.length; i++) {
-            console.log(entries[i].name);
-            console.log("  Actual:  ", entries[i].actual);
-            console.log("  Expected:", entries[i].expected);
-            console.log(""); // Empty line for better readability between entries
-        }
-        console.log(""); // Empty line at the end
-    }
 
     // ============ Setup ============
     function setUp() public {
@@ -145,8 +131,6 @@ contract MultiTokenVaultExecutorInteractions is Test {
 
 
     function testTokenSwapAndDeposit() public {
-        uint16 destChainId = 42;
-        uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         bytes memory swapCalldata = abi.encodeWithSelector(
             MockSwapTarget.mockSwap.selector,
@@ -189,14 +173,14 @@ contract MultiTokenVaultExecutorInteractions is Test {
             signature,
             TRADER,
             destChainId,
-            fillDeadline,
+            uint32(block.timestamp + 1000),
             1 ether
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 4 ether, "MULTI_VAULT should have 5 test tokens");
-        assertEq(MULTI_VAULT.stablecoinBalance(), 4 ether, "MULTI_VAULT should have 5 test tokens available");
-        assertEq(MULTI_VAULT.availableAssets(), 4 ether, "MULTI_VAULT should have 90% of test tokens available");
+        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 5 ether, "MULTI_VAULT should have 5 test tokens");
+        assertEq(MULTI_VAULT.stablecoinBalance(), 5 ether, "MULTI_VAULT should have 5 test tokens available");
+        assertEq(MULTI_VAULT.availableAssets(), 5 ether, "MULTI_VAULT should have 90% of test tokens available");
         assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 test tokens staked");
 
     }
@@ -274,20 +258,18 @@ contract MultiTokenVaultExecutorInteractions is Test {
             signature,
             TRADER,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(uint32(block.timestamp + 1000)),
             1 ether
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 9 ether, "MULTI_VAULT should have 10 test tokens");
-        assertEq(MULTI_VAULT.stablecoinBalance(), 9 ether, "MULTI_VAULT should have 10 test tokens available");
-        assertEq(MULTI_VAULT.availableAssets(), 9 ether, "MULTI_VAULT should have 90% of test tokens available");
+        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 10 ether, "MULTI_VAULT should have 10 test tokens");
+        assertEq(MULTI_VAULT.stablecoinBalance(), 10 ether, "MULTI_VAULT should have 10 test tokens available");
+        assertEq(MULTI_VAULT.availableAssets(), 10 ether, "MULTI_VAULT should have 90% of test tokens available");
         assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 test tokens staked ");
     }
 
     function testNativeSwapAndDeposit() public {
-        uint16 destChainId = 42;
-        uint32 fillDeadline = uint32(block.timestamp + 1000);
         uint256 initialBalance = TRADER.balance;
         uint256 swapAmount = 100 ether;
 
@@ -298,7 +280,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
             swapAmount,
             address(USDC),
             address(EXECUTOR),
-            swapAmount / 2 
+            50 ether
         );
 
         // Perform the native swap and deposit via GeniusExecutor
@@ -308,30 +290,19 @@ contract MultiTokenVaultExecutorInteractions is Test {
             swapCalldata,
             swapAmount,
             destChainId,
-            fillDeadline,
+            uint32(block.timestamp + 1000),
             1 ether
         );
 
-        // Prepare log entries for assertion checks
-        LogEntry[] memory entries = new LogEntry[](6);
-        entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
-        entries[1] = LogEntry("MULTI_VAULT USDC balance", USDC.balanceOf(address(MULTI_VAULT)), (swapAmount / 2) - 1 ether);
-        entries[2] = LogEntry("MULTI_VAULT stablecoinBalance", MULTI_VAULT.stablecoinBalance(), (swapAmount / 2) - 1 ether);
-        entries[3] = LogEntry("MULTI_VAULT availableAssets", MULTI_VAULT.availableAssets(), (swapAmount / 2) - 1 ether);
-        entries[4] = LogEntry("MULTI_VAULT totalStakedAssets", MULTI_VAULT.totalStakedAssets(), 0);
-        entries[5] = LogEntry("TRADER ETH balance change", initialBalance - TRADER.balance, swapAmount);
-
-        // Log and assert all values
-        logValues("Native Swap and Deposit Test Results", entries);
-
-        for (uint i = 0; i < entries.length; i++) {
-            assertEq(entries[i].actual, entries[i].expected, string(abi.encodePacked("Assertion failed for: ", entries[i].name)));
-        }
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 USDC");
+        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 50 ether, "MULTI_VAULT should have 5 USDC");
+        assertEq(MULTI_VAULT.stablecoinBalance(), 50 ether, "MULTI_VAULT should have 5 USDC available");
+        assertEq(MULTI_VAULT.availableAssets(), 50 ether, "MULTI_VAULT should have 90% of USDC available");
+        assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 USDC staked");
+        assertEq(TRADER.balance, 900 ether, "TRADER should have 0 ETH");
     }
 
     function testDepositToVault() public {
-        uint160 depositAmount = 10 ether;
-
         // Set up initial balances
         deal(address(USDC), TRADER, 100 ether);
         
@@ -369,23 +340,13 @@ contract MultiTokenVaultExecutorInteractions is Test {
             TRADER
         );
 
-        // Prepare log entries for assertion checks
-        LogEntry[] memory entries = new LogEntry[](4);
-        entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
-        entries[1] = LogEntry("VAULT total assets", MULTI_VAULT.totalAssets(), depositAmount);
-        entries[2] = LogEntry("TRADER vault share balance", MULTI_VAULT.balanceOf(TRADER), depositAmount);
-        entries[3] = LogEntry("TRADER USDC balance", USDC.balanceOf(TRADER), 90 ether);
-
-        // Log and assert all values
-        logValues("Deposit To Vault Test Results", entries);
-
-        for (uint i = 0; i < entries.length; i++) {
-            assertEq(entries[i].actual, entries[i].expected, string(abi.encodePacked("Assertion failed for: ", entries[i].name)));
-        }
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 USDC");
+        assertEq(MULTI_VAULT.totalAssets(), depositAmount, "VAULT should have 10 USDC");
+        assertEq(MULTI_VAULT.balanceOf(TRADER), depositAmount, "TRADER should have 10 vault shares");
+        assertEq(USDC.balanceOf(TRADER), 90 ether, "TRADER should have 90 USDC");
     }
 
     function testWithdrawFromVault() public {
-        uint160 depositAmount = 10 ether;
         uint160 withdrawAmount = 1 ether;
         
         vm.startPrank(TRADER);
@@ -459,19 +420,10 @@ contract MultiTokenVaultExecutorInteractions is Test {
         );
         vm.stopPrank(); 
 
-        // Prepare log entries for assertion checks
-        LogEntry[] memory entries = new LogEntry[](5);
-        entries[0] = LogEntry("EXECUTOR USDC balance", USDC.balanceOf(address(EXECUTOR)), 0);
-        entries[1] = LogEntry("MULTI_VAULT USDC balance", USDC.balanceOf(address(MULTI_VAULT)), 9 ether);
-        entries[2] = LogEntry("VAULT total assets", MULTI_VAULT.totalAssets(), 9 ether);
-        entries[3] = LogEntry("TRADER vault share balance", MULTI_VAULT.balanceOf(TRADER), 9 ether);
-        entries[4] = LogEntry("TRADER USDC balance", USDC.balanceOf(TRADER), 991 ether);
-
-        // Log and assert all values
-        logValues("Withdraw From Vault Test Results", entries);
-
-        for (uint i = 0; i < entries.length; i++) {
-            assertEq(entries[i].actual, entries[i].expected, string(abi.encodePacked("Assertion failed for: ", entries[i].name)));
-        }
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 USDC");
+        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 9 ether, "MULTI_VAULT should have 9 USDC");
+        assertEq(MULTI_VAULT.totalAssets(), 9 ether, "VAULT should have 9 USDC");
+        assertEq(MULTI_VAULT.balanceOf(TRADER), 9 ether, "TRADER should have 9 vault shares");
+        assertEq(USDC.balanceOf(TRADER), 991 ether, "TRADER should have 991 USDC");
     }
 }

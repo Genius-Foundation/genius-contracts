@@ -245,22 +245,22 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVault {
 
         if (tokenIn == address(STABLECOIN)) {
             preBalance = stablecoinBalance();
-            _transferERC20From(tokenIn, msg.sender, address(this), order.amountIn + order.fee);
+            _transferERC20From(tokenIn, msg.sender, address(this), order.amountIn);
             postBalance = stablecoinBalance();
 
-            if (postBalance - preBalance != order.amountIn + order.fee) revert GeniusErrors.UnexpectedBalanceChange(
+            if (postBalance - preBalance != order.amountIn) revert GeniusErrors.UnexpectedBalanceChange(
                 tokenIn,
-                order.amountIn + order.fee,
+                order.amountIn,
                 postBalance - preBalance
             );
         } else if (isSupported[tokenIn]) {
             if (tokenIn == NATIVE) {
-                if (msg.value != order.amountIn + order.fee) revert GeniusErrors.InvalidAmount();
+                if (msg.value != order.amountIn) revert GeniusErrors.InvalidAmount();
                 preBalance = address(this).balance - msg.value;
                 postBalance = address(this).balance;
             } else {
                 preBalance = tokenBalance(tokenIn);
-                _transferERC20From(tokenIn, msg.sender, address(this), order.amountIn + order.fee);
+                _transferERC20From(tokenIn, msg.sender, address(this), order.amountIn);
                 postBalance = tokenBalance(tokenIn);
             }
         } else {

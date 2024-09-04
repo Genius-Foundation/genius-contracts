@@ -304,10 +304,6 @@ contract GeniusExecutorDrain is Test {
     function testExecutorBalancesUnchanged() public {
         setupMaliciousTest();
 
-        uint256 initialBalance = address(EXECUTOR).balance;
-        uint256 initialUSDCBalance = USDC.balanceOf(address(EXECUTOR));
-        uint256 initialWETHBalance = WETH.balanceOf(address(EXECUTOR));
-
         address[] memory targets = new address[](1);
         targets[0] = address(MALICIOUS);
 
@@ -334,9 +330,9 @@ contract GeniusExecutorDrain is Test {
             // This is expected, now we check the balances
         }
 
-        assertEq(address(EXECUTOR).balance, initialBalance, "Native token balance should not change");
-        assertEq(USDC.balanceOf(address(EXECUTOR)), initialUSDCBalance, "USDC balance should not change");
-        assertEq(WETH.balanceOf(address(EXECUTOR)), initialWETHBalance, "WETH balance should not change");
+        assertEq(address(EXECUTOR).balance, 1 ether, "Native token balance should not change");
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 100 ether, "USDC balance should not change");
+        assertEq(WETH.balanceOf(address(EXECUTOR)), 100 ether, "WETH balance should not change");
     }
 
     function testMaliciousContractBalancesUnchanged() public {
@@ -376,10 +372,6 @@ contract GeniusExecutorDrain is Test {
     function testTraderBalancesUnchanged() public {
         setupMaliciousTest();
 
-        uint256 initialBalance = trader.balance;
-        uint256 initialUSDCBalance = USDC.balanceOf(trader);
-        uint256 initialWETHBalance = WETH.balanceOf(trader);
-
         address[] memory targets = new address[](1);
         targets[0] = address(MALICIOUS);
 
@@ -387,7 +379,7 @@ contract GeniusExecutorDrain is Test {
         data[0] = abi.encodeWithSignature("maliciousCall(address,address)", address(USDC), address(WETH));
 
         uint256[] memory values = new uint256[](1);
-        values[0] = 1 ether;
+        values[0] = 2 ether;
 
         (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
             generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
@@ -406,9 +398,9 @@ contract GeniusExecutorDrain is Test {
             // This is expected, now we check the balances
         }
 
-        assertEq(trader.balance, initialBalance, "Trader's ether balance should not change");
-        assertEq(USDC.balanceOf(trader), initialUSDCBalance, "Trader's USDC balance should not change");
-        assertEq(WETH.balanceOf(trader), initialWETHBalance, "Trader's WETH balance should not change");
+        assertEq(trader.balance, 2 ether, "Trader's ether balance should not change");
+        assertEq(USDC.balanceOf(trader), 100 ether, "Trader's USDC balance should not change");
+        assertEq(WETH.balanceOf(trader), 100 ether, "Trader's WETH balance should not change");
     }
 
 
@@ -445,9 +437,6 @@ contract GeniusExecutorDrain is Test {
         (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
             generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
 
-        // Record initial balances
-        uint256 initialTraderUSDCBalance = USDC.balanceOf(trader);
-        uint256 initialTraderWETHBalance = WETH.balanceOf(trader);
         uint256 initialVaultUSDCBalance = USDC.balanceOf(address(VAULT));
 
         // Execute multiSwapAndDeposit
@@ -465,9 +454,9 @@ contract GeniusExecutorDrain is Test {
         );
 
         // Assert final balances
-        assertEq(USDC.balanceOf(trader), initialTraderUSDCBalance - 10 ether, "Trader USDC balance should decrease by 10 ether");
-        assertEq(WETH.balanceOf(trader), initialTraderWETHBalance - 5 ether, "Trader WETH balance should decrease by 5 ether");
-        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + 9 ether, "Vault should receive the deposited USDC");
+        assertEq(USDC.balanceOf(trader), 100 ether - 10 ether, "Trader USDC balance should decrease by 10 ether");
+        assertEq(WETH.balanceOf(trader), 100 ether - 5 ether, "Trader WETH balance should decrease by 5 ether");
+        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + 10 ether, "Vault should receive the deposited USDC");
     }
 
     /**
@@ -650,14 +639,14 @@ contract GeniusExecutorDrain is Test {
         EXECUTOR.nativeSwapAndDeposit{value: 100 ether}(
             address(DEX_ROUTER),
             swapData,
-            1 ether,
+            100 ether,
             42,
             uint32(block.timestamp + 1000),
             1 ether
         );
 
         // Assert final balances
-        assertEq(address(this).balance, initialContractBalance - 1 ether, "Trader ETH balance should decrease by 1 ether");
+        assertEq(address(this).balance, initialContractBalance - 100 ether, "Trader ETH balance should decrease by 1 ether");
         assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + MockDEXRouter(DEX_ROUTER).usdcAmountOut(), "Vault should receive the swapped USDC");
 
         // 1. Invalid target

@@ -53,18 +53,11 @@ contract GeniusVaultStakingTest is Test {
         assertEq(usdc.balanceOf(address(this)), 1_000_000 ether - 1_000 ether, "Contract balance should be 999,000 ether");
         assertEq(usdc.balanceOf(address(geniusVault)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
 
-        uint256 totalAssets = geniusVault.totalAssets();
-        uint256 availableAssets = geniusVault.availableAssets();
-        uint256 totalStakedAssets = geniusVault.totalStakedAssets();
-
-        uint256 vaultAssets = geniusVault.totalAssets();
-        uint256 userShares = geniusVault.balanceOf(address(this));
-
-        assertEq(totalAssets, 1_000 ether, "Total assets should be 1,000 ether");
-        assertEq(totalStakedAssets, 1_000 ether, "Total staked assets should be 1,000 ether");
-        assertEq(availableAssets, 750 ether, "Available assets should be 750 ether");
-        assertEq(vaultAssets, 1_000 ether, "Vault assets should be 1,000 ether");
-        assertEq(userShares, 1_000 ether, "User shares should be 1,000 ether");
+        assertEq(geniusVault.totalAssets(), 1_000 ether, "Total assets should be 1,000 ether");
+        assertEq(geniusVault.totalStakedAssets(), 1_000 ether, "Total staked assets should be 1,000 ether");
+        assertEq(geniusVault.availableAssets(), 750 ether, "Available assets should be 750 ether");
+        assertEq(geniusVault.totalAssets(), 1_000 ether, "Vault assets should be 1,000 ether");
+        assertEq(geniusVault.balanceOf(address(this)), 1_000 ether, "User shares should be 1,000 ether");
     }
 
 
@@ -88,19 +81,12 @@ contract GeniusVaultStakingTest is Test {
         assertEq(traderUSDCBalanceAfter, 0, "Trader's USDC balance should be 0 after deposit");
         assertEq(usdc.balanceOf(address(geniusVault)), 1_000 ether, "GeniusVault should have 1,000 USDC after deposit");
 
-        uint256 totalAssets = geniusVault.totalAssets();
-        uint256 availableAssets = geniusVault.availableAssets();
-        uint256 totalStakedAssets = geniusVault.totalStakedAssets();
+        assertEq(geniusVault.totalAssets(), 1_000 ether, "Total assets in GeniusVault should be 1,000 USDC");
+        assertEq(geniusVault.totalStakedAssets(), 1_000 ether, "Total staked assets in GeniusVault should be 1,000 USDC");
+        assertEq(geniusVault.availableAssets(), 750 ether, "Available assets in GeniusVault should be 100 USDC, reflecting rebalance threshold");
 
-        assertEq(totalAssets, 1_000 ether, "Total assets in GeniusVault should be 1,000 USDC");
-        assertEq(totalStakedAssets, 1_000 ether, "Total staked assets in GeniusVault should be 1,000 USDC");
-        assertEq(availableAssets, 750 ether, "Available assets in GeniusVault should be 100 USDC, reflecting rebalance threshold");
-
-        uint256 totalAssetsStaked = geniusVault.totalAssets();
-        uint256 traderShares = geniusVault.balanceOf(trader);
-
-        assertEq(totalAssetsStaked, 1_000 ether, "Total assets in GeniusVault should be 1,000 USDC after deposit");
-        assertEq(traderShares, 1_000 ether, "Trader should hold shares equivalent to the USDC deposited in GeniusVault");
+        assertEq(geniusVault.totalAssets(), 1_000 ether, "Total assets in GeniusVault should be 1,000 USDC after deposit");
+        assertEq(geniusVault.balanceOf(trader), 1_000 ether, "Trader should hold shares equivalent to the USDC deposited in GeniusVault");
     }
 
     function testSelfDepositAndWithdraw() public {
@@ -113,22 +99,14 @@ contract GeniusVaultStakingTest is Test {
         geniusVault.approve(address(this), 1_000 ether);
         geniusVault.withdraw(1_000 ether, address(this), address(this));
 
-        // Check the balance after withdrawal
-        uint256 contractUSDCBalanceAfter = usdc.balanceOf(address(this));
-        uint256 totalAssets = geniusVault.totalAssets();
-        uint256 availableAssets = geniusVault.availableAssets();
-        uint256 vaultAssets = geniusVault.totalAssets();
-
-        assertEq(contractUSDCBalanceAfter, usdcBalance, "Contract's USDC should return to initial balance after withdrawal");
-        assertEq(totalAssets, 0, "Total assets in the GeniusVault should be 0 after withdrawal");
-        assertEq(availableAssets, 0, "Available assets in the GeniusVault should be 0 after withdrawal");
-        assertEq(vaultAssets, 0, "Assets in the GeniusVault should be 0 after complete withdrawal");
+        assertEq(usdc.balanceOf(address(this)), usdcBalance, "Contract's USDC should return to initial balance after withdrawal");
+        assertEq(geniusVault.totalAssets(), 0, "Total assets in the GeniusVault should be 0 after withdrawal");
+        assertEq(geniusVault.availableAssets(), 0, "Available assets in the GeniusVault should be 0 after withdrawal");
+        assertEq(geniusVault.totalAssets(), 0, "Assets in the GeniusVault should be 0 after complete withdrawal");
     }
 
     function testDepositAndWithdrawOnBehalfOf() public {
-
-        uint256 traderUSDCBalance = usdc.balanceOf(trader);
-        assertEq(traderUSDCBalance, 1_000 ether, "Trader should initially have 1,000 USDC");
+        assertEq(usdc.balanceOf(trader), 1_000 ether, "Trader should initially have 1,000 USDC");
 
         vm.prank(trader);
         usdc.approve(address(geniusVault), 1_000 ether);
@@ -145,16 +123,10 @@ contract GeniusVaultStakingTest is Test {
         vm.prank(trader);
         geniusVault.withdraw(1_000 ether, trader, trader);
 
-        // Check the balance after withdrawal
-        uint256 traderUSDCBalanceAfter = usdc.balanceOf(trader);
-        uint256 totalAssets = geniusVault.totalAssets();
-        uint256 availableAssets = geniusVault.availableAssets();
-        uint256 vaultAssets = geniusVault.totalAssets();
-
-        assertEq(traderUSDCBalanceAfter, 1_000 ether, "Trader's USDC should return to initial balance after withdrawal");
-        assertEq(totalAssets, 0, "Total assets in the GeniusVault should be 0 after withdrawal");
-        assertEq(availableAssets, 0, "Available assets in the GeniusVault should be 0 after withdrawal");
-        assertEq(vaultAssets, 0, "Assets in the GeniusVault should be 0 after complete withdrawal");
+        assertEq(usdc.balanceOf(trader), 1_000 ether, "Trader's USDC should return to initial balance after withdrawal");
+        assertEq(geniusVault.totalAssets(), 0, "Total assets in the GeniusVault should be 0 after withdrawal");
+        assertEq(geniusVault.availableAssets(), 0, "Available assets in the GeniusVault should be 0 after withdrawal");
+        assertEq(geniusVault.totalAssets(), 0, "Assets in the GeniusVault should be 0 after complete withdrawal");
     }
 
     function testRevertDepositWithoutApproval() public {

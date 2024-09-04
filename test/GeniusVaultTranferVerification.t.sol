@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.4;
 
-import {Test, console} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
@@ -22,6 +22,9 @@ contract GeniusVaultTransferVerificationTest is Test {
     address ORCHESTRATOR;
     address public BRIDGE;
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+
+    uint256 amountToRemove = 400 ether;
+    uint256 wrongTransferAmount = 500 ether;
 
     address public constant NATIVE = address(0);
     ERC20 public TOKEN1;
@@ -101,8 +104,6 @@ contract GeniusVaultTransferVerificationTest is Test {
         values[0] = 0;
 
         address recipient = makeAddr("recipient");
-        uint256 amountToRemove = 400 ether;
-        uint256 wrongTransferAmount = 500 ether;
 
         bytes memory transferData = abi.encodeWithSelector(
             USDC.transfer.selector,
@@ -119,13 +120,10 @@ contract GeniusVaultTransferVerificationTest is Test {
     }
 
     function testWrongTransferOnRemoveBridgeLiquidityMULTIVAULT() public {
-        uint256 initialLiquidity = 500 ether;
-        uint256 amountToRemove = 400 ether;
-        uint256 wrongTransferAmount = 500 ether;
 
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(MULTIVAULT), initialLiquidity);
+        USDC.transfer(address(MULTIVAULT), 500 ether);
         vm.stopPrank();
 
         // Prepare removal of bridge liquidity

@@ -304,7 +304,7 @@ contract GeniusActionsTest is Test {
         geniusActions.setBatchCommitHashAuthorized(commitHashes, true);
     }
 
-    function testIsAuthorizedCommitHashFalse() public {
+    function testIsAuthorizedCommitHashFalse() public view {
         bytes32 commitHash = keccak256("test commit hash");
         assertFalse(geniusActions.isAuthorizedCommitHash(commitHash));
     }

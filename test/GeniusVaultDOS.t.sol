@@ -126,13 +126,10 @@ contract GeniusVaultDOSTest is Test {
     }
 
     function testDOSAttackOnRemoveBridgeLiquidityMULTIVAULT() public {
-    uint256 initialLiquidity = 500 ether;
-    uint256 donationAmount = 100 ether;
-    uint256 removalAmount = 500 ether;
 
     // Add initial liquidity
     vm.startPrank(ORCHESTRATOR);
-    USDC.transfer(address(MULTIVAULT), initialLiquidity);
+    USDC.transfer(address(MULTIVAULT), 500 ether);
     vm.stopPrank();
 
     // Record initial state
@@ -140,7 +137,7 @@ contract GeniusVaultDOSTest is Test {
     uint256 initialavailableAssets = MULTIVAULT.availableAssets();
 
     // Simulate a donation to the vault
-    deal(address(USDC), address(MULTIVAULT), initialLiquidity + donationAmount);
+    deal(address(USDC), address(MULTIVAULT), 500 ether + 100 ether);
 
     // Prepare removal of bridge liquidity
     vm.startPrank(OWNER);
@@ -160,23 +157,23 @@ contract GeniusVaultDOSTest is Test {
     bytes memory transferData = abi.encodeWithSelector(
         USDC.transfer.selector,
         recipient,
-        removalAmount
+        500 ether
     );
 
     bytes[] memory data = new bytes[](1);
     data[0] = transferData;
 
     // This should now succeed
-    MULTIVAULT.removeBridgeLiquidity(removalAmount, targetChainId, targets, values, data);
+    MULTIVAULT.removeBridgeLiquidity(500 ether, targetChainId, targets, values, data);
 
     vm.stopPrank();
 
     // Verify that the funds have been transferred
-    assertEq(USDC.balanceOf(recipient), removalAmount, "Recipient should receive the removed amount");
+    assertEq(USDC.balanceOf(recipient), 500 ether, "Recipient should receive the removed amount");
 
     // Verify the state changes in the vault
-    assertEq(MULTIVAULT.stablecoinBalance(), initialtotalAssets + donationAmount - removalAmount, "Total stables should be updated correctly");
-    assertEq(MULTIVAULT.availableAssets(), initialavailableAssets + donationAmount - removalAmount, "Available stable balance should be updated correctly");
+    assertEq(MULTIVAULT.stablecoinBalance(), initialtotalAssets + 100 ether - 500 ether, "Total stables should be updated correctly");
+    assertEq(MULTIVAULT.availableAssets(), initialavailableAssets + 100 ether - 500 ether, "Available stable balance should be updated correctly");
 
     // Try to remove more than the available balance (should revert)
     vm.startPrank(ORCHESTRATOR);
