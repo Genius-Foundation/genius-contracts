@@ -126,7 +126,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
     ) external payable override virtual onlyOrchestrator whenNotPaused {
         _checkBridgeTargets(targets);
  
-        uint256 totalAssetsBeforeTransfer = stablecoinBalance();
+        uint256 totalAssetsBeforeTransfer = totalBalanceExcludingFees();
         uint256 neededLiquidty_ = minAssetBalance();
 
         _isAmountValid(amountIn, _availableAssets(totalAssetsBeforeTransfer, neededLiquidty_));
@@ -139,7 +139,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
 
         _batchExecution(targets, data, values);
 
-        uint256 _stableDelta = totalAssetsBeforeTransfer - stablecoinBalance();
+        uint256 _stableDelta = totalAssetsBeforeTransfer - totalBalanceExcludingFees();
 
         if (_stableDelta != amountIn) revert GeniusErrors.AmountInAndDeltaMismatch(amountIn, _stableDelta);
 
@@ -226,7 +226,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
 
 
         // Gas saving
-        uint256 _totalAssets = stablecoinBalance();
+        uint256 _totalAssets = totalBalanceExcludingFees();
         uint256 _neededLiquidity = minAssetBalance();
 
         _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
@@ -260,7 +260,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
      * @dev See {IGeniusVault-removeRewardLiquidity}.
      */
     function removeRewardLiquidity(uint256 amount) external override onlyOrchestrator whenNotPaused {
-        uint256 _totalAssets = stablecoinBalance();
+        uint256 _totalAssets = totalBalanceExcludingFees();
         uint256 _neededLiquidity = minAssetBalance();
 
         _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
@@ -343,6 +343,9 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
         uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
 
         if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
+
+        if (totalUnclaimedFees < order.fee) revert GeniusErrors.InsufficientFees(order.fee, totalUnclaimedFees, address(STABLECOIN));
+        totalUnclaimedFees -= order.fee;
 
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
@@ -574,7 +577,7 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
     }
 
     function beforeWithdraw(uint256 assets, uint256 shares) internal override whenNotPaused {
-        if (assets > stablecoinBalance()) revert GeniusErrors.InvalidAmount();
+        if (assets > totalBalanceExcludingFees()) revert GeniusErrors.InvalidAmount();
         if (assets > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
             address(STABLECOIN),
             assets,

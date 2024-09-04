@@ -13,8 +13,6 @@ import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
-import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
-
 
 contract GeniusVaultFees is Test {
     uint16 destChainId = 42;
@@ -78,7 +76,7 @@ contract GeniusVaultFees is Test {
         deal(address(USDC), address(EXECUTOR), 1_000 ether);
     }
 
-    function testAddLiquidityAndCheckFees() public {
+    function testAddLiquidity() public {
         
         uint256 initialOrchestatorBalance = USDC.balanceOf(ORCHESTRATOR);
 
@@ -92,6 +90,75 @@ contract GeniusVaultFees is Test {
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should be 0");
         assertEq(VAULT.totalAssets(), 0 ether, "Total assets should be 1,000 ether");
         assertEq(VAULT.totalUnclaimedFees(), 1 ether, "Total unclaimed fees should be 1 ether");
+        assertEq(VAULT.totalBalanceExcludingFees(), 999 ether, "Total balance excluding fees should be 999 ether");
+        assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Stablecoin balance should be 1,000 ether");
+        assertEq(VAULT.availableAssets(), 999 ether, "Available Stablecoin balance should be 999 ether");
+    }
+
+    function testAddLiquidityAndRemoveLiquidity() public {
+        vm.startPrank(address(EXECUTOR));
+        USDC.approve(address(VAULT), 1_000 ether);
+        VAULT.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
+
+        // Create an Order struct for removing liquidity
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            trader: TRADER,
+            amountIn: 999 ether,
+            orderId: 0, // This should be the correct order ID
+            srcChainId: 1, // Use the current chain ID
+            destChainId: uint16(block.chainid),
+            fillDeadline: uint32(block.timestamp + 1000),
+            tokenIn: address(USDC),
+            fee: 1 ether
+        });
+
+        uint256 initOrchBalance = USDC.balanceOf(address(EXECUTOR));
+
+        // Remove liquidity
+        vm.startPrank(address(EXECUTOR));
+        VAULT.removeLiquiditySwap(order);
+
+        uint256 finalOrchBalance = USDC.balanceOf(address(EXECUTOR));
+
+        // Add assertions to check the state after removing liquidity
+        assertEq(USDC.balanceOf(address(VAULT)), 1 ether, "GeniusVault balance should be 1 ether (only fees left)");
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 999 ether, "Executor balance should be 1999 ether");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should still be 0");
+        assertEq(VAULT.totalAssets(), 0 ether, "Total assets should be 0 ether");
+        assertEq(VAULT.totalUnclaimedFees(), 1 ether, "Total unclaimed fees should still be 1 ether");
+        assertEq(VAULT.totalBalanceExcludingFees(), 0, "Total balance excluding fees should be 0");
+        assertEq(VAULT.stablecoinBalance(), 1 ether, "Stablecoin balance should be 1 ether");
+        assertEq(VAULT.availableAssets(), 0, "Available Stablecoin balance should be 0");
+    }
+
+    function testRemoveTooMuchLiquidity() public {
+        vm.startPrank(address(EXECUTOR));
+        USDC.approve(address(VAULT), 1_000 ether);
+        VAULT.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
+
+        // Create an Order struct for removing liquidity
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            trader: TRADER,
+            amountIn: 1_001 ether,
+            orderId: 0, // This should be the correct order ID
+            srcChainId: 1, // Use the current chain ID
+            destChainId: uint16(block.chainid),
+            fillDeadline: uint32(block.timestamp + 1000),
+            tokenIn: address(USDC),
+            fee: 1 ether
+        });
+
+        // Remove liquidity
+        vm.startPrank(address(EXECUTOR));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InsufficientLiquidity.selector, 999 ether, 1001 ether));
+        VAULT.removeLiquiditySwap(order);
+
+        // Add assertions to check the state after removing liquidity
+        assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should still be 0");
+        assertEq(VAULT.totalAssets(), 0, "Total staked assets should be 1,000 ether");
+        assertEq(VAULT.totalUnclaimedFees(), 1 ether, "Total unclaimed fees should still be 1 ether");
         assertEq(VAULT.totalBalanceExcludingFees(), 999 ether, "Total balance excluding fees should be 999 ether");
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Stablecoin balance should be 1,000 ether");
         assertEq(VAULT.availableAssets(), 999 ether, "Available Stablecoin balance should be 999 ether");
