@@ -8,7 +8,6 @@ import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol"
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
-import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
 import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
 
@@ -26,7 +25,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // =============================================================
     //                           VARIABLES
     // =============================================================
-    uint256 public override isInitialized;
     mapping(address => uint256) private allowedTargets;
 
     // =============================================================
@@ -42,13 +40,25 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     constructor(
         address permit2,
         address vault,
-        address admin
+        address admin,
+        address[] memory routers
     ) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IGeniusVault(vault);
         STABLECOIN = IERC20(VAULT.STABLECOIN());
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
+
+        uint256 length = routers.length;
+        for (uint256 i = 0; i < length;) {
+            address router = routers[i];
+            if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
+            if (allowedTargets[router] == 1) revert GeniusErrors.DuplicateRouter(router);
+
+            allowedTargets[router] = 1;
+
+            unchecked { ++i; }
+        }
     }
 
     // =============================================================
@@ -70,24 +80,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // =============================================================
 
     /**
-     * @dev See {IGeniusExecutor-initialize}.
-     */
-    function initialize(address[] calldata routers) external override onlyAdmin {
-        uint256 length = routers.length;
-        for (uint256 i = 0; i < length;) {
-            address router = routers[i];
-            if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
-            if (allowedTargets[router] == 1) revert GeniusErrors.DuplicateRouter(router);
-
-            allowedTargets[router] = 1;
-
-            unchecked { ++i; }
-        }
-
-        isInitialized = 1;
-    }
-
-    /**
      * @dev See {IGeniusExecutor-setAllowedTarget}.
      */
     function setAllowedTarget(address target, bool isAllowed) external override onlyAdmin {
@@ -105,7 +97,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata signature,
         address owner
     ) external override payable nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
@@ -125,7 +116,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes[] calldata data,
         uint256[] calldata values
     ) external payable override nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();        
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
         _checkTargets(targets, emptyPermitDetails, msg.sender);
         _checkNative(_sum(values));
@@ -138,16 +128,16 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      * @dev See {IGeniusExecutor-tokenSwapAndDeposit}.
      */
     function tokenSwapAndDeposit(
+        bytes32 seed,
         address target,
         bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
     ) external override onlyOrchestrator nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
 
         address[] memory targets = new address[](1);
@@ -180,7 +170,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _depositAmount
         );
 
-        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
+        VAULT.addLiquiditySwap(seed, owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
 
         _sweepERC20s(permitBatch, owner);
     }
@@ -189,13 +179,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      * @dev See {IGeniusExecutor-multiSwapAndDeposit}.
      */
     function multiSwapAndDeposit(
+        bytes32 seed,
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
     ) external override payable nonReentrant {
@@ -203,7 +194,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             targets.length != data.length ||
             data.length != values.length
         ) revert GeniusErrors.ArrayLengthsMismatch();
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
 
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
@@ -224,7 +214,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
-        VAULT.addLiquiditySwap(owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
+        VAULT.addLiquiditySwap(seed, owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
 
         _sweepERC20s(permitBatch, owner);
         if (msg.value > 0) _sweepNative(msg.sender);
@@ -234,15 +224,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      * @dev See {IGeniusExecutor-nativeSwapAndDeposit}.
      */
     function nativeSwapAndDeposit(
+        bytes32 seed,
         address target,
         bytes calldata data,
         uint256 value,
-        uint16 destChainId,
+        uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
     ) external override payable {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
-
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
         address[] memory targets = new address[](1);
         targets[0] = target;
@@ -264,7 +253,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _depositAmount
         );
 
-        VAULT.addLiquiditySwap(msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
+        VAULT.addLiquiditySwap(seed, msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
 
         if (msg.value > 0) _sweepNative(msg.sender);
     }
@@ -277,7 +266,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata signature,
         address owner
     ) external override onlyOrchestrator nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details.length != 1) revert GeniusErrors.ArrayLengthsMismatch();
         if (permitBatch.details[0].token != address(STABLECOIN)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
@@ -296,7 +284,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata signature,
         address owner
     ) external override onlyOrchestrator nonReentrant {
-        if (isInitialized == 0) revert GeniusErrors.NotInitialized();
         if (permitBatch.details[0].token != address(VAULT)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
         }
@@ -463,11 +450,11 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     }
 
     function _depositToVault(address receiver, uint256 amount) private {
-        IERC4626(address(VAULT)).deposit(amount, receiver);
+        VAULT.stakeDeposit(amount, receiver);
     }
 
     function _withdrawFromVault(address receiver, uint256 amount) private {
-        IERC4626(address(VAULT)).withdraw(amount, receiver, address(this));
+        VAULT.stakeWithdraw(amount, receiver, address(this));
     }
 
     receive() external payable {

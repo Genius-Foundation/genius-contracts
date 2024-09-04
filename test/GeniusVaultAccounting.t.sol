@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAllowanceTransfer, IEIP712} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {PermitSignature} from "./utils/SigUtils.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
@@ -16,7 +17,7 @@ contract GeniusVaultAccounting is Test {
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
-    uint16 destChainId = 42;
+    uint32 destChainId = 42;
     uint256 depositAmount = 100 ether;
 
     // ============ External Contracts ============
@@ -102,12 +103,22 @@ contract GeniusVaultAccounting is Test {
 
         // Deploy contracts
         ERC20 usdc = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
-        VAULT = new GeniusVault(address(usdc), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
+        GeniusVault implementation = new GeniusVault();
+
+        bytes memory data = abi.encodeWithSelector(
+            GeniusVault.initialize.selector,
+            address(USDC),
+            OWNER
+        );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        VAULT = GeniusVault(address(proxy));
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER, new address[](0));
         DEX_ROUTER = new MockDEXRouter();
         
 
-        VAULT.initialize(address(EXECUTOR));
+        VAULT.setExecutor(address(EXECUTOR));
 
         permit2 = IEIP712(permit2Address);
         DOMAIN_SEPERATOR = permit2.DOMAIN_SEPARATOR();
@@ -145,7 +156,7 @@ contract GeniusVaultAccounting is Test {
         USDC.approve(address(VAULT), 1_000 ether);
 
         // Deposit 100 USDC into the vault
-        VAULT.deposit(100 ether, TRADER);
+        VAULT.stakeDeposit(100 ether, TRADER);
 
         // Check the staked value
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
@@ -179,7 +190,7 @@ contract GeniusVaultAccounting is Test {
         USDC.approve(address(VAULT), 1_000 ether);
 
         // Deposit 100 USDC into the vault
-        VAULT.deposit(100 ether, TRADER);
+        VAULT.stakeDeposit(100 ether, TRADER);
 
         // Check the staked value
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
@@ -218,9 +229,7 @@ contract GeniusVaultAccounting is Test {
 
         // Setup
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -228,7 +237,7 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), depositAmount);
         USDC.approve(permit2Address, type(uint256).max);
-        VAULT.deposit(depositAmount, TRADER);
+        VAULT.stakeDeposit(depositAmount, TRADER);
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.stablecoinBalance(), depositAmount, "Total assets mismatch");
@@ -263,6 +272,7 @@ contract GeniusVaultAccounting is Test {
         // Execute the tokenSwapAndDeposit function
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -290,9 +300,7 @@ contract GeniusVaultAccounting is Test {
     function testCycleWithoutThresholdChange() public {
         // Setup
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);  // Assuming EXECUTOR can act as a router
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -300,10 +308,9 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), depositAmount);
         USDC.approve(permit2Address, type(uint256).max);
-        VAULT.deposit(depositAmount, TRADER);
+        VAULT.stakeDeposit(depositAmount, TRADER);
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
         vm.stopPrank();
@@ -335,6 +342,7 @@ contract GeniusVaultAccounting is Test {
         // deal(address(testToken), address(EXECUTOR), depositAmount);
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -354,10 +362,10 @@ contract GeniusVaultAccounting is Test {
 
         // Start acting as TRADER
         vm.startPrank(TRADER);
-        VAULT.withdraw(depositAmount, TRADER, TRADER);
+        VAULT.stakeWithdraw(depositAmount, TRADER, TRADER);
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
-        assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 49 ether, "Available assets mismatch");
 
         vm.stopPrank();
@@ -381,9 +389,7 @@ contract GeniusVaultAccounting is Test {
 
         // Setup
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -391,11 +397,11 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), depositAmount);
         USDC.approve(permit2Address, type(uint256).max);
-        VAULT.deposit(depositAmount, TRADER);
+        VAULT.stakeDeposit(depositAmount, TRADER);
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), depositAmount, "Total assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
 
@@ -425,6 +431,7 @@ contract GeniusVaultAccounting is Test {
         // Execute the tokenSwapAndDeposit function
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -454,10 +461,10 @@ contract GeniusVaultAccounting is Test {
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
-        VAULT.withdraw(depositAmount, TRADER, TRADER);
+        VAULT.stakeWithdraw(depositAmount, TRADER, TRADER);
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
-        assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 49 ether, "Available assets mismatch");
 
         vm.stopPrank();
@@ -477,9 +484,7 @@ contract GeniusVaultAccounting is Test {
 
         // Setup
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         vm.stopPrank();
 
@@ -490,11 +495,11 @@ contract GeniusVaultAccounting is Test {
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), depositAmount);
         USDC.approve(permit2Address, type(uint256).max);
-        VAULT.deposit(depositAmount, TRADER);
+        VAULT.stakeDeposit(depositAmount, TRADER);
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
-        assertEq(VAULT.totalAssets(), depositAmount, "Vault Total assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), depositAmount, "Vault Total assets mismatch");
         assertEq(VAULT.stablecoinBalance(), 110 ether, "Vault Total assets mismatch");
         assertEq(VAULT.availableAssets(), 85 ether, "#1 Available assets mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum asset balance mismatch");
@@ -528,6 +533,7 @@ contract GeniusVaultAccounting is Test {
         // Execute the tokenSwapAndDeposit function
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
+            keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
@@ -563,11 +569,11 @@ contract GeniusVaultAccounting is Test {
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
-        VAULT.withdraw(depositAmount, TRADER, TRADER);
+        VAULT.stakeWithdraw(depositAmount, TRADER, TRADER);
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
-        assertEq(VAULT.totalAssets(), 0, "Total assets mismatch");
+        assertEq(VAULT.totalStakedAssets(), 0, "Total assets mismatch");
         assertEq(VAULT.availableAssets(), 89 ether, "Available assets mismatch");
     }
 }

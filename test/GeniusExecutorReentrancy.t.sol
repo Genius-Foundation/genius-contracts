@@ -8,6 +8,7 @@ import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAllowanceTransfer, IEIP712} from "permit2/interfaces/IAllowanceTransfer.sol";
 
@@ -59,9 +60,19 @@ contract GeniusExecutorReentrancy is Test {
         sigUtils = new PermitSignature();
 
         vm.startPrank(OWNER);
-        VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER);
-        VAULT.initialize(address(EXECUTOR));
+        GeniusVault implementation = new GeniusVault();
+
+        bytes memory data = abi.encodeWithSelector(
+            GeniusVault.initialize.selector,
+            address(USDC),
+            OWNER
+        );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        VAULT = GeniusVault(address(proxy));
+        EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER, new address[](0));
+        VAULT.setExecutor(address(EXECUTOR));
         DEX_ROUTER = new MockDEXRouter();
         ATTACKER = new MockReentrancyAttacker(payable(EXECUTOR));
         MALICIOUS_TOKEN = new MaliciousToken(address(EXECUTOR));
@@ -112,14 +123,12 @@ contract GeniusExecutorReentrancy is Test {
     }
 
 function testReentrancyMultiSwapAndDeposit() public {
-        uint16 destChainId = 42;
+        uint32 destChainId = 42;
         uint32 fillDeadline = uint32(block.timestamp + 1000);
 
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](2);
-        routers[0] = address(DEX_ROUTER);
-        routers[1] = address(ATTACKER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
+        EXECUTOR.setAllowedTarget(address(ATTACKER), true);
         vm.stopPrank();
 
         address[] memory targets = new address[](4);
@@ -146,6 +155,7 @@ function testReentrancyMultiSwapAndDeposit() public {
         vm.prank(trader);
         vm.expectRevert();
         EXECUTOR.multiSwapAndDeposit(
+            keccak256("order"),
             targets,
             data,
             values,
@@ -160,10 +170,8 @@ function testReentrancyMultiSwapAndDeposit() public {
 
     function testReentrancyAggregateWithPermit2() public {
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](2);
-        routers[0] = address(DEX_ROUTER);
-        routers[1] = address(ATTACKER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(ATTACKER), true);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
         address[] memory targets = new address[](4);
@@ -201,9 +209,7 @@ function testReentrancyMultiSwapAndDeposit() public {
 
     function testReentrancyAggregate() public {
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(ATTACKER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(ATTACKER), true);
         vm.stopPrank();
 
         address[] memory targets = new address[](1);
@@ -226,10 +232,9 @@ function testReentrancyMultiSwapAndDeposit() public {
 
     function testReentrancyAggregateWithPermit2MaliciousToken() public {
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](2);
-        routers[0] = address(DEX_ROUTER);
-        routers[1] = address(MALICIOUS_TOKEN);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(ATTACKER), true);
+        EXECUTOR.setAllowedTarget(address(MALICIOUS_TOKEN), true);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
         // Deal 1 ether to the EXECUTOR

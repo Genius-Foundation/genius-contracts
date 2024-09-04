@@ -72,7 +72,7 @@ library GeniusErrors {
 
     error InvalidOrderStatus();
 
-    error InvalidOrderId();
+    error InvalidSeed();
 
 
     /**

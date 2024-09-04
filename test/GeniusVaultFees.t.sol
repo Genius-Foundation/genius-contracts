@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import { IGeniusVault } from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
@@ -15,7 +16,7 @@ import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
 
 contract GeniusVaultFees is Test {
-    uint16 destChainId = 42;
+    uint32 destChainId = 42;
 
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -49,8 +50,18 @@ contract GeniusVaultFees is Test {
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
 
         vm.startPrank(OWNER, OWNER);
-        VAULT = new GeniusVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
+        GeniusVault implementation = new GeniusVault();
+
+        bytes memory data = abi.encodeWithSelector(
+            GeniusVault.initialize.selector,
+            address(USDC),
+            OWNER
+        );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        VAULT = GeniusVault(address(proxy));
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER, new address[](0));
         DEX_ROUTER = new MockDEXRouter();
 
         vm.stopPrank();
@@ -58,12 +69,10 @@ contract GeniusVaultFees is Test {
         assertEq(VAULT.hasRole(VAULT.DEFAULT_ADMIN_ROLE(), OWNER), true, "Owner should be ORCHESTRATOR");
 
         vm.startPrank(OWNER);
-        VAULT.initialize(address(EXECUTOR));
+        VAULT.setExecutor(address(EXECUTOR));
 
         vm.startPrank(OWNER);
-        address[] memory routers = new address[](1);
-        routers[0] = address(DEX_ROUTER);
-        EXECUTOR.initialize(routers);
+        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
@@ -82,13 +91,12 @@ contract GeniusVaultFees is Test {
 
         vm.startPrank(address(EXECUTOR));
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order") ,TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
 
         assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should be 0");
-        assertEq(VAULT.totalAssets(), 0 ether, "Total assets should be 1,000 ether");
         assertEq(VAULT.totalUnclaimedFees(), 1 ether, "Total unclaimed fees should be 1 ether");
         assertEq(VAULT.totalBalanceExcludingFees(), 999 ether, "Total balance excluding fees should be 999 ether");
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Stablecoin balance should be 1,000 ether");

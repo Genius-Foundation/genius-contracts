@@ -11,6 +11,7 @@ import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusExecutor} from "../src/GeniusExecutor.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract GeniusVaultTransferVerificationTest is Test {
     uint256 avalanche;
@@ -70,17 +71,35 @@ contract GeniusVaultTransferVerificationTest is Test {
         routers[0] = address(DEX_ROUTER);
 
         vm.startPrank(OWNER);
-        VAULT = new GeniusVault(address(USDC), OWNER);
-        MULTIVAULT = new GeniusMultiTokenVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
+        GeniusVault implementation = new GeniusVault();
 
-        VAULT.initialize(address(EXECUTOR));
-        MULTIVAULT.initialize(
-            address(EXECUTOR),
-            supportedTokens,
-            bridges,
+        bytes memory data = abi.encodeWithSelector(
+            GeniusVault.initialize.selector,
+            address(USDC),
+            OWNER
+        );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        VAULT = GeniusVault(address(proxy));
+        GeniusMultiTokenVault implementationMulti = new GeniusMultiTokenVault();
+
+        bytes memory dataMulti = abi.encodeWithSelector(
+            GeniusMultiTokenVault.initialize.selector,
+            address(USDC),
+            OWNER,
+            supportedTokens, 
+            bridges, 
             routers
         );
+
+        ERC1967Proxy proxyMulti = new ERC1967Proxy(address(implementationMulti), dataMulti);
+
+        MULTIVAULT = GeniusMultiTokenVault(address(proxyMulti));
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER, new address[](0));
+
+        VAULT.setExecutor(address(EXECUTOR));
+        MULTIVAULT.setExecutor(address(EXECUTOR));
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 

@@ -3,6 +3,7 @@ pragma solidity ^0.8.4;
 
 import {Test, console} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -22,7 +23,6 @@ contract GeniusVaultDOSTest is Test {
     address ORCHESTRATOR;
     address public BRIDGE;
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    address MOCK_VAULT;
 
     address public constant NATIVE = address(0);
     ERC20 public TOKEN1;
@@ -68,17 +68,35 @@ contract GeniusVaultDOSTest is Test {
         routers[0] = address(DEX_ROUTER);
 
         vm.startPrank(OWNER);
-        VAULT = new GeniusVault(address(USDC), OWNER);
-        MULTIVAULT = new GeniusMultiTokenVault(address(USDC), OWNER);
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER);
+        GeniusVault implementation = new GeniusVault();
 
-        VAULT.initialize(address(EXECUTOR));
-        MULTIVAULT.initialize(
-            address(EXECUTOR),
-            supportedTokens,
-            bridges,
+        bytes memory data = abi.encodeWithSelector(
+            GeniusVault.initialize.selector,
+            address(USDC),
+            OWNER
+        );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        VAULT = GeniusVault(address(proxy));
+        GeniusMultiTokenVault implementationMulti = new GeniusMultiTokenVault();
+
+        bytes memory dataMulti = abi.encodeWithSelector(
+            GeniusMultiTokenVault.initialize.selector,
+            address(USDC),
+            OWNER,
+            supportedTokens, 
+            bridges, 
             routers
         );
+
+        ERC1967Proxy proxyMulti = new ERC1967Proxy(address(implementationMulti), dataMulti);
+
+        MULTIVAULT = GeniusMultiTokenVault(address(proxyMulti));
+        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER, new address[](0));
+
+        VAULT.setExecutor(address(EXECUTOR));
+        MULTIVAULT.setExecutor(address(EXECUTOR));
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
