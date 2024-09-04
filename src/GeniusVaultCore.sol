@@ -39,7 +39,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     //                          VARIABLES
     // =============================================================
 
-    uint256 public totalUnclaimedFees; // The total amount of fees that have not been claimed
+    uint256 public unclaimedFees; // The total amount of fees that have not been claimed
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
     uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
 
@@ -112,7 +112,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     ) external payable override virtual onlyOrchestrator whenNotPaused {
         _checkBridgeTargets(targets);
  
-        uint256 totalAssetsBeforeTransfer = totalBalanceExcludingFees();
+        uint256 totalAssetsBeforeTransfer = balanceMinusFees(address(STABLECOIN));
         uint256 neededLiquidty_ = minAssetBalance();
 
         _isAmountValid(amountIn, _availableAssets(totalAssetsBeforeTransfer, neededLiquidty_));
@@ -125,7 +125,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
         _batchExecution(targets, data, values);
 
-        uint256 _stableDelta = totalAssetsBeforeTransfer - totalBalanceExcludingFees();
+        uint256 _stableDelta = totalAssetsBeforeTransfer - balanceMinusFees(address(STABLECOIN));
 
         if (_stableDelta != amountIn) revert GeniusErrors.AmountInAndDeltaMismatch(amountIn, _stableDelta);
 
@@ -184,7 +184,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
             order.amountIn
         );
 
-        totalUnclaimedFees += order.fee;
+        unclaimedFees += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit SwapDeposit(
@@ -213,7 +213,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
 
         // Gas saving
-        uint256 _totalAssets = totalBalanceExcludingFees();
+        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
         uint256 _neededLiquidity = minAssetBalance();
 
         _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
@@ -247,7 +247,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @dev See {IGeniusVault-removeRewardLiquidity}.
      */
     function removeRewardLiquidity(uint256 amount) external override onlyOrchestrator whenNotPaused {
-        uint256 _totalAssets = totalBalanceExcludingFees();
+        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
         uint256 _neededLiquidity = minAssetBalance();
 
         _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
@@ -269,10 +269,10 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      */
     function claimFees(uint256 amount, address token) external override virtual onlyOrchestrator whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > totalUnclaimedFees) revert GeniusErrors.InsufficientFees(amount, totalUnclaimedFees, address(STABLECOIN));
+        if (amount > unclaimedFees) revert GeniusErrors.InsufficientFees(amount, unclaimedFees, address(STABLECOIN));
         if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
 
-        totalUnclaimedFees -= amount;
+        unclaimedFees -= amount;
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         emit FeesClaimed(
@@ -331,8 +331,8 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
         if (_delta != order.amountIn) revert GeniusErrors.InvalidDelta();
 
-        if (totalUnclaimedFees < order.fee) revert GeniusErrors.InsufficientFees(order.fee, totalUnclaimedFees, address(STABLECOIN));
-        totalUnclaimedFees -= order.fee;
+        if (unclaimedFees < order.fee) revert GeniusErrors.InsufficientFees(order.fee, unclaimedFees, address(STABLECOIN));
+        unclaimedFees -= order.fee;
 
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
@@ -455,10 +455,11 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     // =============================================================
 
     /**
-     * @dev See {IGeniusVault-totalBalanceExcludingFees}.
+     * @dev See {IGeniusVault-balanceMinusFees}.
      */
-    function totalBalanceExcludingFees() public view returns (uint256) {
-        return stablecoinBalance() - totalUnclaimedFees;
+    function balanceMinusFees(address token) public virtual override view returns (uint256) {
+        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
+        return stablecoinBalance() - unclaimedFees;
     }
 
     /**
@@ -482,7 +483,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @dev See {IGeniusVault-availableAssets}.
      */
     function availableAssets() public override view returns (uint256) {
-        uint256 _totalAssets = totalBalanceExcludingFees();
+        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
         uint256 _neededLiquidity = minAssetBalance();
 
         return _availableAssets(_totalAssets, _neededLiquidity);
@@ -496,7 +497,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
             stablecoinBalance(),
             availableAssets(),
             totalStakedAssets,
-            totalUnclaimedFees
+            unclaimedFees
         );
     }
 

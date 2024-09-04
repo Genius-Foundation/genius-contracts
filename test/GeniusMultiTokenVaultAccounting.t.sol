@@ -254,7 +254,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
         assertEq(VAULT.stablecoinBalance(), 200 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 175 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 174 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         // Test balances of other supported tokens
@@ -287,7 +287,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
         assertEq(VAULT.stablecoinBalance(), 200 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 175 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 174 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total assets in VAULT mismatch");
 
@@ -297,7 +297,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         vm.stopPrank();
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked stables does not equal 0");
-        assertEq(VAULT.availableAssets(), 100 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 99 ether, "Available stable balance mismatch");
         assertEq(VAULT.totalStakedAssets(), 0, "Total assets in VAULT mismatch");
 
         // Check balances of other supported tokens
@@ -369,7 +369,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
         assertEq(VAULT.stablecoinBalance(), 150 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 125 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 124 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         vm.stopPrank();
@@ -381,7 +381,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
         assertEq(VAULT.stablecoinBalance(), 150 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 60 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 59 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
 
         // =================== WITHDRAW FROM VAULT ===================
@@ -390,7 +390,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked stables does not equal 0");
         assertEq(VAULT.totalStakedAssets(), 0, "Vault total assets mismatch");
-        assertEq(VAULT.availableAssets(), 50 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 49 ether, "Available stable balance mismatch");
 
         vm.stopPrank();
 
@@ -475,11 +475,11 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
         assertEq(VAULT.stablecoinBalance(), 170 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 145 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 144 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
 
         // Donate before changing threshold
-        donateAndAssert(100 ether, 180 ether, 155 ether, 25 ether);
+        donateAndAssert(100 ether, 180 ether, 154 ether, 25 ether);
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
@@ -488,11 +488,11 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked stables mismatch");
         assertEq(VAULT.stablecoinBalance(), 180 ether, "Total stables mismatch");
-        assertEq(VAULT.availableAssets(), 90 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 89 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 90 ether, "Minimum stable balance mismatch");
 
         // Donate before withdrawing
-        donateAndAssert(100 ether, 190 ether, 100 ether, 90 ether);
+        donateAndAssert(100 ether, 190 ether, 99 ether, 90 ether);
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
@@ -501,7 +501,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked stables does not equal 0");
         assertEq(VAULT.totalStakedAssets(), 0, "Vault total assets mismatch");
-        assertEq(VAULT.availableAssets(), 90 ether, "Available stable balance mismatch");
+        assertEq(VAULT.availableAssets(), 89 ether, "Available stable balance mismatch");
 
         // Check balances of other supported tokens
         uint256[] memory tokenBalances = VAULT.supportedTokensBalances();

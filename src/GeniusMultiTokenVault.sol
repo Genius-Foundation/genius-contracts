@@ -33,10 +33,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
     uint256 public supportedTokensCount; // The total number of supported tokens
 
-    mapping(address => bool) public isSupported; // Mapping of token addresses to TokenInfo structs
-    mapping(uint256 => address) public supportedTokensIndex; // Mapping of supported token index to token address
+    mapping(address token => bool isSupported) public supportedTokens; // Mapping of token addresses to TokenInfo structs
+    mapping(uint256 index => address token) public supportedTokensIndex; // Mapping of supported token index to token address
     mapping(address router => uint256 isSupported) public supportedRouters; // Mapping of router address to support status
-    mapping(address token => uint256) public unclaimedFees; // Mapping of token address to total unclaimed fees
+    mapping(address token => uint256) public supportedTokenFees; // Mapping of token address to total unclaimed fees
 
     // =============================================================
     //                          CONSTRUCTOR
@@ -62,7 +62,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     ) external initializer {
         GeniusVaultCore._initialize(stablecoin, admin);
 
-        isSupported[address(STABLECOIN)] = true;
+        supportedTokens[address(STABLECOIN)] = true;
 
         // Add the initial supported tokens
         for (uint256 i; i < tokens.length;) {
@@ -117,17 +117,17 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     function manageToken(address token, bool supported) external override onlyAdmin {
         if (token == address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
         if (supported) {
-            if (isSupported[token]) revert GeniusErrors.DuplicateToken(token);
+            if (supportedTokens[token]) revert GeniusErrors.DuplicateToken(token);
             
-            isSupported[token] = true;
+            supportedTokens[token] = true;
             supportedTokensIndex[supportedTokensCount] = token;
             supportedTokensCount++;
         } else {
-            if (!isSupported[token]) revert GeniusErrors.InvalidToken(token);
+            if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
             uint256 _tokenBalance = tokenBalance(token);
             if (_tokenBalance != 0) revert GeniusErrors.RemainingBalance(_tokenBalance);
             
-            isSupported[token] = false;
+            supportedTokens[token] = false;
             for (uint256 i; i < supportedTokensCount;) {
                 if (supportedTokensIndex[i] == token) {
                     supportedTokensIndex[i] = supportedTokensIndex[supportedTokensCount - 1];
@@ -222,6 +222,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     ) external payable override(GeniusVaultCore, IGeniusVault) onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
+        if (supportedTokens[tokenIn] == false) revert GeniusErrors.InvalidToken(tokenIn);
         if (destChainId == _currentChainId()) revert GeniusErrors.InvalidDestChainId(destChainId);
         if (fillDeadline <= _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(fillDeadline);
 
@@ -252,21 +253,34 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
                 order.amountIn,
                 postBalance - preBalance
             );
-        } else if (isSupported[tokenIn]) {
+        } else if (supportedTokens[tokenIn]) {
             if (tokenIn == NATIVE) {
                 if (msg.value != order.amountIn) revert GeniusErrors.InvalidAmount();
                 preBalance = address(this).balance - msg.value;
                 postBalance = address(this).balance;
+
+                if (postBalance - preBalance != order.amountIn) revert GeniusErrors.UnexpectedBalanceChange(
+                    tokenIn,
+                    order.amountIn,
+                    postBalance - preBalance
+                );
+
             } else {
                 preBalance = tokenBalance(tokenIn);
                 _transferERC20From(tokenIn, msg.sender, address(this), order.amountIn);
                 postBalance = tokenBalance(tokenIn);
+
+                if (postBalance - preBalance != order.amountIn) revert GeniusErrors.UnexpectedBalanceChange(
+                    tokenIn,
+                    order.amountIn,
+                    postBalance - preBalance
+                );
             }
         } else {
             revert GeniusErrors.InvalidToken(tokenIn);
         }
 
-        unclaimedFees[tokenIn] += order.fee;
+        supportedTokenFees[tokenIn] += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;        
 
         emit SwapDeposit(
@@ -298,7 +312,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         // Gas saving
-        uint256 _stablecoinBalance = stablecoinBalance();
+        uint256 _stablecoinBalance = balanceMinusFees(address(STABLECOIN));
         uint256 _neededLiquidity = minAssetBalance();
         
         _isAmountValid(order.amountIn, _availableAssets(_stablecoinBalance, _neededLiquidity));
@@ -333,10 +347,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      */
     function claimFees(uint256 amount, address token) external override(IGeniusVault, GeniusVaultCore) onlyOrchestrator whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (!isSupported[token]) revert GeniusErrors.InvalidToken(token);
-        if (unclaimedFees[token] < amount) revert GeniusErrors.InsufficientFees(
+        if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
+        if (supportedTokenFees[token] < amount) revert GeniusErrors.InsufficientFees(
             amount,
-            unclaimedFees[token],
+            supportedTokenFees[token],
             token
         );
 
@@ -364,7 +378,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         bytes calldata data
     ) external override onlyOrchestrator whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (!isSupported[token]) revert GeniusErrors.InvalidToken(token);
+        if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
         uint256 _tokenBalance = tokenBalance(token);
         if (_tokenBalance < amount) revert GeniusErrors.InsufficientBalance(token, amount, _tokenBalance);
         if (target == address(0)) revert GeniusErrors.InvalidTarget(target);
@@ -431,12 +445,17 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     //                        READ FUNCTIONS
     // =============================================================
 
+    function balanceMinusFees(address token) public view override (IGeniusVault, GeniusVaultCore) returns (uint256) {
+        if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
+        return tokenBalance(token) - supportedTokenFees[token];
+    }
+
 
     /**
      * @dev See {IGeniusMultiTokenPool-isTokenSupported}.
      */
     function isTokenSupported(address token) public view override returns (bool) {
-        return isSupported[token];
+        return supportedTokens[token];
     }
 
     // =============================================================
@@ -448,9 +467,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      * @param token The address of the token to be added.
      */
     function _addInitialToken(address token) internal {
-        if (isSupported[token]) revert GeniusErrors.DuplicateToken(token);
+        if (supportedTokens[token]) revert GeniusErrors.DuplicateToken(token);
         
-        isSupported[token] = true;
+        supportedTokens[token] = true;
         supportedTokensIndex[supportedTokensCount] = token;
         supportedTokensCount++;
     }

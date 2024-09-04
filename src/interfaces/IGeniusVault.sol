@@ -173,7 +173,7 @@ interface IGeniusVault {
      * @notice Returns the total balance of the vault excluding fees.
      * @return The total balance of the vault excluding fees.
      */
-    function totalBalanceExcludingFees() external view returns (uint256);
+    function balanceMinusFees(address token) external view returns (uint256);
 
     /**
      * @notice Returns the total balance of the vault.
