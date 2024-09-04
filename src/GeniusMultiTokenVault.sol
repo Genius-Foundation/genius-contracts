@@ -149,7 +149,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      */
     function removeBridgeLiquidity(
         uint256 amountIn,
-        uint16 dstChainId,
+        uint32 dstChainId,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata data
