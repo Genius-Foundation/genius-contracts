@@ -251,7 +251,7 @@ contract GeniusVaultTest is Test {
 
         assertEq(USDC.balanceOf(address(VAULT)), 500 ether, "GeniusVault balance should be 500 ether");
         assertEq(VAULT.stablecoinBalance(), 500 ether, "Total assets should be 1,000 ether");
-        assertEq(VAULT.availableAssets(), 498 ether, "Total available assets should be 0 ether");
+        assertEq(VAULT.availableAssets(), 499 ether, "Total available assets should be 0 ether");
         assertEq( VAULT.totalStakedAssets(), 0, "Total staked assets should be 0 ether");
         assertEq(USDC.balanceOf(TRADER), 1000 ether, "Orchestrator balance should be unchanged");
     }

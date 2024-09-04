@@ -427,16 +427,9 @@ contract GeniusVault is IGeniusVault, ERC4626, AccessControl, Pausable {
      */
     function minAssetBalance() public override view returns (uint256) {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-        
-        // Calculate the minimum balance based on staked assets
         uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
         
-        // Add the unclaimed fees to the minimum balance
-        uint256 totalMinBalance = minBalance + totalUnclaimedFees;
-        
-        // Ensure we're not returning a value larger than totalStakedAssets + totalUnclaimedFees
-        uint256 totalLiabilities = totalStakedAssets + totalUnclaimedFees;
-        return totalMinBalance > totalLiabilities ? totalLiabilities : totalMinBalance;
+        return minBalance;
     }
 
     /**
