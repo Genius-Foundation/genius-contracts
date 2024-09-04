@@ -281,12 +281,21 @@ contract MultiTokenPoolExecutorInteractions is Test {
             swapAmount / 2 
         );
 
+        bytes[] memory data = new bytes[](1);
+        data[0] = swapCalldata;
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(ROUTER);
+
+        uint256[] memory values = new uint256[](1);
+        values[0] = swapAmount;
+
         // Perform the native swap and deposit via GeniusExecutor
         vm.prank(TRADER);
         EXECUTOR.nativeSwapAndDeposit{value: swapAmount}(
-            address(ROUTER),
-            swapCalldata,
-            swapAmount,
+            targets,
+            data,
+            values,
             TRADER
         );
 

@@ -323,11 +323,20 @@ contract GeniusExecutorTest is Test {
             10 ether
         );
 
+        address[] memory targets = new address[](1);
+        targets[0] = address(USDC);
+
+        bytes[] memory data = new bytes[](1);
+        data[0] = transferCalldata;
+
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+
 
         EXECUTOR.nativeSwapAndDeposit(
-            address(USDC),
-            transferCalldata,
-            0,
+            targets,
+            data,
+            values,
             trader
         );
 

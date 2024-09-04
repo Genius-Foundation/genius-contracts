@@ -174,24 +174,20 @@ contract GeniusExecutor {
 
     /**
     * @dev Simplified function to perform a single swap and then deposit stablecoins to a vault.
-    * @param target The address to call.
+    * @param targets The address to call.
     * @param data The calldata to forward to the target.
-    * @param value How much ETH to forward to the target.
+    * @param values How much ETH to forward to the target.
     * @param trader The address of the trader to deposit for.
     */
     function nativeSwapAndDeposit(
-        address target,
-        bytes calldata data,
-        uint256 value,
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values,
         address trader
     ) external payable {
-        require(target != address(0), "Invalid target address");
-
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
-        (bool _success, ) = target.call{value: value}(data);
-
-        if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+        _batchExecution(targets, data, values);
 
         uint256 _depositAmount = STABLECOIN.balanceOf(address(this)) - _initStableValue;
         if (!STABLECOIN.approve(address(POOL), _depositAmount)) revert GeniusErrors.ApprovalFailure(
