@@ -105,7 +105,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      */
     function removeBridgeLiquidity(
         uint256 amountIn,
-        uint16 dstChainId,
+        uint32 dstChainId,
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data

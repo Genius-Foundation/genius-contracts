@@ -143,7 +143,7 @@ interface IGeniusVault {
      */
     event RemovedLiquidity(
         uint256 amount,
-        uint16 chainId
+        uint32 chainId
     );
 
     /**
@@ -199,7 +199,7 @@ interface IGeniusVault {
      */
     function removeBridgeLiquidity(
         uint256 amountIn,
-        uint16 dstChainId,
+        uint32 dstChainId,
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
