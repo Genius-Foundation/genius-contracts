@@ -271,7 +271,8 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
     /**
      * @dev Internal function to find the available assets for a given amount.
-     * @param bridgeTargets The array of bridge target addresses to check.
+     * @param _totalAssets The total assets available after the operation.
+     * @param _neededLiquidity The amount of assets needed for the operation.
      */
     function _availableAssets(uint256 _totalAssets, uint256 _neededLiquidity) internal pure returns (uint256) {
         if (_totalAssets < _neededLiquidity) {
