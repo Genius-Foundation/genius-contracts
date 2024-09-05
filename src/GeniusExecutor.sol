@@ -22,20 +22,25 @@ import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
 contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     using SafeERC20 for IERC20;
 
-    // =============================================================
-    //                           VARIABLES
-    // =============================================================
-    mapping(address => uint256) private allowedTargets;
-
-    // =============================================================
-    //                          IMMUTABLES
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                        IMMUTABLES                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
     IAllowanceTransfer public immutable override PERMIT2;
     IERC20 public immutable override STABLECOIN;
     IGeniusVault public immutable VAULT;
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                         VARIABLES                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    mapping(address => uint256) private allowedTargets;
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                        CONSTRUCTOR                        ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     constructor(
         address permit2,
@@ -61,9 +66,9 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         }
     }
 
-    // =============================================================
-    //                          MODIFIERS
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                        MODIFIERS                          ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     modifier onlyAdmin() {
         if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert GeniusErrors.IsNotAdmin();
@@ -75,16 +80,9 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _;
     }
 
-    // =============================================================
-    //                      EXTERNAL FUNCTIONS
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusExecutor-setAllowedTarget}.
-     */
-    function setAllowedTarget(address target, bool isAllowed) external override onlyAdmin {
-        allowedTargets[target] = isAllowed ? 1 : 0;
-    }
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                AGGREGATED SWAP FUNCTIONS                  ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusExecutor-aggregateWithPermit2}.
@@ -123,6 +121,10 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _batchExecution(targets, data, values);
         if (msg.value > 0) _sweepNative(msg.sender);
     }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                MULTICHAIN SWAP FUNCTIONS                  ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusExecutor-tokenSwapAndDeposit}.
@@ -258,6 +260,10 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         if (msg.value > 0) _sweepNative(msg.sender);
     }
 
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                     STAKING FUNCTIONS                     ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
     /**
      * @dev See {IGeniusExecutor-depositToVault}.
      */
@@ -298,9 +304,20 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         if (_residBalance > 0) revert GeniusErrors.ResidualBalance(_residBalance);
     }
 
-    // =============================================================
-    //                      INTERNAL FUNCTIONS
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                      ADMIN FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    /**
+     * @dev See {IGeniusExecutor-setAllowedTarget}.
+     */
+    function setAllowedTarget(address target, bool isAllowed) external override onlyAdmin {
+        allowedTargets[target] = isAllowed ? 1 : 0;
+    }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                   INTERNAL FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     function _transferERC20(
         address token,
