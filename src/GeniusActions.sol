@@ -14,10 +14,16 @@ import "./interfaces/IGeniusActions.sol";
  */
 contract GeniusActions is IGeniusActions, AccessControl {
 
-    // Constants
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                        IMMUTABLES                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
     bytes32 public constant SENTINEL_ROLE = keccak256("SENTINEL_ROLE");
 
-    // State variables
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                         VARIABLES                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
     uint256 nextActionId = 1;
 
     mapping(uint256 => Action) internal idToAction;
@@ -25,6 +31,10 @@ contract GeniusActions is IGeniusActions, AccessControl {
     mapping(bytes32 => uint256) internal labelToId;
     mapping(address => bool) internal authorizedOrchestrators;
     mapping(bytes32 => bool) internal authorizedCommitHashes;
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                        CONSTRUCTOR                        ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @notice Initializes the contract with an initial admin
@@ -37,7 +47,9 @@ contract GeniusActions is IGeniusActions, AccessControl {
         _grantRole(SENTINEL_ROLE, initialAdmin);
     }
 
-    // Modifiers
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                         MODIFIERS                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     modifier onlyAdmin() {
         require(hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "OwnablePausable: access denied");
@@ -48,6 +60,10 @@ contract GeniusActions is IGeniusActions, AccessControl {
         require(hasRole(SENTINEL_ROLE, msg.sender), "OwnablePausable: access denied");
         _;
     }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                      WRITE FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusActions-setOrchestratorAuthorized}.
@@ -180,6 +196,10 @@ contract GeniusActions is IGeniusActions, AccessControl {
         emit CommitHashAuthorized(_commitHash, false);
     }
 
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                       READ FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
     /**
      * @dev See {IGeniusActions-isAuthorizedOrchestrator}.
      */
@@ -225,6 +245,10 @@ contract GeniusActions is IGeniusActions, AccessControl {
     function getActionHashFromIpfsHash(string memory ipfsHash) public pure returns (bytes32) {
         return keccak256(abi.encodePacked(ipfsHash));
     }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                      INTERNAL FUNCTIONS                   ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev Internal function to update an action's IPFS hash
