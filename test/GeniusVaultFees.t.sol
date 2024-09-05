@@ -85,6 +85,13 @@ contract GeniusVaultFees is Test {
         deal(address(USDC), address(EXECUTOR), 1_000 ether);
     }
 
+    function testSetFee() public {
+        vm.startPrank(OWNER);
+        VAULT.setCrosschainFee(10);
+
+        assertEq(VAULT.crosschainFee(), 10, "Fee should be 10 bps");
+    }
+
     function testAddLiquidity() public {
         vm.startPrank(address(EXECUTOR));
         USDC.approve(address(VAULT), 1_000 ether);
