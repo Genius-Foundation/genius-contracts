@@ -13,6 +13,11 @@ contract GeniusVault is GeniusVaultCore {
         _disableInitializers();
     }
 
+    /**
+     * @notice Initializes the vault
+     * @param stablecoin The address of the stablecoin to use
+     * @param admin The address of the admin
+     */
     function initialize(
         address stablecoin,
         address admin
@@ -21,7 +26,8 @@ contract GeniusVault is GeniusVaultCore {
     }
 
     /**
-     * @dev See {IGeniusVault-removeRewardLiquidity}.
+     * @notice Removes liquidity from the vault to be used for rewarding stakers
+     * @param amount The amount of liquidity to remove
      */
     function removeRewardLiquidity(uint256 amount) external onlyOrchestrator whenNotPaused {
         uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
@@ -212,9 +218,13 @@ contract GeniusVault is GeniusVaultCore {
         );
     }
 
-    /**
-     * @dev See {IGeniusVault-revertOrder}.
-     */
+   /**
+    * @notice Reverts an order and refunds the trader
+    * @param order The order to revert
+    * @param targets The targets to call
+    * @param data The data to pass to the targets
+    * @param values The values to pass to the targets
+    */
     function revertOrder(
         Order calldata order, 
         address[] calldata targets,

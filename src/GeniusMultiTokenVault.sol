@@ -21,15 +21,15 @@ import {GeniusVaultCore} from "./GeniusVault.sol";
 contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     using SafeERC20 for IERC20;
 
-    // =============================================================
-    //                          IMMUTABLES
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                        IMMUTABLES                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
     
     address public immutable NATIVE = address(0);
 
-    // =============================================================
-    //                          VARIABLES
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                         VARIABLES                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     uint256 public supportedTokensCount; // The total number of supported tokens
     mapping(address token => bool isSupported) public supportedTokens; // Mapping of token addresses to TokenInfo structs
@@ -39,17 +39,17 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     mapping(address token => uint256) public supportedTokenReservedFees; // Mapping of token address to total unclaimed fees
 
 
-    // =============================================================
-    //                          CONSTRUCTOR
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                        CONSTRUCTOR                        ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     constructor() {
         _disableInitializers();
     }
 
-    // =============================================================
-    //                            INITIALIZE
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                      INITIALIZATION                       ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusMultiTokenPool-initialize}.
@@ -87,60 +87,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         }
     }
 
-    function tokenBalance(address token) public view override returns (uint256) {
-        if (token == NATIVE) {
-            return address(this).balance;
-        } else {
-            return IERC20(token).balanceOf(address(this));
-        }
-    }
-
-    function supportedTokensBalances() public view override returns (uint256[] memory) {
-        uint256[] memory balances = new uint256[](supportedTokensCount);
-        for (uint256 i; i < supportedTokensCount; i++) {
-            address token = supportedTokensIndex[i];
-            uint256 balance = tokenBalance(token);
-            balances[i] = balance;
-        }
-        return balances;
-    }
-
-    // =============================================================
-    //                        TOKEN MANAGEMENT
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusMultiTokenPool-manageToken}.
-     */
-    function manageToken(address token, bool supported) external override onlyAdmin {
-        if (token == address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
-        if (supported) {
-            if (supportedTokens[token]) revert GeniusErrors.DuplicateToken(token);
-            
-            supportedTokens[token] = true;
-            supportedTokensIndex[supportedTokensCount] = token;
-            supportedTokensCount++;
-        } else {
-            if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
-            uint256 _tokenBalance = tokenBalance(token);
-            if (_tokenBalance != 0) revert GeniusErrors.RemainingBalance(_tokenBalance);
-            
-            supportedTokens[token] = false;
-            for (uint256 i; i < supportedTokensCount;) {
-                if (supportedTokensIndex[i] == token) {
-                    supportedTokensIndex[i] = supportedTokensIndex[supportedTokensCount - 1];
-                    delete supportedTokensIndex[supportedTokensCount - 1];
-                    supportedTokensCount--;
-                    break;
-                }
-                unchecked { ++i; }
-            }
-        }
-    }
-
-    // =============================================================
-    //                 BRIDGE LIQUIDITY REBALANCING
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                  BRIDGE LIQUIDITY BALANCING               ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusMultiTokenPool-removeBridgeLiquidity}.
@@ -197,9 +146,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         emit RemovedLiquidity(amountIn, dstChainId);
     }
 
-    // =============================================================
-    //                      SWAP LIQUIDITY
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                       SWAP LIQUIDITY                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusMultiTokenPool-addLiquiditySwap}.
@@ -313,27 +262,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         );
     }
 
-    /**
-     * @dev See {IGeniusVault-claimFees}.
-     */
-    function claimFees(uint256 amount, address token) external override onlyOrchestrator whenNotPaused {
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
-        if (supportedTokenFees[token] < amount) revert GeniusErrors.InsufficientFees(
-            amount,
-            supportedTokenFees[token],
-            token
-        );
-
-        if (token == NATIVE) {
-            (bool success, ) = msg.sender.call{value: amount}("");
-            if (!success) revert GeniusErrors.TransferFailed(NATIVE, amount);
-        } else {
-            _transferERC20(token, msg.sender, amount);
-        }
-
-        emit FeesClaimed(token, amount);
-    }
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                       SWAP FUNCTION                       ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusMultiTokenPool-swapToStables}.
@@ -385,6 +316,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         emit SwapExecuted(token, amount, stableDelta);
     }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                      ORDER FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusVault-setOrderAsFilled}.
@@ -452,6 +387,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         );
     }
 
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                      ADMIN FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
     /**
      * @dev See {IGeniusMultiTokenPool-manageRouter}.
      */
@@ -463,6 +402,85 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             if (supportedRouters[router] == 0) revert GeniusErrors.InvalidRouter(router);
             supportedRouters[router] = 0;
         }
+    }
+
+        /**
+     * @dev See {IGeniusMultiTokenPool-manageToken}.
+     */
+    function manageToken(address token, bool supported) external override onlyAdmin {
+        if (token == address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
+        if (supported) {
+            if (supportedTokens[token]) revert GeniusErrors.DuplicateToken(token);
+            
+            supportedTokens[token] = true;
+            supportedTokensIndex[supportedTokensCount] = token;
+            supportedTokensCount++;
+        } else {
+            if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
+            uint256 _tokenBalance = tokenBalance(token);
+            if (_tokenBalance != 0) revert GeniusErrors.RemainingBalance(_tokenBalance);
+            
+            supportedTokens[token] = false;
+            for (uint256 i; i < supportedTokensCount;) {
+                if (supportedTokensIndex[i] == token) {
+                    supportedTokensIndex[i] = supportedTokensIndex[supportedTokensCount - 1];
+                    delete supportedTokensIndex[supportedTokensCount - 1];
+                    supportedTokensCount--;
+                    break;
+                }
+                unchecked { ++i; }
+            }
+        }
+    }
+
+    /**
+     * @dev See {IGeniusVault-claimFees}.
+     */
+    function claimFees(uint256 amount, address token) external override onlyOrchestrator whenNotPaused {
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
+        if (supportedTokenFees[token] < amount) revert GeniusErrors.InsufficientFees(
+            amount,
+            supportedTokenFees[token],
+            token
+        );
+
+        if (token == NATIVE) {
+            (bool success, ) = msg.sender.call{value: amount}("");
+            if (!success) revert GeniusErrors.TransferFailed(NATIVE, amount);
+        } else {
+            _transferERC20(token, msg.sender, amount);
+        }
+
+        emit FeesClaimed(token, amount);
+    }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                       READ FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    /**
+     * @dev See {IGeniusMultiTokenVault-tokenBalance}.
+     */
+    function tokenBalance(address token) public view override returns (uint256) {
+        if (token == NATIVE) {
+            return address(this).balance;
+        } else {
+            return IERC20(token).balanceOf(address(this));
+        }
+    }
+
+    /**
+     * @dev See {IGeniusMultiTokenVault-supportedTokensBalances}.
+     */
+    function supportedTokensBalances() public view override returns (uint256[] memory) {
+        uint256[] memory balances = new uint256[](supportedTokensCount);
+        for (uint256 i; i < supportedTokensCount; i++) {
+            address token = supportedTokensIndex[i];
+            uint256 balance = tokenBalance(token);
+            balances[i] = balance;
+        }
+        return balances;
     }
 
     /**
@@ -500,6 +518,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     function isTokenSupported(address token) public view override returns (bool) {
         return supportedTokens[token];
     }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                   INTERNAL FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev Adds an initial token to the GeniusMultiTokenPool.

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test, console} from "forge-std/Test.sol";
-
 import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -25,9 +23,9 @@ import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
 abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgradeable, AccessControlUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
 
-    // =============================================================
-    //                          IMMUTABLES
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                        IMMUTABLES                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
@@ -35,21 +33,20 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     IERC20 public STABLECOIN;
     address public EXECUTOR;
 
-    // =============================================================
-    //                          VARIABLES
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                         VARIABLES                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     uint256 public crosschainFee; // The fee charged for cross-chain swaps
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
     uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
 
     mapping(address bridge => uint256 isSupported) public supportedBridges; // Mapping of bridge address to support status
+    mapping(bytes32 => OrderStatus) public orderStatus; // Mapping of order hash to order status
 
-    mapping(bytes32 => OrderStatus) public orderStatus;
-
-    // =============================================================
-    //                          MODIFIERS
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                         MODIFIERS                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     modifier onlyExecutor() {
         if (msg.sender != EXECUTOR) revert GeniusErrors.IsNotExecutor();
@@ -71,9 +68,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         _;
     }
 
-    // =============================================================
-    //                            INITIALIZE
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                      INITIALIZATION                       ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusVault-initialize}.
@@ -97,9 +94,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         _grantRole(PAUSER_ROLE, admin);
     }
 
-    // =============================================================
-    //                      STAKING
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                    STAKING FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusVault-stakeDeposit}.
@@ -144,9 +141,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         STABLECOIN.safeTransfer(receiver, amount);
     }
 
-    // =============================================================
-    //                     ADMIN
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                      ADMIN FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusVault-setRebalanceThreshold}.
@@ -170,9 +167,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         crosschainFee = fee;
     }
 
-    // =============================================================
-    //                        BRIDGE MANAGEMENT
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                    BRIDGE MANAGEMENT                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusMultiTokenVault-manageBridge}.
@@ -187,9 +184,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         }
     }
 
-    // =============================================================
-    //                           EMERGENCY
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                         EMERGENCY                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusVault-emergencyLock}.
@@ -205,9 +202,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         _unpause();
     }
 
-    // =============================================================
-    //                        READ FUNCTIONS
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                       READ FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusVault-totalAssets}.
@@ -241,9 +238,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      */
     function allAssets() external view virtual returns (uint256, uint256, uint256);
 
-    // =============================================================
-    //                     INTERNAL FUNCTIONS
-    // =============================================================
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                   INTERNAL FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
@@ -272,6 +269,10 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
     }
 
+    /**
+     * @dev Internal function to find the available assets for a given amount.
+     * @param bridgeTargets The array of bridge target addresses to check.
+     */
     function _availableAssets(uint256 _totalAssets, uint256 _neededLiquidity) internal pure returns (uint256) {
         if (_totalAssets < _neededLiquidity) {
             return 0;
@@ -280,6 +281,11 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         return _totalAssets - _neededLiquidity;
     }
 
+    /**
+     * @dev Internal function to determine if a given amount is valid for withdrawal.
+     * @param amount_ The amount to withdraw.
+     * @param availableAssets_ The total available assets.
+     */
     function _isAmountValid(uint256 amount_, uint256 availableAssets_) internal pure {
         if (amount_ == 0) revert GeniusErrors.InvalidAmount();
 
@@ -289,12 +295,21 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         );
     }
 
+    /**
+     * @dev Internal function to spend an allowance.
+     * @param balance The expected balance after interactions.
+     */
     function _isBalanceWithinThreshold(uint256 balance) internal view returns (bool) {
         uint256 lowerBound = (totalStakedAssets * rebalanceThreshold) / 100;
 
         return balance >= lowerBound;
     }
 
+    /**
+     * @dev Internal function to update the staked balance.
+     * @param amount The amount to update the balance with.
+     * @param add The operation to perform. 1 for addition, 0 for subtraction.
+     */
     function _updateStakedBalance(uint256 amount, uint256 add) internal {
         if (add == 1) {
             totalStakedAssets += amount;
@@ -303,6 +318,10 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         }
     }
 
+    /**
+     * @dev Internal function to sum token amounts.
+     * @param amounts The array of token amounts to sum.
+     */
     function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
         for (uint i = 0; i < amounts.length;) {
             total += amounts[i];
@@ -311,6 +330,13 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         }
     }
 
+    /**
+    * @dev Internal function to calculate the refund amount for a reverted order.
+    * @param amountIn The total amount of stablecoins sent within the order.
+    * @param fee The total fee charged for the order.
+    * @return refundAmount The amount to refund to the user.
+    * @return protocolFee The fee without the swap fee.
+     */
     function _calculateRefundAmount(uint256 amountIn, uint256 fee) internal view returns (uint256 refundAmount, uint256 protocolFee) {
         uint256 _swapFee = (amountIn * crosschainFee) / 10_000;
         uint256 _protocolFee = fee - _swapFee;
@@ -318,6 +344,12 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         return (amountIn - _protocolFee, _protocolFee);
     }
 
+    /**
+     * @dev Internal function to safeTransfer ERC20 tokens.
+     * @param token The address of the token to transfer.
+     * @param to The address to transfer the tokens to.
+     * @param amount The amount of tokens to transfer.
+     */
     function _transferERC20(
         address token,
         address to,
@@ -326,6 +358,13 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         IERC20(token).safeTransfer(to, amount);
     }
 
+    /**
+     * @dev Internal function to safeTransferFrom ERC20 tokens.
+     * @param token The address of the token to transfer.
+     * @param from The address to transfer the tokens from.
+     * @param to The address to transfer the tokens to.
+     * @param amount The amount of tokens to transfer.
+     */
     function _transferERC20From(
         address token,
         address from,
@@ -335,6 +374,12 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         IERC20(token).safeTransferFrom(from, to, amount);
     }
 
+    /**
+     * @dev Internal function to batch execute external calls.
+     * @param targets The array of target addresses to call.
+     * @param data The array of data to pass to the target addresses.
+     * @param values The array of values to send to the target addresses.
+     */
     function _batchExecution(
         address[] memory targets,
         bytes[] memory data,
@@ -348,10 +393,16 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         }
     }
 
+    /**
+     * @dev Internal function to fetch the current chain ID.
+     */
     function _currentChainId() internal view returns (uint256) {
         return block.chainid;
     }
 
+    /**
+     * @dev Internal function to fetch the current timestamp.
+     */
     function _currentTimeStamp() internal view returns (uint256) {
         return block.timestamp;
     }
