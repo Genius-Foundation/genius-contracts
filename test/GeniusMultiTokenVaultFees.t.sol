@@ -102,6 +102,8 @@ contract GeniusMultiTokenVaultFees is Test {
     }
 
     function testSetFee() public {
+        assertEq(VAULT.crosschainFee(), 30, "Fee should be 30 bps");
+
         vm.startPrank(OWNER);
         VAULT.setCrosschainFee(10);
 
@@ -116,7 +118,8 @@ contract GeniusMultiTokenVaultFees is Test {
         assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
 
-        assertEq(VAULT.supportedTokenFees(address(USDC)), 1 ether, "Total unclaimed fees should be 1 ether");
+        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "Total unclaimed fees should be 1 ether");
+        assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "Total reserved fees should be 1 ether");
         assertEq(VAULT.balanceMinusFees(address(USDC)), 999 ether, "Total balance excluding fees should be 999 ether");
         assertEq(VAULT.tokenBalance(address(USDC)), 1_000 ether, "Stablecoin balance should be 1,000 ether");
     }
@@ -153,7 +156,8 @@ contract GeniusMultiTokenVaultFees is Test {
         // Add assertions to check the state after removing liquidity
         assertEq(USDC.balanceOf(address(VAULT)), 1 ether, "GeniusVault balance should be 1 ether (only fees left)");
         assertEq(USDC.balanceOf(address(EXECUTOR)), 999 ether, "Executor balance should be 999 ether");
-        assertEq(VAULT.supportedTokenFees(address(USDC)), 1 ether, "Total unclaimed fees should still be 1 ether");
+        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "Total unclaimed fees should still be 1 ether");
+        assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "Total reserved fees should be 0");
         assertEq(VAULT.balanceMinusFees(address(USDC)), 0, "Total balance excluding fees should be 0");
         assertEq(VAULT.tokenBalance(address(USDC)), 1 ether, "Stablecoin balance should be 1 ether");
     }
@@ -191,7 +195,8 @@ contract GeniusMultiTokenVaultFees is Test {
         // Add assertions to check the state after removing liquidity
         assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
-        assertEq(VAULT.supportedTokenFees(address(USDC)), 1 ether, "Total unclaimed fees should still be 1 ether");
+        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "Total unclaimed fees should still be 1 ether");
+        assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "Total reserved fees should be 1 ether");
         assertEq(VAULT.balanceMinusFees(address(USDC)), 999 ether, "Total balance excluding fees should be 999 ether");
         assertEq(VAULT.tokenBalance(address(USDC)), 1_000 ether, "Stablecoin balance should be 1,000 ether");
     }
@@ -214,8 +219,12 @@ contract GeniusMultiTokenVaultFees is Test {
         assertEq(WETH.balanceOf(address(VAULT)), 1_000 ether, "WETH balance should be 1,000 ether");
         assertEq(USDT.balanceOf(address(VAULT)), 1_000 ether, "USDT balance should be 1,000 ether");
 
-        assertEq(VAULT.supportedTokenFees(address(USDC)), 1 ether, "USDC unclaimed fees should be 1 ether");
-        assertEq(VAULT.supportedTokenFees(address(WETH)), 1 ether, "WETH unclaimed fees should be 1 ether");
-        assertEq(VAULT.supportedTokenFees(address(USDT)), 1 ether, "USDT unclaimed fees should be 1 ether");
+        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "USDC unclaimed fees should be 1 ether");
+        assertEq(VAULT.supportedTokenFees(address(WETH)), 0, "WETH unclaimed fees should be 1 ether");
+        assertEq(VAULT.supportedTokenFees(address(USDT)), 0, "USDT unclaimed fees should be 1 ether");
+
+        assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "USDC unclaimed fees should be 1 ether");
+        assertEq(VAULT.supportedTokenReservedFees(address(WETH)), 1 ether, "WETH unclaimed fees should be 1 ether");
+        assertEq(VAULT.supportedTokenReservedFees(address(USDT)), 1 ether, "USDT unclaimed fees should be 1 ether");
     }
 }

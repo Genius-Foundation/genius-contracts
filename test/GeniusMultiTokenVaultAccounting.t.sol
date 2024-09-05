@@ -290,6 +290,8 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(VAULT.availableAssets(), 174 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total assets in VAULT mismatch");
+        assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "USDC reserved fees mismatch");
+        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "USDC fees mismatch");
 
         // Start acting as TRADER again
         vm.startPrank(TRADER);
@@ -371,6 +373,8 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(VAULT.stablecoinBalance(), 150 ether, "Total stables mismatch");
         assertEq(VAULT.availableAssets(), 124 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "USDC reserved fees mismatch");
+        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "USDC fees mismatch");
 
         vm.stopPrank();
 
@@ -477,6 +481,8 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(VAULT.stablecoinBalance(), 170 ether, "Total stables mismatch");
         assertEq(VAULT.availableAssets(), 144 ether, "Available stable balance mismatch");
         assertEq(VAULT.minAssetBalance(), 25 ether, "Minimum stable balance mismatch");
+        assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "USDC reserved fees mismatch");
+        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "USDC fees mismatch");
 
         // Donate before changing threshold
         donateAndAssert(100 ether, 180 ether, 154 ether, 25 ether);
@@ -536,26 +542,41 @@ contract GeniusMultiTokenVaultAccounting is Test {
         assertEq(VAULT.stablecoinBalance(), bridgeAmount, "USDC deposit failed");
         assertEq(USDC.balanceOf(address(VAULT)), bridgeAmount, "USDC balance mismatch");
 
+        assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "USDC reserved fees mismatch");
+        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "USDC fees mismatch");
+
         // Test TOKEN1 deposit
         TOKEN1.approve(address(VAULT), bridgeAmount);
         VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(TOKEN1), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         assertEq(TOKEN1.balanceOf(address(VAULT)), bridgeAmount, "TOKEN1 balance mismatch");
+
+        assertEq(VAULT.supportedTokenReservedFees(address(TOKEN1)), 1 ether, "TOKEN1 reserved fees mismatch");
+        assertEq(VAULT.supportedTokenFees(address(TOKEN1)), 0, "TOKEN1 fees mismatch");
 
         // Test TOKEN2 deposit
         TOKEN2.approve(address(VAULT), bridgeAmount);
         VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(TOKEN2), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         assertEq(TOKEN2.balanceOf(address(VAULT)), bridgeAmount, "TOKEN2 balance mismatch");
 
+        assertEq(VAULT.supportedTokenReservedFees(address(TOKEN2)), 1 ether, "TOKEN2 reserved fees mismatch");
+        assertEq(VAULT.supportedTokenFees(address(TOKEN2)), 0, "TOKEN2 fees mismatch");
+
         // Test TOKEN3 deposit
         TOKEN3.approve(address(VAULT), bridgeAmount);
         VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(TOKEN3), bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         assertEq(TOKEN3.balanceOf(address(VAULT)), bridgeAmount, "TOKEN3 balance mismatch");
+
+        assertEq(VAULT.supportedTokenReservedFees(address(TOKEN3)), 1 ether, "TOKEN3 reserved fees mismatch");
+        assertEq(VAULT.supportedTokenFees(address(TOKEN3)), 0, "TOKEN3 fees mismatch");
 
         // Test native ETH deposit
         uint256 initialETHBalance = address(VAULT).balance;
         vm.deal(address(EXECUTOR), bridgeAmount); // Ensure TRADER has enough ETH
         VAULT.addLiquiditySwap{value: bridgeAmount}(keccak256("order"), TRADER, NATIVE, bridgeAmount, 42, uint32(block.timestamp + 1000), 1 ether);
         assertEq(address(VAULT).balance - initialETHBalance, bridgeAmount, "ETH deposit failed");
+
+        assertEq(VAULT.supportedTokenReservedFees(NATIVE), 1 ether, "NATIVE reserved fees mismatch");
+        assertEq(VAULT.supportedTokenFees(NATIVE), 0, "NATIVE fees mismatch");
 
         // Verify token balances using supportedTokensBalances
         uint256[] memory tokenBalances = VAULT.supportedTokensBalances();
@@ -614,6 +635,8 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         assertEq(address(VAULT).balance - initialETHBalance, 0, "ETH should not be held in VAULT");
         assertEq(USDC.balanceOf(address(VAULT)), 50 ether, "USDC balance mismatch after swap");
+        assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "NATIVE reserved fees mismatch");
+        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "NATIVE fees mismatch");
 
         // Verify token balances using supportedTokensBalances
         uint256[] memory tokenBalances = VAULT.supportedTokensBalances();

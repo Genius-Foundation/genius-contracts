@@ -39,7 +39,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     //                          VARIABLES
     // =============================================================
 
-    uint256 public crosschainFee = 30; // The fee charged for cross-chain swaps
+    uint256 public crosschainFee; // The fee charged for cross-chain swaps
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
     uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
 
@@ -91,36 +91,10 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
         STABLECOIN = IERC20(stablecoin);
         rebalanceThreshold = 75;
+        crosschainFee = 30;
         
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(PAUSER_ROLE, admin);
-    }
-
-    // =============================================================
-    //                      ORDER MANAGEMENT
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusVault-setOrderAsFilled}.
-     */
-    function setOrderAsFilled(Order memory order) external override onlyOrchestrator whenNotPaused {
-        bytes32 orderHash_ = orderHash(order);
-
-        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-
-        orderStatus[orderHash_] = OrderStatus.Filled;
-
-        emit OrderFilled(
-            order.seed,
-            order.trader,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline,
-            order.fee
-        );
     }
 
     // =============================================================
@@ -227,7 +201,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     /**
      * @dev See {IGeniusVault-emergencyUnlock}.
      */
-    function unpause() external override onlyPauser {
+    function unpause() external override onlyAdmin {
         _unpause();
     }
 
@@ -337,8 +311,11 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         }
     }
 
-    function _calculateRefundedFee(uint256 amount) internal view returns (uint256) {
-        return (amount * crosschainFee) / 100;
+    function _calculateRefundAmount(uint256 amountIn, uint256 fee) internal view returns (uint256 refundAmount, uint256 protocolFee) {
+        uint256 _swapFee = (amountIn * crosschainFee) / 10_000;
+        uint256 _protocolFee = fee - _swapFee;
+
+        return (amountIn - _protocolFee, _protocolFee);
     }
 
     function _transferERC20(

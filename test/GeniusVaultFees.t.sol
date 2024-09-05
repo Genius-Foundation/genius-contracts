@@ -86,6 +86,8 @@ contract GeniusVaultFees is Test {
     }
 
     function testSetFee() public {
+        assertEq(VAULT.crosschainFee(), 30, "Fee should be 30 bps");
+
         vm.startPrank(OWNER);
         VAULT.setCrosschainFee(10);
 
@@ -101,7 +103,8 @@ contract GeniusVaultFees is Test {
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should be 0");
-        assertEq(VAULT.unclaimedFees(), 1 ether, "Total unclaimed fees should be 1 ether");
+        assertEq(VAULT.unclaimedFees(), 0, "Total unclaimed fees should be 0 ether");
+        assertEq(VAULT.reservedFees(), 1 ether, "Total reserved fees should still be 1 ether");
         assertEq(VAULT.balanceMinusFees(address(USDC)), 999 ether, "Total balance excluding fees should be 999 ether");
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Stablecoin balance should be 1,000 ether");
         assertEq(VAULT.availableAssets(), 999 ether, "Available Stablecoin balance should be 999 ether");
@@ -140,7 +143,8 @@ contract GeniusVaultFees is Test {
         assertEq(USDC.balanceOf(address(VAULT)), 1 ether, "GeniusVault balance should be 1 ether (only fees left)");
         assertEq(USDC.balanceOf(address(EXECUTOR)), 999 ether, "Executor balance should be 1999 ether");
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should still be 0");
-        assertEq(VAULT.unclaimedFees(), 1 ether, "Total unclaimed fees should still be 1 ether");
+        assertEq(VAULT.unclaimedFees(), 0, "Total unclaimed fees should still be 0 ether");
+        assertEq(VAULT.reservedFees(), 1 ether, "Total reserved fees should still be 1 ether");
         assertEq(VAULT.balanceMinusFees(address(USDC)), 0, "Total balance excluding fees should be 0");
         assertEq(VAULT.stablecoinBalance(), 1 ether, "Stablecoin balance should be 1 ether");
         assertEq(VAULT.availableAssets(), 0, "Available Stablecoin balance should be 0");
@@ -180,7 +184,8 @@ contract GeniusVaultFees is Test {
         assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should still be 0");
-        assertEq(VAULT.unclaimedFees(), 1 ether, "Total unclaimed fees should still be 1 ether");
+        assertEq(VAULT.unclaimedFees(), 0, "Total unclaimed fees should still be 0");
+        assertEq(VAULT.reservedFees(), 1 ether, "Total reserved fees should still be 1 ether");
         assertEq(VAULT.balanceMinusFees(address(USDC)), 999 ether, "Total balance excluding fees should be 999 ether");
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Stablecoin balance should be 1,000 ether");
         assertEq(VAULT.availableAssets(), 999 ether, "Available Stablecoin balance should be 999 ether");

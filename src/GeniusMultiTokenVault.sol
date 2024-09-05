@@ -36,6 +36,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     mapping(uint256 index => address token) public supportedTokensIndex; // Mapping of supported token index to token address
     mapping(address router => uint256 isSupported) public supportedRouters; // Mapping of router address to support status
     mapping(address token => uint256) public supportedTokenFees; // Mapping of token address to total unclaimed fees
+    mapping(address token => uint256) public supportedTokenReservedFees; // Mapping of token address to total unclaimed fees
+
 
     // =============================================================
     //                          CONSTRUCTOR
@@ -150,7 +152,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256[] calldata values,
         bytes[] calldata data
     ) external payable override onlyOrchestrator whenNotPaused {
-        uint256 preTransferAssets = stablecoinBalance();
+        uint256 preTransferAssets = balanceMinusFees(address(STABLECOIN));
         uint256 neededLiquidity_ = minAssetBalance();
 
         _isAmountValid(amountIn, _availableAssets(preTransferAssets, neededLiquidity_));
@@ -166,7 +168,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         _batchExecution(targets, data, values);
 
-        uint256 postTransferAssets = stablecoinBalance();
+        uint256 postTransferAssets = balanceMinusFees(address(STABLECOIN));
         if (preTransferAssets - postTransferAssets != amountIn) revert GeniusErrors.UnexpectedBalanceChange(
             address(STABLECOIN),
             preTransferAssets - amountIn,
@@ -258,7 +260,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             postBalance - preBalance
         );
 
-        supportedTokenFees[tokenIn] += order.fee;
+        supportedTokenReservedFees[tokenIn] += fee;
         orderStatus[orderHash_] = OrderStatus.Created;        
 
         emit SwapDeposit(
@@ -272,10 +274,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             order.fee
         );
     }
-
-    // =============================================================
-    //                      REWARD LIQUIDITY
-    // =============================================================
 
     /**
      * @dev See {IGeniusMultiTokenPool-removeLiquiditySwap}.
@@ -315,10 +313,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         );
     }
 
-    // =============================================================
-    //                        FEE LIQUIDITY
-    // =============================================================
-
     /**
      * @dev See {IGeniusVault-claimFees}.
      */
@@ -340,10 +334,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         emit FeesClaimed(token, amount);
     }
-
-    // =============================================================
-    //                     SWAP TO STABLES
-    // =============================================================
 
     /**
      * @dev See {IGeniusMultiTokenPool-swapToStables}.
@@ -396,11 +386,71 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         emit SwapExecuted(token, amount, stableDelta);
     }
 
+    /**
+     * @dev See {IGeniusVault-setOrderAsFilled}.
+     */
+    function setOrderAsFilled(Order memory order) external override(IGeniusVault) onlyOrchestrator whenNotPaused {
+        bytes32 orderHash_ = orderHash(order);
 
+        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
-    // =============================================================
-    //                        ROUTER MANAGEMENT
-    // =============================================================
+        orderStatus[orderHash_] = OrderStatus.Filled;
+
+        supportedTokenFees[order.tokenIn] += order.fee;
+        supportedTokenReservedFees[order.tokenIn] -= order.fee;
+
+        emit OrderFilled(
+            order.seed,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline,
+            order.fee
+        );
+    }
+
+    /**
+     * @dev See {IGeniusVault-revertOrder}.
+     */
+    function revertOrder(
+        Order calldata order, 
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values
+    ) external onlyOrchestrator whenNotPaused {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+        if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
+
+        (uint256 _totalRefund, uint256 _protocolFee) = _calculateRefundAmount(order.amountIn, order.fee);
+        uint256 _totalAssetsPreRevert = stablecoinBalance();
+        _batchExecution(targets, data, values);
+
+        uint256 _totalAssetsPostRevert = stablecoinBalance();
+        uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
+
+        if (_delta != _totalRefund) revert GeniusErrors.InvalidDelta();
+        
+        orderStatus[orderHash_] = OrderStatus.Reverted;
+
+        supportedTokenReservedFees[order.tokenIn] -= order.fee;
+        supportedTokenFees[order.tokenIn] += _protocolFee;
+
+        emit OrderReverted(
+            order.seed,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline,
+            order.fee
+        );
+    }
 
     /**
      * @dev See {IGeniusMultiTokenPool-manageRouter}.
@@ -415,14 +465,12 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         }
     }
 
-
-    // =============================================================
-    //                        READ FUNCTIONS
-    // =============================================================
-
+    /**
+     * @dev See {IGeniusVault-balanceMinusFees}.
+     */
     function balanceMinusFees(address token) public view override returns (uint256) {
         if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
-        return tokenBalance(token) - supportedTokenFees[token];
+        return tokenBalance(token) - (supportedTokenFees[token] + supportedTokenReservedFees[token]);
     }
 
     /**
@@ -452,10 +500,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     function isTokenSupported(address token) public view override returns (bool) {
         return supportedTokens[token];
     }
-
-    // =============================================================
-    //                     INTERNAL FUNCTIONS
-    // =============================================================
 
     /**
      * @dev Adds an initial token to the GeniusMultiTokenPool.

@@ -6,7 +6,8 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 contract GeniusVault is GeniusVaultCore {
 
-    uint256 public unclaimedFees; // The total amount of fees that have not been claimed
+    uint256 public unclaimedFees; // The total amount of fees that are available to be claimed
+    uint256 public reservedFees; // The total amount of fees that have been reserved for unfilled orders
 
     constructor() {
         _disableInitializers();
@@ -48,20 +49,20 @@ contract GeniusVault is GeniusVaultCore {
     ) external payable override virtual onlyOrchestrator whenNotPaused {
         _checkBridgeTargets(targets);
  
-        uint256 totalAssetsBeforeTransfer = balanceMinusFees(address(STABLECOIN));
+        uint256 preTransferAssets = balanceMinusFees(address(STABLECOIN));
         uint256 neededLiquidty_ = minAssetBalance();
 
-        _isAmountValid(amountIn, _availableAssets(totalAssetsBeforeTransfer, neededLiquidty_));
+        _isAmountValid(amountIn, _availableAssets(preTransferAssets, neededLiquidty_));
         _checkNative(_sum(values));
 
-        if (!_isBalanceWithinThreshold(totalAssetsBeforeTransfer - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
+        if (!_isBalanceWithinThreshold(preTransferAssets - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
             neededLiquidty_,
-            totalAssetsBeforeTransfer - amountIn
+            preTransferAssets - amountIn
         );
 
         _batchExecution(targets, data, values);
 
-        uint256 _stableDelta = totalAssetsBeforeTransfer - balanceMinusFees(address(STABLECOIN));
+        uint256 _stableDelta = preTransferAssets - balanceMinusFees(address(STABLECOIN));
 
         if (_stableDelta != amountIn) revert GeniusErrors.AmountInAndDeltaMismatch(amountIn, _stableDelta);
 
@@ -83,8 +84,6 @@ contract GeniusVault is GeniusVaultCore {
         if (order.fillDeadline < _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(order.fillDeadline); 
         if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
-
-        // Gas saving
         uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
         uint256 _neededLiquidity = minAssetBalance();
 
@@ -156,7 +155,7 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn
         );
 
-        unclaimedFees += order.fee;
+        reservedFees += fee;
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit SwapDeposit(
@@ -189,6 +188,31 @@ contract GeniusVault is GeniusVaultCore {
     }
 
     /**
+     * @dev See {IGeniusVault-setOrderAsFilled}.
+     */
+    function setOrderAsFilled(Order memory order) external override onlyOrchestrator whenNotPaused {
+        bytes32 _orderHash = orderHash(order);
+
+        if (orderStatus[_orderHash] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+
+        orderStatus[_orderHash] = OrderStatus.Filled;
+        unclaimedFees += order.fee;
+        reservedFees -= order.fee;
+
+        emit OrderFilled(
+            order.seed,
+            order.trader,
+            order.tokenIn,
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline,
+            order.fee
+        );
+    }
+
+    /**
      * @dev See {IGeniusVault-revertOrder}.
      */
     function revertOrder(
@@ -202,21 +226,19 @@ contract GeniusVault is GeniusVaultCore {
         if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
         if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
 
+        (uint256 _totalRefund, uint256 _protocolFee) = _calculateRefundAmount(order.amountIn, order.fee);
         uint256 _totalAssetsPreRevert = stablecoinBalance();
-        uint256 _feeRefund = _calculateRefundedFee(order.amountIn);
-
-        if (unclaimedFees < _feeRefund) revert GeniusErrors.InsufficientFees(_feeRefund, unclaimedFees, address(STABLECOIN));
-        unclaimedFees -= _feeRefund;
-
         _batchExecution(targets, data, values);
-        _transferERC20(address(STABLECOIN), order.trader, _feeRefund);
 
         uint256 _totalAssetsPostRevert = stablecoinBalance();
         uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
 
-        if (_delta != order.amountIn - _feeRefund) revert GeniusErrors.InvalidDelta();
-
+        if (_delta != _totalRefund) revert GeniusErrors.InvalidDelta();
+        
         orderStatus[orderHash_] = OrderStatus.Reverted;
+
+        reservedFees -= order.fee;
+        unclaimedFees += _protocolFee;
 
         emit OrderReverted(
             order.seed,
@@ -235,7 +257,7 @@ contract GeniusVault is GeniusVaultCore {
      */
     function balanceMinusFees(address token) public virtual view returns (uint256) {
         if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
-        return stablecoinBalance() - unclaimedFees;
+        return stablecoinBalance() - (unclaimedFees + reservedFees);
     }
 
     /**

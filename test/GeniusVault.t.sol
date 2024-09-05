@@ -509,7 +509,7 @@ contract GeniusVaultTest is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 1_000 ether);
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 5 ether);
 
         order = IGeniusVault.Order({
             seed: keccak256("order"),
@@ -519,7 +519,7 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 5 ether
         });
 
         // Advance time past the fillDeadline
@@ -531,7 +531,7 @@ contract GeniusVaultTest is Test {
         targets[0] = address(USDC);
 
         bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSelector(USDC.transfer.selector, TRADER, 1_000 ether);
+        data[0] = abi.encodeWithSelector(USDC.transfer.selector, TRADER, 998 ether);
 
         uint256[] memory values = new uint256[](1);
         values[0] = 0;
@@ -540,11 +540,15 @@ contract GeniusVaultTest is Test {
 
         VAULT.revertOrder(order, targets, data, values);
 
+        assertEq(VAULT.reservedFees(), 0, "Reserved fees should be 0");
+        assertEq(VAULT.unclaimedFees(), 2 ether, "Total assets should be 0");
+        assertEq(VAULT.stablecoinBalance(), 2 ether, "Total assets should be 0");
+
         uint256 postBalance = USDC.balanceOf(TRADER);
 
         bytes32 orderHash = VAULT.orderHash(order);
         assertEq(uint256(VAULT.orderStatus(orderHash)), uint256(IGeniusVault.OrderStatus.Reverted), "Order status should be Reverted");
-        assertEq(postBalance - prevBalance, 1_000 ether, "Trader should receive refunded amount");
+        assertEq(postBalance - prevBalance, 998 ether, "Trader should receive refunded amount");
     }
 
     function testCannotRevertOrderBeforeDeadline() public {
@@ -697,7 +701,7 @@ contract GeniusVaultTest is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 1_000 ether);
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 3 ether);
 
         order = IGeniusVault.Order({
             seed: keccak256("order"),
@@ -707,7 +711,7 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 3 ether
         });
 
         // Advance time past the fillDeadline
@@ -732,7 +736,7 @@ contract GeniusVaultTest is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 1_000 ether);
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 3 ether);
 
         order = IGeniusVault.Order({
             seed: keccak256("order"),
@@ -742,7 +746,7 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 3 ether
         });
 
         // Advance time past the fillDeadline
