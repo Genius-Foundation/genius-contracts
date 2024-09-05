@@ -39,8 +39,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     //                          VARIABLES
     // =============================================================
 
-    uint256 public crosschainFee = 30;
-    uint256 public unclaimedFees; // The total amount of fees that have not been claimed
+    uint256 public crosschainFee = 30; // The fee charged for cross-chain swaps
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
     uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
 
@@ -98,191 +97,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     }
 
     // =============================================================
-    //                 BRIDGE LIQUIDITY REBALANCING
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusVault-removeBridgeLiquidity}.
-     */
-    function removeBridgeLiquidity(
-        uint256 amountIn,
-        uint32 dstChainId,
-        address[] memory targets,
-        uint256[] calldata values,
-        bytes[] memory data
-    ) external payable override virtual onlyOrchestrator whenNotPaused {
-        _checkBridgeTargets(targets);
- 
-        uint256 totalAssetsBeforeTransfer = balanceMinusFees(address(STABLECOIN));
-        uint256 neededLiquidty_ = minAssetBalance();
-
-        _isAmountValid(amountIn, _availableAssets(totalAssetsBeforeTransfer, neededLiquidty_));
-        _checkNative(_sum(values));
-
-        if (!_isBalanceWithinThreshold(totalAssetsBeforeTransfer - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            neededLiquidty_,
-            totalAssetsBeforeTransfer - amountIn
-        );
-
-        _batchExecution(targets, data, values);
-
-        uint256 _stableDelta = totalAssetsBeforeTransfer - balanceMinusFees(address(STABLECOIN));
-
-        if (_stableDelta != amountIn) revert GeniusErrors.AmountInAndDeltaMismatch(amountIn, _stableDelta);
-
-        emit RemovedLiquidity(
-            amountIn,
-            dstChainId
-        );
-    }
-
-    // =============================================================
-    //                      SWAP LIQUIDITY
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusVault-addLiquiditySwap}.
-     */
-    function addLiquiditySwap(
-        bytes32 seed,
-        address trader,
-        address tokenIn,
-        uint256 amountIn,
-        uint32 destChainId,
-        uint32 fillDeadline,
-        uint256 fee
-    ) external payable virtual override onlyExecutor whenNotPaused {
-        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (amountIn == 0) revert GeniusErrors.InvalidAmount();
-        if (tokenIn != address(STABLECOIN)) revert GeniusErrors.InvalidToken(tokenIn);
-        if (destChainId == _currentChainId()) revert GeniusErrors.InvalidDestChainId(destChainId);
-        if (fillDeadline <= _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(fillDeadline);
-
-        Order memory order = Order({
-            trader: trader,
-            amountIn: amountIn,
-            seed: seed,
-            srcChainId: uint16(_currentChainId()),
-            destChainId: destChainId,
-            fillDeadline: fillDeadline,
-            tokenIn: tokenIn,
-            fee: fee
-        });
-
-        bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.InvalidOrderStatus();
-
-        // Pre transfer check
-        uint256 _preTotalAssets = stablecoinBalance();
-
-        _transferERC20From(address(STABLECOIN), msg.sender, address(this), order.amountIn);
-
-        // Check that the transfer was successful
-        uint256 _postTotalAssets = stablecoinBalance();
-
-        if (_postTotalAssets != _preTotalAssets + order.amountIn) revert GeniusErrors.TransferFailed(
-            address(STABLECOIN),
-            order.amountIn
-        );
-
-        unclaimedFees += order.fee;
-        orderStatus[orderHash_] = OrderStatus.Created;
-
-        emit SwapDeposit(
-            order.seed,
-            order.trader,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline,
-            order.fee
-        );
-    }
-
-    /**
-     * @dev See {IGeniusVault-removeLiquiditySwap}.
-     */
-    function removeLiquiditySwap(
-        Order memory order
-    ) external virtual override onlyExecutor whenNotPaused {
-        bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
-        if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
-        if (order.fillDeadline < _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(order.fillDeadline); 
-        if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-
-
-        // Gas saving
-        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
-        uint256 _neededLiquidity = minAssetBalance();
-
-        _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
-
-        if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (!_isBalanceWithinThreshold(_totalAssets - order.amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            _neededLiquidity,
-            _totalAssets - order.amountIn
-        );
-
-        orderStatus[orderHash_] = OrderStatus.Filled;
-
-        _transferERC20(address(STABLECOIN), msg.sender, order.amountIn);
-        
-        emit SwapWithdrawal(
-            order.seed,
-            order.trader,
-            address(STABLECOIN),
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline
-        );
-    }
-
-    // =============================================================
-    //                      REWARD LIQUIDITY
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusVault-removeRewardLiquidity}.
-     */
-    function removeRewardLiquidity(uint256 amount) external override onlyOrchestrator whenNotPaused {
-        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
-        uint256 _neededLiquidity = minAssetBalance();
-
-        _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
-
-        if (!_isBalanceWithinThreshold(_totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
-            _neededLiquidity,
-            _totalAssets - amount
-        );
-
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
-    }
-
-    // =============================================================
-    //                        FEE LIQUIDITY
-    // =============================================================
-
-    /**
-     * @dev See {IGeniusVault-claimFees}.
-     */
-    function claimFees(uint256 amount, address token) external override virtual onlyOrchestrator whenNotPaused {
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > unclaimedFees) revert GeniusErrors.InsufficientFees(amount, unclaimedFees, address(STABLECOIN));
-        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
-
-        unclaimedFees -= amount;
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
-
-        emit FeesClaimed(
-            address(STABLECOIN),
-            amount
-        );
-    }
-
-    // =============================================================
     //                      ORDER MANAGEMENT
     // =============================================================
 
@@ -309,48 +123,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         );
     }
 
-    /**
-     * @dev See {IGeniusVault-revertOrder}.
-     */
-    function revertOrder(
-        Order calldata order, 
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values
-    ) external override onlyOrchestrator whenNotPaused {
-        bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-        if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
-
-        uint256 _totalAssetsPreRevert = stablecoinBalance();
-        uint256 _feeRefund = _calculateRefundedFee(order.amountIn);
-
-        if (unclaimedFees < _feeRefund) revert GeniusErrors.InsufficientFees(_feeRefund, unclaimedFees, address(STABLECOIN));
-        unclaimedFees -= _feeRefund;
-
-        _batchExecution(targets, data, values);
-        _transferERC20(address(STABLECOIN), order.trader, _feeRefund);
-
-        uint256 _totalAssetsPostRevert = stablecoinBalance();
-        uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
-
-        if (_delta != order.amountIn - _feeRefund) revert GeniusErrors.InvalidDelta();
-
-        orderStatus[orderHash_] = OrderStatus.Reverted;
-
-        emit OrderReverted(
-            order.seed,
-            order.trader,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline,
-            order.fee
-        );
-    }
-
     // =============================================================
     //                      STAKING
     // =============================================================
@@ -361,7 +133,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     function stakeDeposit(uint256 amount, address receiver) external override whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        // Need to transfer before minting or ERC777s could reenter.
         STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
 
         _mint(receiver, amount);
@@ -465,14 +236,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     // =============================================================
 
     /**
-     * @dev See {IGeniusVault-balanceMinusFees}.
-     */
-    function balanceMinusFees(address token) public virtual override view returns (uint256) {
-        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
-        return stablecoinBalance() - unclaimedFees;
-    }
-
-    /**
      * @dev See {IGeniusVault-totalAssets}.
      */
     function stablecoinBalance() public override view returns (uint256) {
@@ -490,32 +253,19 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     }
 
     /**
-     * @dev See {IGeniusVault-availableAssets}.
-     */
-    function availableAssets() public override view returns (uint256) {
-        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
-        uint256 _neededLiquidity = minAssetBalance();
-
-        return _availableAssets(_totalAssets, _neededLiquidity);
-    }
-
-    /**
-     * @dev See {IGeniusVault-allAssets}.
-     */
-    function allAssets() public override view returns (uint256, uint256, uint256) {
-        return (
-            stablecoinBalance(),
-            availableAssets(),
-            totalStakedAssets
-        );
-    }
-
-    /**
      * @dev See {IGeniusVault-orderHash}.
      */
     function orderHash(Order memory order) public override pure returns (bytes32) {
         return keccak256(abi.encode(order));
     }
+
+    /**
+     * @notice Returns the current state of the assets in the GeniusVault contract.
+     * @return balanceStablecoin The total number of assets in the vault.
+     * @return availableAssets The number of assets available for use.
+     * @return totalStakedAssets The total number of assets currently staked in the vault.
+     */
+    function allAssets() external view virtual returns (uint256, uint256, uint256);
 
     // =============================================================
     //                     INTERNAL FUNCTIONS

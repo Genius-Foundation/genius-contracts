@@ -202,7 +202,7 @@ contract GeniusActionsTest is Test {
         geniusActions.setBatchOrchestratorAuthorized(orchestrators, true);
     }
 
-    function testIsAuthorizedOrchestratorFalse() public {
+    function testIsAuthorizedOrchestratorFalse() public view {
         assertFalse(geniusActions.isAuthorizedOrchestrator(orchestrator1));
     }
 

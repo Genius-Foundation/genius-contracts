@@ -188,12 +188,6 @@ interface IGeniusVault {
     function minAssetBalance() external view returns (uint256);
 
     /**
-     * @notice Returns the available assets in the vault.
-     * @return The amount of available assets.
-     */
-    function availableAssets() external view returns (uint256);
-
-    /**
      * @notice Stake assets in the GeniusVault contract.
      * @param amount The amount of assets to stake.
      * @param receiver The address of the receiver of the staked assets.
@@ -266,26 +260,6 @@ interface IGeniusVault {
     function setOrderAsFilled(Order memory order) external;
 
     /**
-     * @notice Reverts an order on the source chain and executes associated revert actions.
-     * @param order The Order struct containing the order details.
-     * @param targets The array of target addresses to call.
-     * @param data The array of function call data.
-     * @param values The array of values to send along with the function calls.
-     */
-    function revertOrder(
-        Order calldata order, 
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values
-    ) external;
-
-    /**
-     * @notice Removes reward liquidity from the GeniusVault contract.
-     * @param amount The amount of reward liquidity to remove.
-     */
-    function removeRewardLiquidity(uint256 amount) external;
-
-    /**
      * @notice Claims fees from the GeniusVault contract.
      * @param amount The amount of fees to claim.
      * @param token The address of the token to claim fees in.
@@ -326,14 +300,6 @@ interface IGeniusVault {
      * @notice Allows the owner to emergency unlock the contract.
      */
     function unpause() external;
-
-    /**
-     * @notice Returns the current state of the assets in the GeniusVault contract.
-     * @return balanceStablecoin The total number of assets in the vault.
-     * @return availableAssets The number of assets available for use.
-     * @return totalStakedAssets The total number of assets currently staked in the vault.
-     */
-    function allAssets() external view returns (uint256, uint256, uint256);
 
     /**
      * @notice Calculates the hash of an order.

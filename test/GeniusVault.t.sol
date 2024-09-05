@@ -174,7 +174,7 @@ contract GeniusVaultTest is Test {
 
         vm.startPrank(address(EXECUTOR));
         vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
-        IGeniusVault.Order memory order = 
+        order = 
             IGeniusVault.Order({
                 seed: keccak256("order"),
                 amountIn: 1_000 ether,
@@ -273,7 +273,7 @@ contract GeniusVaultTest is Test {
 
         assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
 
-        IGeniusVault.Order memory order = 
+        order = 
             IGeniusVault.Order({
                 seed: keccak256("order"),
                 amountIn: 1_000 ether,
@@ -461,7 +461,7 @@ contract GeniusVaultTest is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(VAULT), 1_000 ether);
 
-        IGeniusVault.Order memory order = IGeniusVault.Order({
+        order = IGeniusVault.Order({
             seed: keccak256("order"),
             amountIn: 1_000 ether,
             trader: TRADER,
@@ -486,7 +486,7 @@ contract GeniusVaultTest is Test {
         USDC.approve(address(VAULT), 1_000 ether);
         VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
 
-        IGeniusVault.Order memory order = IGeniusVault.Order({
+        order = IGeniusVault.Order({
             seed: keccak256("order"),
             amountIn: 1_000 ether,
             trader: TRADER,
@@ -511,7 +511,7 @@ contract GeniusVaultTest is Test {
         USDC.approve(address(VAULT), 1_000 ether);
         VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 1 ether);
 
-        IGeniusVault.Order memory order = IGeniusVault.Order({
+        order = IGeniusVault.Order({
             seed: keccak256("order"),
             amountIn: 1_000 ether,
             trader: TRADER,
@@ -555,7 +555,7 @@ contract GeniusVaultTest is Test {
         USDC.approve(address(VAULT), 1_000 ether);
         VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
 
-        IGeniusVault.Order memory order = IGeniusVault.Order({
+        order = IGeniusVault.Order({
             seed: keccak256("order"),
             amountIn: 1_000 ether,
             trader: TRADER,
@@ -613,7 +613,7 @@ contract GeniusVaultTest is Test {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(VAULT), 1_000 ether);
 
-        IGeniusVault.Order memory order = IGeniusVault.Order({
+        order = IGeniusVault.Order({
             seed: keccak256("order"),
             amountIn: 1_000 ether,
             trader: TRADER,
@@ -651,7 +651,7 @@ contract GeniusVaultTest is Test {
         USDC.approve(address(VAULT), 1_000 ether);
         VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
 
-        IGeniusVault.Order memory order = IGeniusVault.Order({
+        order = IGeniusVault.Order({
             seed: keccak256("order"),
             amountIn: 1_000 ether,
             trader: TRADER,
@@ -699,7 +699,7 @@ contract GeniusVaultTest is Test {
         USDC.approve(address(VAULT), 1_000 ether);
         VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 1 ether);
 
-        IGeniusVault.Order memory order = IGeniusVault.Order({
+        order = IGeniusVault.Order({
             seed: keccak256("order"),
             amountIn: 1_000 ether,
             trader: TRADER,
@@ -734,7 +734,7 @@ contract GeniusVaultTest is Test {
         USDC.approve(address(VAULT), 1_000 ether);
         VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 1 ether);
 
-        IGeniusVault.Order memory order = IGeniusVault.Order({
+        order = IGeniusVault.Order({
             seed: keccak256("order"),
             amountIn: 1_000 ether,
             trader: TRADER,
