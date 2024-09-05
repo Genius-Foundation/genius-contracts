@@ -18,7 +18,7 @@ import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
  * @title GeniusVault
  * @author @altloot, @samuel_vdu
  * 
- * @notice The GeniusVault contract helps to facilitate cross-chain
+ * @notice The GeniusVaultCore contract helps to facilitate cross-chain
  *         liquidity management and swaps utilizing stablecoins as the
  *         primary asset.
  */
