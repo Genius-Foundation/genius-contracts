@@ -170,12 +170,6 @@ interface IGeniusVault {
     );
 
     /**
-     * @notice Returns the total balance of the vault excluding fees.
-     * @return The total balance of the vault excluding fees.
-     */
-    function balanceMinusFees(address token) external view returns (uint256);
-
-    /**
      * @notice Returns the total balance of the vault.
      * @return The total balance of the vault.
      */
@@ -185,7 +179,7 @@ interface IGeniusVault {
      * @notice Returns the minimum asset balance required in the vault.
      * @return The minimum asset balance.
      */
-    function minAssetBalance() external view returns (uint256);
+    function minLiquidity() external view returns (uint256);
 
     /**
      * @notice Stake assets in the GeniusVault contract.

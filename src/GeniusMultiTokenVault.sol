@@ -101,8 +101,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256[] calldata values,
         bytes[] calldata data
     ) external payable override onlyOrchestrator whenNotPaused {
-        uint256 preTransferAssets = balanceMinusFees(address(STABLECOIN));
-        uint256 neededLiquidity_ = minAssetBalance();
+        uint256 preTransferAssets = stablecoinBalance();
+        uint256 neededLiquidity_ = minLiquidity();
 
         _isAmountValid(amountIn, _availableAssets(preTransferAssets, neededLiquidity_));
         _checkNative(_sum(values));
@@ -117,7 +117,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         _batchExecution(targets, data, values);
 
-        uint256 postTransferAssets = balanceMinusFees(address(STABLECOIN));
+        uint256 postTransferAssets = stablecoinBalance();
         if (preTransferAssets - postTransferAssets != amountIn) revert GeniusErrors.UnexpectedBalanceChange(
             address(STABLECOIN),
             preTransferAssets - amountIn,
@@ -236,8 +236,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (order.fillDeadline < _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(order.fillDeadline); 
         if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
-        uint256 _stablecoinBalance = balanceMinusFees(address(STABLECOIN));
-        uint256 _neededLiquidity = minAssetBalance();
+        uint256 _stablecoinBalance = stablecoinBalance();
+        uint256 _neededLiquidity = minLiquidity();
         
         _isAmountValid(order.amountIn, _availableAssets(_stablecoinBalance, _neededLiquidity));
         
@@ -483,20 +483,19 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         return balances;
     }
 
-    /**
-     * @dev See {IGeniusVault-balanceMinusFees}.
-     */
-    function balanceMinusFees(address token) public view override returns (uint256) {
-        if (!supportedTokens[token]) revert GeniusErrors.InvalidToken(token);
-        return tokenBalance(token) - (supportedTokenFees[token] + supportedTokenReservedFees[token]);
+    function minLiquidity() public override view returns (uint256) {
+        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
+        uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
+        
+        return minBalance + supportedTokenFees[address(STABLECOIN)] + supportedTokenReservedFees[address(STABLECOIN)];
     }
 
     /**
      * @dev See {IGeniusVault-availableAssets}.
      */
     function availableAssets() public view returns (uint256) {
-        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
-        uint256 _neededLiquidity = minAssetBalance();
+        uint256 _totalAssets = stablecoinBalance();
+        uint256 _neededLiquidity = minLiquidity();
 
         return _availableAssets(_totalAssets, _neededLiquidity);
     }

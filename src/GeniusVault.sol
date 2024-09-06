@@ -30,8 +30,8 @@ contract GeniusVault is GeniusVaultCore {
      * @param amount The amount of liquidity to remove
      */
     function removeRewardLiquidity(uint256 amount) external onlyOrchestrator whenNotPaused {
-        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
-        uint256 _neededLiquidity = minAssetBalance();
+        uint256 _totalAssets = stablecoinBalance();
+        uint256 _neededLiquidity = minLiquidity();
 
         _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
 
@@ -55,8 +55,8 @@ contract GeniusVault is GeniusVaultCore {
     ) external payable override virtual onlyOrchestrator whenNotPaused {
         _checkBridgeTargets(targets);
  
-        uint256 preTransferAssets = balanceMinusFees(address(STABLECOIN));
-        uint256 neededLiquidty_ = minAssetBalance();
+        uint256 preTransferAssets = stablecoinBalance();
+        uint256 neededLiquidty_ = minLiquidity();
 
         _isAmountValid(amountIn, _availableAssets(preTransferAssets, neededLiquidty_));
         _checkNative(_sum(values));
@@ -68,7 +68,7 @@ contract GeniusVault is GeniusVaultCore {
 
         _batchExecution(targets, data, values);
 
-        uint256 _stableDelta = preTransferAssets - balanceMinusFees(address(STABLECOIN));
+        uint256 _stableDelta = preTransferAssets - stablecoinBalance();
 
         if (_stableDelta != amountIn) revert GeniusErrors.AmountInAndDeltaMismatch(amountIn, _stableDelta);
 
@@ -90,8 +90,8 @@ contract GeniusVault is GeniusVaultCore {
         if (order.fillDeadline < _currentTimeStamp()) revert GeniusErrors.DeadlinePassed(order.fillDeadline); 
         if (order.srcChainId == _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
-        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
-        uint256 _neededLiquidity = minAssetBalance();
+        uint256 _totalAssets = stablecoinBalance();
+        uint256 _neededLiquidity = minLiquidity();
 
         _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
 
@@ -262,20 +262,19 @@ contract GeniusVault is GeniusVaultCore {
         );
     }
 
-    /**
-     * @dev See {IGeniusVault-balanceMinusFees}.
-     */
-    function balanceMinusFees(address token) public virtual view returns (uint256) {
-        if (token != address(STABLECOIN)) revert GeniusErrors.InvalidToken(token);
-        return stablecoinBalance() - (unclaimedFees + reservedFees);
+    function minLiquidity() public override view returns (uint256) {
+        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
+        uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
+        
+        return minBalance + unclaimedFees + reservedFees;
     }
 
     /**
      * @dev See {IGeniusVault-availableAssets}.
      */
     function availableAssets() public view returns (uint256) {
-        uint256 _totalAssets = balanceMinusFees(address(STABLECOIN));
-        uint256 _neededLiquidity = minAssetBalance();
+        uint256 _totalAssets = stablecoinBalance();
+        uint256 _neededLiquidity = minLiquidity();
 
         return _availableAssets(_totalAssets, _neededLiquidity);
     }

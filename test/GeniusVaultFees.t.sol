@@ -105,7 +105,6 @@ contract GeniusVaultFees is Test {
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should be 0");
         assertEq(VAULT.unclaimedFees(), 0, "Total unclaimed fees should be 0 ether");
         assertEq(VAULT.reservedFees(), 1 ether, "Total reserved fees should still be 1 ether");
-        assertEq(VAULT.balanceMinusFees(address(USDC)), 999 ether, "Total balance excluding fees should be 999 ether");
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Stablecoin balance should be 1,000 ether");
         assertEq(VAULT.availableAssets(), 999 ether, "Available Stablecoin balance should be 999 ether");
     }
@@ -145,7 +144,6 @@ contract GeniusVaultFees is Test {
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should still be 0");
         assertEq(VAULT.unclaimedFees(), 0, "Total unclaimed fees should still be 0 ether");
         assertEq(VAULT.reservedFees(), 1 ether, "Total reserved fees should still be 1 ether");
-        assertEq(VAULT.balanceMinusFees(address(USDC)), 0, "Total balance excluding fees should be 0");
         assertEq(VAULT.stablecoinBalance(), 1 ether, "Stablecoin balance should be 1 ether");
         assertEq(VAULT.availableAssets(), 0, "Available Stablecoin balance should be 0");
     }
@@ -186,7 +184,6 @@ contract GeniusVaultFees is Test {
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should still be 0");
         assertEq(VAULT.unclaimedFees(), 0, "Total unclaimed fees should still be 0");
         assertEq(VAULT.reservedFees(), 1 ether, "Total reserved fees should still be 1 ether");
-        assertEq(VAULT.balanceMinusFees(address(USDC)), 999 ether, "Total balance excluding fees should be 999 ether");
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Stablecoin balance should be 1,000 ether");
         assertEq(VAULT.availableAssets(), 999 ether, "Available Stablecoin balance should be 999 ether");
     }

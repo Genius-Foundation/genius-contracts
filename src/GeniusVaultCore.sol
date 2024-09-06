@@ -214,16 +214,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     }
 
     /**
-     * @dev See {IGeniusVault-minAssetBalance}.
-     */
-    function minAssetBalance() public override view returns (uint256) {
-        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-        uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
-        
-        return minBalance;
-    }
-
-    /**
      * @dev See {IGeniusVault-orderHash}.
      */
     function orderHash(Order memory order) public override pure returns (bytes32) {

@@ -120,7 +120,7 @@ contract GeniusMultiTokenVaultFees is Test {
 
         assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "Total unclaimed fees should be 1 ether");
         assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "Total reserved fees should be 1 ether");
-        assertEq(VAULT.balanceMinusFees(address(USDC)), 999 ether, "Total balance excluding fees should be 999 ether");
+        assertEq(VAULT.minLiquidity(), 1 ether, "Needed liquidity should be 1 ether");
         assertEq(VAULT.tokenBalance(address(USDC)), 1_000 ether, "Stablecoin balance should be 1,000 ether");
     }
 
@@ -158,7 +158,8 @@ contract GeniusMultiTokenVaultFees is Test {
         assertEq(USDC.balanceOf(address(EXECUTOR)), 999 ether, "Executor balance should be 999 ether");
         assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "Total unclaimed fees should still be 1 ether");
         assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "Total reserved fees should be 0");
-        assertEq(VAULT.balanceMinusFees(address(USDC)), 0, "Total balance excluding fees should be 0");
+        assertEq(VAULT.minLiquidity(), 1 ether, "Minimum liquidity should be 1");
+        assertEq(VAULT.availableAssets(), 0 ether, "Available assets should be 0");
         assertEq(VAULT.tokenBalance(address(USDC)), 1 ether, "Stablecoin balance should be 1 ether");
     }
 
@@ -197,7 +198,7 @@ contract GeniusMultiTokenVaultFees is Test {
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
         assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "Total unclaimed fees should still be 1 ether");
         assertEq(VAULT.supportedTokenReservedFees(address(USDC)), 1 ether, "Total reserved fees should be 1 ether");
-        assertEq(VAULT.balanceMinusFees(address(USDC)), 999 ether, "Total balance excluding fees should be 999 ether");
+        assertEq(VAULT.availableAssets(), 999 ether, "Available assets should be 999 ether");
         assertEq(VAULT.tokenBalance(address(USDC)), 1_000 ether, "Stablecoin balance should be 1,000 ether");
     }
 

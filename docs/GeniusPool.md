@@ -59,7 +59,7 @@ The GeniusPool contract is a critical component of a cross-chain liquidity manag
 ## View Functions
 
 1. `stablecoinBalance()`: Returns the total assets in the pool
-2. `minAssetBalance()`: Returns the minimum required asset balance
+2. `minLiquidity()`: Returns the minimum required asset balance
 3. `availableAssets()`: Returns the available assets for operations
 4. `assets()`: Returns total assets, available assets, and total staked assets
 5. `orderHash(Order memory order)`: Calculates the hash of an order
