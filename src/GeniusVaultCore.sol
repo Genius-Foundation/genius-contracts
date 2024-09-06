@@ -178,9 +178,11 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         if (authorize) {
             if (supportedBridges[bridge] == 1) revert GeniusErrors.InvalidTarget(bridge);
             supportedBridges[bridge] = 1;
+            emit BridgeAuthorized(bridge, true);
         } else {
             if (supportedBridges[bridge] == 0) revert GeniusErrors.InvalidTarget(bridge);
             supportedBridges[bridge] = 0;
+            emit BridgeAuthorized(bridge, false);
         }
     }
 

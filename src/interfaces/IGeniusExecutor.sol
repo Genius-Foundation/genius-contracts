@@ -18,6 +18,17 @@ import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
  */
 interface IGeniusExecutor {
     // =============================================================
+    //                          EVENTS
+    // =============================================================
+
+    /**
+     * @notice Emitted when a target address is set as allowed or not allowed.
+     * @param target The address that was set as allowed or not allowed.
+     * @param isAllowed The allowed status of the target address.
+     */
+    event AllowedTarget(address indexed target, bool indexed isAllowed);
+
+    // =============================================================
     //                      EXTERNAL FUNCTIONS
     // =============================================================
 

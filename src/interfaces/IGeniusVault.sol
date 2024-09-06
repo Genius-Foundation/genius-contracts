@@ -14,28 +14,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IGeniusVault {
 
     /**
-     * @notice Emitted when assets are staked in the GeniusVault contract.
-     * @param caller The address of the caller.
-     * @param owner The address of the owner of the staked assets.
-     * @param amount The amount of assets staked.
-     */
-    event StakeDeposit(address indexed caller, address indexed owner, uint256 amount);
-
-    /**
-     * @notice Emitted when assets are withdrawn from the GeniusVault contract.
-     * @param caller The address of the caller.
-     * @param receiver The address of the receiver of the withdrawn assets.
-     * @param owner The address of the owner of the staked assets.
-     * @param amount The amount of assets withdrawn.
-     */
-    event StakeWithdraw(
-        address indexed caller,
-        address indexed receiver,
-        address indexed owner,
-        uint256 amount
-    );
-
-    /**
      * @notice Enum representing the possible statuses of an order.
      */
     enum OrderStatus {
@@ -65,6 +43,28 @@ interface IGeniusVault {
         address tokenIn;
         uint256 fee;
     }
+
+    /**
+     * @notice Emitted when assets are staked in the GeniusVault contract.
+     * @param caller The address of the caller.
+     * @param owner The address of the owner of the staked assets.
+     * @param amount The amount of assets staked.
+     */
+    event StakeDeposit(address indexed caller, address indexed owner, uint256 amount);
+
+    /**
+     * @notice Emitted when assets are withdrawn from the GeniusVault contract.
+     * @param caller The address of the caller.
+     * @param receiver The address of the receiver of the withdrawn assets.
+     * @param owner The address of the owner of the staked assets.
+     * @param amount The amount of assets withdrawn.
+     */
+    event StakeWithdraw(
+        address indexed caller,
+        address indexed receiver,
+        address indexed owner,
+        uint256 amount
+    );
 
     /**
      * @notice Emitted on the source chain when a swap deposit is made.
@@ -156,7 +156,7 @@ interface IGeniusVault {
      */
     event RemovedLiquidity(
         uint256 amount,
-        uint32 chainId
+        uint32 indexed chainId
     );
 
     /**
@@ -165,9 +165,16 @@ interface IGeniusVault {
      * @param amount The amount of fees claimed.
      */
     event FeesClaimed(
-        address token,
+        address indexed token,
         uint256 amount
     );
+
+    /**
+     * @notice Emitted when the authorized status of a bridge target changes.
+     * @param bridge The address of the bridge target.
+     * @param authorized True if the bridge is authorized, false otherwise.
+     */
+    event BridgeAuthorized(address indexed bridge, bool indexed authorized);
 
     /**
      * @notice Returns the total balance of the vault.
