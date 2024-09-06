@@ -178,9 +178,11 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         if (authorize) {
             if (supportedBridges[bridge] == 1) revert GeniusErrors.InvalidTarget(bridge);
             supportedBridges[bridge] = 1;
+            emit BridgeAuthorized(bridge, true);
         } else {
             if (supportedBridges[bridge] == 0) revert GeniusErrors.InvalidTarget(bridge);
             supportedBridges[bridge] = 0;
+            emit BridgeAuthorized(bridge, false);
         }
     }
 
@@ -211,16 +213,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      */
     function stablecoinBalance() public override view returns (uint256) {
         return STABLECOIN.balanceOf(address(this));
-    }
-
-    /**
-     * @dev See {IGeniusVault-minAssetBalance}.
-     */
-    function minAssetBalance() public override view returns (uint256) {
-        uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
-        uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
-        
-        return minBalance;
     }
 
     /**
