@@ -18,15 +18,17 @@ contract MockSwapTarget {
             console.log("Received ETH: ", msg.value);
 
             IERC20(tokenOut).transfer(poolAddress, amountOut);
-
             return (true, amountOut);
         } else {
             // Transfer tokenIn from poolAddress to this contract
+            console.log("Transfering tokenIn from poolAddress to this contract");
             IERC20(tokenIn).transferFrom(poolAddress, address(this), amountIn);
+            console.log("SUCCESS: Transfered tokenIn from poolAddress to this contract");
 
             // Transfer tokenOut from this contract to recipient
+            console.log("Transfering tokenOut from this contract to poolAddress");
             IERC20(tokenOut).transfer(poolAddress, amountOut);
-            
+            console.log("SUCCESS: Transfered tokenOut from this contract to poolAddress");
             return (true, amountOut);
         }
     }

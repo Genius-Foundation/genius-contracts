@@ -3,8 +3,8 @@ pragma solidity ^0.8.20;
 
 import {DeployGeniusEcosystemCore} from "./DeployGeniusEcosystemCore.s.sol";
 
-contract DeployArbitrumGeniusEcosystem is DeployGeniusEcosystemCore {
-    address public constant stableAddress = 0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8;
+contract DeployEthereumGeniusEcosystem is DeployGeniusEcosystemCore {
+    address public constant stableAddress = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address public constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
 

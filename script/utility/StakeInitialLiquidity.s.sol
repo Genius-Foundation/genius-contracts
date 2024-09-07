@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
-import {GeniusPool} from "../../src/GeniusPool.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /**
  * @title StakeInitialLiquidity
@@ -33,7 +32,7 @@ contract StakeInitialLiquidity is Script {
         IERC20 stablecoin = IERC20(0x28a92dde19D9989F39A49905d7C9C2FAc7799bDf);
 
         stablecoin.approve(address(geniusVault), 200000000);
-        geniusVault.deposit(200000000, 0x2Cd60849380319b59e180BC2137352C6dF838A33);
+        geniusVault.stakeDeposit(200000000, 0x2Cd60849380319b59e180BC2137352C6dF838A33);
 
         console.log("Initial liquidity staked in GeniusVault");
 
@@ -42,7 +41,7 @@ contract StakeInitialLiquidity is Script {
         // vm.startBroadcast(deployerPrivateKey);
 
         // // Adjust threshold to 75
-        // geniusPool.setRebalanceThreshold(75);
+        // geniusVault.setRebalanceThreshold(75);
 
         // console.log("Rebalance threshold adjusted to 75");
 
