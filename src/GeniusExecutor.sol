@@ -15,9 +15,8 @@ import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
  * @title GeniusExecutor
  * @author @altloot, @samuel_vdu
  * 
- * @notice The GeniusExecutor contract is a contract that allows for the aggregation of multiple calls
- *         in a single transaction, as well as facilitating interactions with the GeniusVault contract
- *         and the GeniusVault contract.
+ * @notice The GeniusExecutor contract allows for the aggregation of multiple calls
+ *         in a single transaction, as well as facilitating interactions with the GeniusVault contract.
  */
 contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     using SafeERC20 for IERC20;
@@ -373,7 +372,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     }
 
     function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
-        for (uint i = 0; i < amounts.length;) {
+        for (uint i; i < amounts.length;) {
             total += amounts[i];
 
             unchecked { i++; }
@@ -384,7 +383,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         address owner
     ) internal {
-        for (uint i = 0; i < permitBatch.details.length;) {
+        for (uint i; i < permitBatch.details.length;) {
             IERC20 token = IERC20(permitBatch.details[i].token);
             uint256 balance = token.balanceOf(address(this));
             if (balance > 0) {
@@ -420,7 +419,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.AllowanceTransferDetails[] memory transferDetails = new IAllowanceTransfer.AllowanceTransferDetails[](
             permitBatch.details.length
         );
-        for (uint i = 0; i < permitBatch.details.length; ) {
+        for (uint i; i < permitBatch.details.length; ) {
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
                 to: address(this),
@@ -439,7 +438,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes[] calldata data,
         uint256[] calldata values
     ) private {
-        for (uint i = 0; i < targets.length;) {
+        for (uint i; i < targets.length;) {
             (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
             if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], i);
 
@@ -451,7 +450,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address[] calldata routers,
         IAllowanceTransfer.PermitBatch calldata permitBatch
     ) private {
-        for (uint i = 0; i < permitBatch.details.length;) {
+        for (uint i; i < permitBatch.details.length;) {
             IERC20 tokenToApprove = IERC20(permitBatch.details[i].token);
             uint256 amountToApprove = permitBatch.details[i].amount;
 
