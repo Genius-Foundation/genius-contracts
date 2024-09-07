@@ -35,7 +35,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // ║                         VARIABLES                         ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    mapping(address => uint256) private allowedTargets;
+    mapping(address => uint256) private allowedTargets
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
@@ -317,6 +317,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
 
+    /**
+     * @dev Transfers ERC20 tokens to a specified address.
+     * @param token The address of the token to be transferred.
+     * @param to The address to which the tokens will be transferred.
+     * @param amount The amount of tokens to be transferred.
+     */
     function _transferERC20(
         address token,
         address to,
@@ -325,6 +331,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IERC20(token).safeTransfer(to, amount);
     }
 
+    /**
+     * @dev Checks if the targets are allowed to be called.
+     * @param targets The addresses of the targets to be checked.
+     * @param tokenDetails The details of the tokens to be checked.
+     * @param owner The address of the owner of the tokens.
+     */
     function _checkTargets(
         address[] memory targets,
         IAllowanceTransfer.PermitDetails[] memory tokenDetails,
@@ -367,10 +379,18 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         }
     }
 
+    /**
+     * @dev Checks if the amount of native tokens sent is correct.
+     * @param amount The amount of native tokens expected.
+     */
     function _checkNative(uint256 amount) internal {
         if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
     }
 
+    /**
+     * @dev Sums the amounts in an array.
+     * @param amounts The array of amounts to be summed.
+     */
     function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
         for (uint i; i < amounts.length;) {
             total += amounts[i];
@@ -379,6 +399,11 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         }
     }
 
+    /**
+     * @dev Sweeps ERC20 tokens to the owner.
+     * @param permitBatch The permit batch details.
+     * @param owner The address of the owner of the tokens.
+     */
     function _sweepERC20s(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         address owner
@@ -398,6 +423,10 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         }
     }
 
+    /**
+     * @dev Sweeps native tokens to the receiver.
+     * @param receiver The address of the receiver of the native tokens.
+     */
     function _sweepNative(address receiver) internal {
         uint256 _balance = address(this).balance;
 
@@ -406,6 +435,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         }
     }
 
+    /**
+     * @dev Permits and transfers tokens from the owner to the contract.
+     * @param permitBatch The permit batch details.
+     * @param signature The signature of the permit.
+     * @param owner The address of the owner of the tokens.
+     */
     function _permitAndBatchTransfer(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
@@ -433,6 +468,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         PERMIT2.transferFrom(transferDetails);
     }
 
+    /**
+     * @dev Executes a batch of calls.
+     * @param targets The addresses of the targets to be called.
+     * @param data The calldata to be used when executing the calls.
+     * @param values The values to be sent with the calls.
+     */
     function _batchExecution(
         address[] calldata targets,
         bytes[] calldata data,
@@ -446,6 +487,11 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         }
     }
 
+    /**
+     * @dev Approves the routers to spend the tokens.
+     * @param routers The addresses of the routers to be approved.
+     * @param permitBatch The permit batch details.
+     */
     function _approveRouters(
         address[] calldata routers,
         IAllowanceTransfer.PermitBatch calldata permitBatch
@@ -460,18 +506,35 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         }
     }
 
+    /**
+     * @dev Approves the vault to spend the tokens.
+     * @param amount The amount of tokens to be approved.
+     */
     function _approveVault(uint256 amount) private {
         if (!STABLECOIN.approve(address(VAULT), amount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amount);
     }
 
+    /**
+     * @dev Deposits tokens to the vault.
+     * @param receiver The address of the receiver of the tokens.
+     * @param amount The amount of tokens to be deposited.
+     */
     function _depositToVault(address receiver, uint256 amount) private {
         VAULT.stakeDeposit(amount, receiver);
     }
 
+    /**
+     * @dev Withdraws tokens from the vault.
+     * @param receiver The address of the receiver of the tokens.
+     * @param amount The amount of tokens to be withdrawn.
+     */
     function _withdrawFromVault(address receiver, uint256 amount) private {
         VAULT.stakeWithdraw(amount, receiver, address(this));
     }
 
+    /**
+     * @dev Fallback function to prevent native tokens from being sent directly.
+     */
     receive() external payable {
         revert("Native tokens not accepted directly");
     }
