@@ -35,7 +35,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // ║                         VARIABLES                         ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    mapping(address => uint256) private allowedTargets
+    mapping(address => uint256) private allowedTargets;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
