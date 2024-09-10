@@ -50,9 +50,9 @@ contract GeniusVault is GeniusVaultCore {
         _checkBridgeTargets(targets);
  
         uint256 preTransferAssets = stablecoinBalance();
-        uint256 neededLiquidty_ = minLiquidity();
+        uint256 _neededLiquidity = minLiquidity();
 
-        _isAmountValid(amountIn, _availableAssets(preTransferAssets, neededLiquidty_));
+        _isAmountValid(amountIn, _availableAssets(preTransferAssets, _neededLiquidity));
         _checkNative(_sum(values));
 
         _batchExecution(targets, data, values);
