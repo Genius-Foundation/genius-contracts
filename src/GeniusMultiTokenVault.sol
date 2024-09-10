@@ -108,11 +108,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         _checkNative(_sum(values));
         _checkBridgeTargets(targets);
 
-        if (!_isBalanceWithinThreshold(preTransferAssets - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            neededLiquidity_,
-            preTransferAssets - amountIn
-        );
-
         uint256[] memory preBalances = supportedTokensBalances();
 
         _batchExecution(targets, data, values);
@@ -242,10 +237,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         _isAmountValid(order.amountIn, _availableAssets(_stablecoinBalance, _neededLiquidity));
         
         if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (!_isBalanceWithinThreshold(_stablecoinBalance - order.amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            _neededLiquidity,
-            _stablecoinBalance - order.amountIn
-        );
 
         orderStatus[orderHash_] = OrderStatus.Filled;
 

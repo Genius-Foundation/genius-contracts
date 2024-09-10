@@ -289,16 +289,6 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     }
 
     /**
-     * @dev Internal function to spend an allowance.
-     * @param balance The expected balance after interactions.
-     */
-    function _isBalanceWithinThreshold(uint256 balance) internal view returns (bool) {
-        uint256 lowerBound = (totalStakedAssets * rebalanceThreshold) / 100;
-
-        return balance >= lowerBound;
-    }
-
-    /**
      * @dev Internal function to update the staked balance.
      * @param amount The amount to update the balance with.
      * @param add The operation to perform. 1 for addition, 0 for subtraction.

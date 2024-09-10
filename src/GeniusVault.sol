@@ -34,12 +34,6 @@ contract GeniusVault is GeniusVaultCore {
         uint256 _neededLiquidity = minLiquidity();
 
         _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
-
-        if (!_isBalanceWithinThreshold(_totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
-            _neededLiquidity,
-            _totalAssets - amount
-        );
-
         _transferERC20(address(STABLECOIN), msg.sender, amount);
     }
 
@@ -60,11 +54,6 @@ contract GeniusVault is GeniusVaultCore {
 
         _isAmountValid(amountIn, _availableAssets(preTransferAssets, neededLiquidty_));
         _checkNative(_sum(values));
-
-        if (!_isBalanceWithinThreshold(preTransferAssets - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            neededLiquidty_,
-            preTransferAssets - amountIn
-        );
 
         _batchExecution(targets, data, values);
 
@@ -96,10 +85,6 @@ contract GeniusVault is GeniusVaultCore {
         _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
 
         if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (!_isBalanceWithinThreshold(_totalAssets - order.amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            _neededLiquidity,
-            _totalAssets - order.amountIn
-        );
 
         orderStatus[orderHash_] = OrderStatus.Filled;
 
