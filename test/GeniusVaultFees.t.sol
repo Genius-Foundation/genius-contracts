@@ -173,6 +173,7 @@ contract GeniusVaultFees is Test {
         assertEq(VAULT.unclaimedFees(), 1 ether, "Total unclaimed fees should still be 0 ether");
         assertEq(VAULT.stablecoinBalance(), 1 ether, "Stablecoin balance should be 1 ether");
         assertEq(VAULT.availableAssets(), 0, "Available Stablecoin balance should be 0");
+        assertEq(VAULT.reservedAssets(), 0 ether, "Reserved Stablecoin balance should be 0 ether");
     }
 
     function testRemoveTooMuchLiquidity() public {
@@ -212,5 +213,6 @@ contract GeniusVaultFees is Test {
         assertEq(VAULT.unclaimedFees(), 0, "Total unclaimed fees should still be 0");
         assertEq(VAULT.stablecoinBalance(), 1_000 ether, "Stablecoin balance should be 1,000 ether");
         assertEq(VAULT.availableAssets(), 0 ether, "Available Stablecoin balance should be 0 ether");
+        assertEq(VAULT.reservedAssets(), 1_000 ether, "Reserved Stablecoin balance should be 0 ether");
     }
 }
