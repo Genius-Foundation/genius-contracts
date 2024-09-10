@@ -155,9 +155,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     /**
      * @dev See {IGeniusVault-setExecutor}.
      */
-    function setExecutor(address executor_) external override onlyAdmin {
-        if (executor_ == address(0)) revert GeniusErrors.NonAddress0();
-        EXECUTOR = executor_;
+    function setExecutor(address executor) external override onlyAdmin {
+        if (executor == address(0)) revert GeniusErrors.NonAddress0();
+        EXECUTOR = executor;
     }
 
     /**
@@ -276,26 +276,16 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
 
     /**
      * @dev Internal function to determine if a given amount is valid for withdrawal.
-     * @param amount_ The amount to withdraw.
-     * @param availableAssets_ The total available assets.
+     * @param _amount The amount to withdraw.
+     * @param _availableLiquidity The total available assets.
      */
-    function _isAmountValid(uint256 amount_, uint256 availableAssets_) internal pure {
-        if (amount_ == 0) revert GeniusErrors.InvalidAmount();
+    function _isAmountValid(uint256 _amount, uint256 _availableLiquidity) internal pure {
+        if (_amount == 0) revert GeniusErrors.InvalidAmount();
 
-        if (amount_ > availableAssets_) revert GeniusErrors.InsufficientLiquidity(
-            availableAssets_,
-            amount_
+        if (_amount > _availableLiquidity) revert GeniusErrors.InsufficientLiquidity(
+            _availableLiquidity,
+            _amount
         );
-    }
-
-    /**
-     * @dev Internal function to spend an allowance.
-     * @param balance The expected balance after interactions.
-     */
-    function _isBalanceWithinThreshold(uint256 balance) internal view returns (bool) {
-        uint256 lowerBound = (totalStakedAssets * rebalanceThreshold) / 100;
-
-        return balance >= lowerBound;
     }
 
     /**

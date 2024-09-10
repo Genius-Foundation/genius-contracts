@@ -286,8 +286,9 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 124 ether, "Available assets mismatch");
-        assertEq(VAULT.minLiquidity(), 26 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(VAULT.reservedAssets(), 50 ether, "Reserved assets mismatch");
+        assertEq(VAULT.minLiquidity(), 75 ether, "Minimum asset balance mismatch");
     }
 
     /**
@@ -356,8 +357,9 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 100 ether, "Total staked assets mismatch");
         assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 124 ether, "Available assets mismatch");
-        assertEq(VAULT.minLiquidity(), 26 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(VAULT.reservedAssets(), 50 ether, "Reserved assets mismatch");
+        assertEq(VAULT.minLiquidity(), 75 ether, "Minimum asset balance mismatch");
 
         // Start acting as TRADER
         vm.startPrank(TRADER);
@@ -365,7 +367,7 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalStakedAssets(), 0, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 49 ether, "Available assets mismatch");
+        assertEq(VAULT.availableAssets(), 0 ether, "Available assets mismatch");
 
         vm.stopPrank();
     }
@@ -445,8 +447,9 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 124 ether, "Available assets mismatch");
-        assertEq(VAULT.minLiquidity(), 26 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.availableAssets(), 75 ether, "Available assets mismatch");
+        assertEq(VAULT.reservedAssets(), 50 ether, "Reserved assets mismatch");
+        assertEq(VAULT.minLiquidity(), 75 ether, "Minimum asset balance mismatch");
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
@@ -455,8 +458,8 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.stablecoinBalance(), 150 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 59 ether, "Available assets mismatch");
-        assertEq(VAULT.minLiquidity(), 91 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.availableAssets(), 10 ether, "Available assets mismatch");
+        assertEq(VAULT.minLiquidity(), 140 ether, "Minimum asset balance mismatch");
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
@@ -464,7 +467,7 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalStakedAssets(), 0, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 49 ether, "Available assets mismatch");
+        assertEq(VAULT.availableAssets(), 0 ether, "Available assets mismatch");
 
         vm.stopPrank();
     } 
@@ -500,7 +503,7 @@ contract GeniusVaultAccounting is Test {
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Vault Total assets mismatch");
         assertEq(VAULT.stablecoinBalance(), 110 ether, "Vault Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 85 ether, "#1 Available assets mismatch");
+        assertEq(VAULT.availableAssets(), 85 ether, "Available assets mismatch");
         assertEq(VAULT.minLiquidity(), 25 ether, "Minimum asset balance mismatch");
 
         // Donate +10 before adding liquidity
@@ -547,11 +550,12 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.stablecoinBalance(), 170 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 144 ether, "Available assets mismatch");
-        assertEq(VAULT.minLiquidity(), 26 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.availableAssets(), 95 ether, "Available assets mismatch");
+        assertEq(VAULT.reservedAssets(), 50 ether, "Reserved assets mismatch");
+        assertEq(VAULT.minLiquidity(), 75 ether, "Minimum asset balance mismatch");
 
         // Donate + 10 before changing threshold
-        donateAndAssert(100 ether, 180 ether, 154 ether, 26 ether);
+        donateAndAssert(100 ether, 180 ether, 105 ether, 75 ether);
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
@@ -560,11 +564,11 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), depositAmount, "Total staked assets mismatch");
         assertEq(VAULT.stablecoinBalance(), 180 ether, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 89 ether, "Available assets mismatch");
-        assertEq(VAULT.minLiquidity(), 91 ether, "Minimum asset balance mismatch");
+        assertEq(VAULT.availableAssets(), 40 ether, "Available assets mismatch");
+        assertEq(VAULT.minLiquidity(), 140 ether, "Minimum asset balance mismatch");
 
         // Donate +10 before withdrawing
-        donateAndAssert(100 ether, 190 ether, 99 ether, 91 ether);
+        donateAndAssert(100 ether, 190 ether, 50 ether, 140 ether);
 
         // =================== WITHDRAW FROM VAULT ===================
         vm.startPrank(TRADER);
@@ -573,7 +577,7 @@ contract GeniusVaultAccounting is Test {
 
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets does not equal 0");
         assertEq(VAULT.totalStakedAssets(), 0, "Total assets mismatch");
-        assertEq(VAULT.availableAssets(), 89 ether, "Available assets mismatch");
+        assertEq(VAULT.availableAssets(), 40 ether, "Available assets mismatch");
     }
 }
 

@@ -6,8 +6,8 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 contract GeniusVault is GeniusVaultCore {
 
+    uint256 public reservedAssets; // The total amount of assets that have been reserved for unfilled orders
     uint256 public unclaimedFees; // The total amount of fees that are available to be claimed
-    uint256 public reservedFees; // The total amount of fees that have been reserved for unfilled orders
 
     constructor() {
         _disableInitializers();
@@ -34,12 +34,6 @@ contract GeniusVault is GeniusVaultCore {
         uint256 _neededLiquidity = minLiquidity();
 
         _isAmountValid(amount, _availableAssets(_totalAssets, _neededLiquidity));
-
-        if (!_isBalanceWithinThreshold(_totalAssets - amount)) revert GeniusErrors.ThresholdWouldExceed(
-            _neededLiquidity,
-            _totalAssets - amount
-        );
-
         _transferERC20(address(STABLECOIN), msg.sender, amount);
     }
 
@@ -56,15 +50,10 @@ contract GeniusVault is GeniusVaultCore {
         _checkBridgeTargets(targets);
  
         uint256 preTransferAssets = stablecoinBalance();
-        uint256 neededLiquidty_ = minLiquidity();
+        uint256 _neededLiquidity = minLiquidity();
 
-        _isAmountValid(amountIn, _availableAssets(preTransferAssets, neededLiquidty_));
+        _isAmountValid(amountIn, _availableAssets(preTransferAssets, _neededLiquidity));
         _checkNative(_sum(values));
-
-        if (!_isBalanceWithinThreshold(preTransferAssets - amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            neededLiquidty_,
-            preTransferAssets - amountIn
-        );
 
         _batchExecution(targets, data, values);
 
@@ -78,7 +67,7 @@ contract GeniusVault is GeniusVaultCore {
         );
     }
 
-        /**
+     /**
      * @dev See {IGeniusVault-removeLiquiditySwap}.
      */
     function removeLiquiditySwap(
@@ -96,10 +85,6 @@ contract GeniusVault is GeniusVaultCore {
         _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
 
         if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (!_isBalanceWithinThreshold(_totalAssets - order.amountIn)) revert GeniusErrors.ThresholdWouldExceed(
-            _neededLiquidity,
-            _totalAssets - order.amountIn
-        );
 
         orderStatus[orderHash_] = OrderStatus.Filled;
 
@@ -161,7 +146,7 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn
         );
 
-        reservedFees += fee;
+        reservedAssets += order.amountIn;
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit SwapDeposit(
@@ -204,7 +189,7 @@ contract GeniusVault is GeniusVaultCore {
 
         orderStatus[_orderHash] = OrderStatus.Filled;
         unclaimedFees += order.fee;
-        reservedFees -= order.fee;
+        reservedAssets -= order.amountIn;
 
         emit OrderFilled(
             order.seed,
@@ -247,7 +232,7 @@ contract GeniusVault is GeniusVaultCore {
         
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
-        reservedFees -= order.fee;
+        reservedAssets -= order.amountIn;
         unclaimedFees += _protocolFee;
 
         emit OrderReverted(
@@ -266,7 +251,7 @@ contract GeniusVault is GeniusVaultCore {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
         uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
         
-        return minBalance + unclaimedFees + reservedFees;
+        return minBalance + unclaimedFees + reservedAssets;
     }
 
     /**

@@ -357,7 +357,8 @@ contract GeniusExecutorTest is Test {
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
         assertEq(USDC.balanceOf(address(VAULT)), 5 ether, "Executor should have 4 test tokens");
         assertEq(VAULT.stablecoinBalance(), 5 ether, "Vault should have 4 test tokens available");
-        assertEq(VAULT.availableAssets(), 4 ether, "Vault should have 90% of test tokens available");
+        assertEq(VAULT.availableAssets(), 0 ether, "Vault should have 0% of test tokens available");
+        assertEq(VAULT.reservedAssets(), 5 ether, "Vault should have 100% of tokens reserved");
         assertEq(VAULT.totalStakedAssets(), 0, "Vault should have 0 test tokens staked");
     }
 
@@ -390,7 +391,8 @@ contract GeniusExecutorTest is Test {
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
         assertEq(USDC.balanceOf(address(VAULT)), 50 ether, "Executor should have 10 test tokens");
         assertEq(VAULT.stablecoinBalance(), 50 ether, "Vault should have 10 test tokens available");
-        assertEq(VAULT.availableAssets(), 49 ether, "Vault should have 50 test tokens available");
+        assertEq(VAULT.availableAssets(), 0 ether, "Vault should have 0 test tokens available");
+        assertEq(VAULT.reservedAssets(), 50 ether, "Vault should have 0 test tokens staked");
         assertEq(VAULT.totalStakedAssets(), 0, "Vault should have 0 test tokens staked");
     }
 
@@ -490,8 +492,9 @@ contract GeniusExecutorTest is Test {
         assertEq(USDC.balanceOf(holderTwo), 90 ether, "Holder Two should have 90 test tokens");
         assertEq(USDC.balanceOf(TRADER), traderBalance - 100 ether, "Trader should have expected balance");
         assertEq(VAULT.stablecoinBalance(), 120 ether, "Vault should have 120 test tokens available");
-        assertEq(VAULT.availableAssets(), 119 ether, "Vault should have 120 test tokens available");
+        assertEq(VAULT.availableAssets(), 0 ether, "Vault should have 120 test tokens available");
         assertEq(VAULT.totalStakedAssets(), 0, "Vault should have 0 test tokens staked");
+        assertEq(VAULT.reservedAssets(), 120 ether, "Vault should have 0 test tokens reserved");
     }
 
     function testDepositToVault() public {
