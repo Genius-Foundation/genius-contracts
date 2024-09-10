@@ -35,8 +35,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     mapping(address token => bool isSupported) public supportedTokens; // Mapping of token addresses to TokenInfo structs
     mapping(uint256 index => address token) public supportedTokensIndex; // Mapping of supported token index to token address
     mapping(address router => uint256 isSupported) public supportedRouters; // Mapping of router address to support status
-    mapping(address token => uint256) public supportedTokenFees; // Mapping of token address to total unclaimed fees
-    mapping(address token => uint256) public supportedTokenReservedFees; // Mapping of token address to total unclaimed fees
+    mapping(address token => uint256 amount) public supportedTokenFees; // Mapping of token address to total unclaimed fees
+    mapping(address token => uint256 amount) public supportedTokenReserves; // Mapping of token address to total reserved assets
 
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -204,8 +204,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             postBalance - preBalance
         );
 
-        supportedTokenReservedFees[tokenIn] += fee;
-        orderStatus[_orderHash] = OrderStatus.Created;        
+        orderStatus[_orderHash] = OrderStatus.Created;
+        supportedTokenReserves[tokenIn] += order.amountIn;      
 
         emit SwapDeposit(
             order.seed,
@@ -324,7 +324,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         orderStatus[_orderHash] = OrderStatus.Filled;
 
         supportedTokenFees[order.tokenIn] += order.fee;
-        supportedTokenReservedFees[order.tokenIn] -= order.fee;
+        supportedTokenReserves[order.tokenIn] -= order.amountIn;
 
         emit OrderFilled(
             order.seed,
@@ -363,8 +363,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         
         orderStatus[_orderHash] = OrderStatus.Reverted;
 
-        supportedTokenReservedFees[order.tokenIn] -= order.fee;
         supportedTokenFees[order.tokenIn] += _protocolFee;
+        supportedTokenReserves[order.tokenIn] -= order.amountIn;
 
         emit OrderReverted(
             order.seed,
@@ -478,7 +478,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
         uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
         
-        return minBalance + supportedTokenFees[address(STABLECOIN)] + supportedTokenReservedFees[address(STABLECOIN)];
+        return minBalance + supportedTokenFees[address(STABLECOIN)] + supportedTokenReserves[address(STABLECOIN)];
     }
 
     /**
