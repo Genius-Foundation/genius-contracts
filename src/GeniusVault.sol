@@ -6,8 +6,8 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 contract GeniusVault is GeniusVaultCore {
 
+    uint256 public reservedAssets; // The total amount of assets that have been reserved for unfilled orders
     uint256 public unclaimedFees; // The total amount of fees that are available to be claimed
-    uint256 public reservedFees; // The total amount of fees that have been reserved for unfilled orders
 
     constructor() {
         _disableInitializers();
@@ -67,7 +67,7 @@ contract GeniusVault is GeniusVaultCore {
         );
     }
 
-        /**
+     /**
      * @dev See {IGeniusVault-removeLiquiditySwap}.
      */
     function removeLiquiditySwap(
@@ -146,7 +146,7 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn
         );
 
-        reservedFees += fee;
+        reservedAssets += order.amountIn;
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit SwapDeposit(
@@ -189,7 +189,7 @@ contract GeniusVault is GeniusVaultCore {
 
         orderStatus[_orderHash] = OrderStatus.Filled;
         unclaimedFees += order.fee;
-        reservedFees -= order.fee;
+        reservedAssets -= order.amountIn;
 
         emit OrderFilled(
             order.seed,
@@ -232,7 +232,7 @@ contract GeniusVault is GeniusVaultCore {
         
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
-        reservedFees -= order.fee;
+        reservedAssets -= order.amountIn;
         unclaimedFees += _protocolFee;
 
         emit OrderReverted(
@@ -251,7 +251,7 @@ contract GeniusVault is GeniusVaultCore {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
         uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
         
-        return minBalance + unclaimedFees + reservedFees;
+        return minBalance + unclaimedFees + reservedAssets;
     }
 
     /**
