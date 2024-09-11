@@ -206,32 +206,21 @@ contract GeniusVault is GeniusVaultCore {
    /**
     * @notice Reverts an order and refunds the trader
     * @param order The order to revert
-    * @param targets The targets to call
-    * @param data The data to pass to the targets
-    * @param values The values to pass to the targets
     */
     function revertOrder(
-        Order calldata order, 
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values
-    ) external onlyOrchestrator whenNotPaused {
+        Order calldata order
+    ) external onlyExecutor whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
         if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
         if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
 
         (uint256 _totalRefund, uint256 _protocolFee) = _calculateRefundAmount(order.amountIn, order.fee);
-        uint256 _totalAssetsPreRevert = stablecoinBalance();
-        _batchExecution(targets, data, values);
-
-        uint256 _totalAssetsPostRevert = stablecoinBalance();
-        uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
-
-        if (_delta != _totalRefund) revert GeniusErrors.InvalidDelta();
         
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
+        _transferERC20(address(STABLECOIN), msg.sender, _totalRefund);
+        
         reservedAssets -= order.amountIn;
         unclaimedFees += _protocolFee;
 

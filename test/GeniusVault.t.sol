@@ -506,7 +506,6 @@ contract GeniusVaultTest is Test {
     }
 
     function testRevertOrder() public {
-
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 1_000 ether);
         USDC.approve(address(VAULT), 1_000 ether);
@@ -526,34 +525,24 @@ contract GeniusVaultTest is Test {
         // Advance time past the fillDeadline
         vm.warp(block.timestamp + 200);
 
-        vm.startPrank(ORCHESTRATOR);
-        
-        address[] memory targets = new address[](1);
-        targets[0] = address(USDC);
+        uint256 prevExecutorBalance = USDC.balanceOf(address(EXECUTOR));
+        uint256 prevVaultBalance = USDC.balanceOf(address(VAULT));
 
-        bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSelector(USDC.transfer.selector, TRADER, 998 ether);
+        VAULT.revertOrder(order);
 
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
+        uint256 postExecutorBalance = USDC.balanceOf(address(EXECUTOR));
+        uint256 postVaultBalance = USDC.balanceOf(address(VAULT));
 
-        uint256 prevBalance = USDC.balanceOf(TRADER);
-
-        VAULT.revertOrder(order, targets, data, values);
-
-        assertEq(VAULT.unclaimedFees(), 2 ether, "Total assets should be 0");
-        assertEq(VAULT.stablecoinBalance(), 2 ether, "Total assets should be 0");
-
-        uint256 postBalance = USDC.balanceOf(TRADER);
+        assertEq(VAULT.unclaimedFees(), 2 ether, "Unclaimed fees should be 2 ether");
+        assertEq(VAULT.stablecoinBalance(), 2 ether, "Vault balance should be 2 ether");
+        assertEq(postExecutorBalance - prevExecutorBalance, 998 ether, "Executor should receive refunded amount");
+        assertEq(prevVaultBalance - postVaultBalance, 998 ether, "Vault balance should decrease by refunded amount");
 
         bytes32 orderHash = VAULT.orderHash(order);
         assertEq(uint256(VAULT.orderStatus(orderHash)), uint256(IGeniusVault.OrderStatus.Reverted), "Order status should be Reverted");
-        assertEq(postBalance - prevBalance, 998 ether, "Trader should receive refunded amount");
     }
 
     function testCannotRevertOrderBeforeDeadline() public {
-        
-
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 1_000 ether);
         USDC.approve(address(VAULT), 1_000 ether);
@@ -570,19 +559,8 @@ contract GeniusVaultTest is Test {
             fee: 1 ether
         });
 
-        vm.startPrank(ORCHESTRATOR);
-        
-        address[] memory targets = new address[](1);
-        targets[0] = address(USDC);
-
-        bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSelector(USDC.transfer.selector, TRADER, 1_000 ether);
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
-
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.DeadlineNotPassed.selector, uint32(block.timestamp + 1000)));
-        VAULT.revertOrder(order, targets, data, values);
+        VAULT.revertOrder(order);
     }
 
     function testAddLiquiditySwapWithZeroAmount() public {
@@ -673,65 +651,6 @@ contract GeniusVaultTest is Test {
         VAULT.setOrderAsFilled(order);
     }
 
-    function testRevertOrderWithWrongSourceChain() public {
-        vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
-
-        // Advance time past the fillDeadline
-        vm.warp(block.timestamp + 200);
-
-        vm.startPrank(ORCHESTRATOR);
-
-        address[] memory targets = new address[](1);
-        targets[0] = address(USDC);
-
-        bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSelector(USDC.transfer.selector, TRADER, 1_000 ether);
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
-
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidOrderStatus.selector));
-        VAULT.revertOrder(badOrder, targets, data, values);
-    }
-
-    function testRevertOrderWithIncorrectRefundAmount() public {
-        vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 3 ether);
-
-        order = IGeniusVault.Order({
-            seed: keccak256("order"),
-            amountIn: 1_000 ether,
-            trader: TRADER,
-            srcChainId: uint16(block.chainid),
-            destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 100),
-            tokenIn: address(USDC),
-            fee: 3 ether
-        });
-
-        // Advance time past the fillDeadline
-        vm.warp(block.timestamp + 200);
-
-        vm.startPrank(ORCHESTRATOR);
-
-        address[] memory targets = new address[](1);
-        targets[0] = address(USDC);
-
-        bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSelector(USDC.transfer.selector, TRADER, 900 ether); // Incorrect refund amount
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
-
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidDelta.selector));
-        VAULT.revertOrder(order, targets, data, values);
-    }
-
     function testRevertOrderTwice() public {
         vm.startPrank(address(EXECUTOR));
         deal(address(USDC), address(EXECUTOR), 1_000 ether);
@@ -752,20 +671,36 @@ contract GeniusVaultTest is Test {
         // Advance time past the fillDeadline
         vm.warp(block.timestamp + 200);
 
-        vm.startPrank(ORCHESTRATOR);
-
-        address[] memory targets = new address[](1);
-        targets[0] = address(USDC);
-
-        bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSelector(USDC.transfer.selector, TRADER, 1_000 ether);
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
-
-        VAULT.revertOrder(order, targets, data, values);
+        VAULT.revertOrder(order);
 
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidOrderStatus.selector));
-        VAULT.revertOrder(order, targets, data, values);
+        VAULT.revertOrder(order);
+    }
+
+    function testRevertOrderAsNonExecutor() public {
+        vm.startPrank(address(EXECUTOR));
+        deal(address(USDC), address(EXECUTOR), 1_000 ether);
+        USDC.approve(address(VAULT), 1_000 ether);
+        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 100), 3 ether);
+
+        order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1_000 ether,
+            trader: TRADER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            fillDeadline: uint32(block.timestamp + 100),
+            tokenIn: address(USDC),
+            fee: 3 ether
+        });
+
+        // Advance time past the fillDeadline
+        vm.warp(block.timestamp + 200);
+
+        vm.stopPrank();
+        vm.startPrank(TRADER);
+
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.IsNotExecutor.selector));
+        VAULT.revertOrder(order);
     }
 }
