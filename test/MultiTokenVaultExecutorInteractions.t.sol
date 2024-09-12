@@ -50,6 +50,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
     address public TRADER;
     address public ORCHESTRATOR;
     address public BRIDGE;
+    bytes32 public RECEIVER = keccak256("receiver");
 
     // ============ Private Key ============
     uint256 P_KEY;
@@ -190,7 +191,8 @@ contract MultiTokenVaultExecutorInteractions is Test {
             TRADER,
             destChainId,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            RECEIVER
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
@@ -276,7 +278,8 @@ contract MultiTokenVaultExecutorInteractions is Test {
             TRADER,
             42,
             uint32(uint32(block.timestamp + 1000)),
-            1 ether
+            1 ether,
+            RECEIVER
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
@@ -308,7 +311,8 @@ contract MultiTokenVaultExecutorInteractions is Test {
             swapAmount,
             destChainId,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            RECEIVER
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 USDC");

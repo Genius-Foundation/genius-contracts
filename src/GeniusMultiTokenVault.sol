@@ -155,7 +155,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256 amountIn,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee
+        uint256 fee,
+        bytes32 receiver
     ) external payable override onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
@@ -165,6 +166,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         Order memory order = Order({
             trader: trader,
+            receiver: receiver,
             amountIn: amountIn,
             seed: seed,
             srcChainId: uint16(_currentChainId()),
@@ -245,6 +247,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         emit SwapWithdrawal(
             order.seed,
             order.trader,
+            order.receiver,
             address(STABLECOIN),
             order.amountIn,
             order.srcChainId,
@@ -329,6 +332,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         emit OrderFilled(
             order.seed,
             order.trader,
+            order.receiver,
             order.tokenIn,
             order.amountIn,
             order.srcChainId,
@@ -342,33 +346,25 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      * @dev See {IGeniusVault-revertOrder}.
      */
     function revertOrder(
-        Order calldata order, 
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values
-    ) external onlyOrchestrator whenNotPaused {
+        Order calldata order
+    ) external onlyExecutor whenNotPaused {
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
         if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
         if (order.fillDeadline >= _currentTimeStamp()) revert GeniusErrors.DeadlineNotPassed(order.fillDeadline);
 
         (uint256 _totalRefund, uint256 _protocolFee) = _calculateRefundAmount(order.amountIn, order.fee);
-        uint256 _totalAssetsPreRevert = stablecoinBalance();
-        _batchExecution(targets, data, values);
-
-        uint256 _totalAssetsPostRevert = stablecoinBalance();
-        uint256 _delta = _totalAssetsPreRevert - _totalAssetsPostRevert;
-
-        if (_delta != _totalRefund) revert GeniusErrors.InvalidDelta();
         
         orderStatus[_orderHash] = OrderStatus.Reverted;
-
         supportedTokenFees[order.tokenIn] += _protocolFee;
         supportedTokenReserves[order.tokenIn] -= order.amountIn;
+
+        _transferERC20(order.tokenIn, msg.sender, _totalRefund);
 
         emit OrderReverted(
             order.seed,
             order.trader,
+            order.receiver,
             order.tokenIn,
             order.amountIn,
             order.srcChainId,

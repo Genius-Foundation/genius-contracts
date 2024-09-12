@@ -135,7 +135,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address owner,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee
+        uint256 fee,
+        bytes32 receiver
     ) external override onlyOrchestrator nonReentrant {
         if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
 
@@ -169,7 +170,16 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _depositAmount
         );
 
-        VAULT.addLiquiditySwap(seed, owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
+        VAULT.addLiquiditySwap(
+            seed,
+            owner,
+            address(STABLECOIN),
+            _depositAmount,
+            destChainId,
+            fillDeadline,
+            fee,
+            receiver
+        );
 
         _sweepERC20s(permitBatch, owner);
     }
@@ -187,7 +197,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address owner,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee
+        uint256 fee,
+        bytes32 receiver
     ) external override payable nonReentrant {
         if (
             targets.length != data.length ||
@@ -213,7 +224,16 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
 
-        VAULT.addLiquiditySwap(seed, owner, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
+        VAULT.addLiquiditySwap(
+            seed, 
+            owner, 
+            address(STABLECOIN), 
+            _depositAmount, 
+            destChainId, 
+            fillDeadline, 
+            fee,
+            receiver
+        );
 
         _sweepERC20s(permitBatch, owner);
         if (msg.value > 0) _sweepNative(msg.sender);
@@ -229,7 +249,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint256 value,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee
+        uint256 fee,
+        bytes32 receiver
     ) external override payable {
         IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
         address[] memory targets = new address[](1);
@@ -252,7 +273,16 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             _depositAmount
         );
 
-        VAULT.addLiquiditySwap(seed, msg.sender, address(STABLECOIN), _depositAmount, destChainId, fillDeadline, fee);
+        VAULT.addLiquiditySwap(
+            seed, 
+            msg.sender, 
+            address(STABLECOIN), 
+            _depositAmount, 
+            destChainId, 
+            fillDeadline, 
+            fee,
+            receiver
+        );
 
         if (msg.value > 0) _sweepNative(msg.sender);
     }

@@ -43,6 +43,8 @@ contract GeniusExecutorTest is Test {
     uint256 private PRIVATE_KEY;
     address public RECEIVER;
 
+    bytes32 public encodedReceiver = keccak256(abi.encodePacked("receiver"));
+
     address public quoterAddress = 0xd76019A16606FDa4651f636D9751f500Ed776250;
     address public permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address payable public routerAddress = payable(0xb4315e873dBcf96Ffd0acd8EA43f689D8c20fB30);
@@ -350,7 +352,8 @@ contract GeniusExecutorTest is Test {
             TRADER,
             destChainId,
             fillDeadline,
-            1 ether
+            1 ether,
+            encodedReceiver
         );
         vm.stopPrank();
 
@@ -385,7 +388,8 @@ contract GeniusExecutorTest is Test {
             1 ether,
             destChainId,
             fillDeadline,
-            1 ether
+            1 ether,
+            encodedReceiver
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");
@@ -483,7 +487,8 @@ contract GeniusExecutorTest is Test {
             TRADER,
             42,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            encodedReceiver
         );
 
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor should have 0 test tokens");

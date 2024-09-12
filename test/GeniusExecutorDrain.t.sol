@@ -23,6 +23,7 @@ contract GeniusExecutorDrain is Test {
 
     address public OWNER;
     address public trader;
+    bytes32 public receiver;
     uint256 private privateKey;
     uint48 private nonce;
     address public coinReceiver;
@@ -129,6 +130,7 @@ contract GeniusExecutorDrain is Test {
         OWNER = makeAddr("owner");
         (address traderAddress, uint256 traderKey) = makeAddrAndKey("trader");
         trader = traderAddress;
+        receiver = keccak256(abi.encodePacked(trader));
         privateKey = traderKey;
         coinReceiver = makeAddr("coinReceiver");
 
@@ -457,7 +459,8 @@ contract GeniusExecutorDrain is Test {
             trader,
             42,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            receiver
         );
 
         // Assert final balances
@@ -502,7 +505,8 @@ contract GeniusExecutorDrain is Test {
             trader,
             destChainId,
             fillDeadline,
-            1 ether
+            1 ether,
+            receiver
         );
     }
 
@@ -552,7 +556,8 @@ contract GeniusExecutorDrain is Test {
             trader,
             42,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            receiver
         );
     }
 
@@ -611,7 +616,8 @@ contract GeniusExecutorDrain is Test {
             trader,
             42,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            receiver
         );
     }
 
@@ -645,7 +651,8 @@ contract GeniusExecutorDrain is Test {
             100 ether,
             42,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            receiver
         );
 
         // Assert final balances
@@ -663,7 +670,8 @@ contract GeniusExecutorDrain is Test {
             1 ether,
             42,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            receiver
         );
 
         // 2. External call failed
@@ -682,7 +690,8 @@ contract GeniusExecutorDrain is Test {
             1 ether,
             42,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            receiver
         );
 
         // 3. Insufficient ETH sent
@@ -695,7 +704,8 @@ contract GeniusExecutorDrain is Test {
             1 ether,
             42,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            receiver
         );
     }
 }

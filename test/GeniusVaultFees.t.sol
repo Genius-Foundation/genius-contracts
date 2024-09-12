@@ -28,6 +28,7 @@ contract GeniusVaultFees is Test {
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
+    bytes32 RECEIVER = keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
 
     ERC20 public USDC;
     ERC20 public WETH;
@@ -97,7 +98,7 @@ contract GeniusVaultFees is Test {
     function testAddLiquidity() public {
         vm.startPrank(address(EXECUTOR));
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(keccak256("order") ,TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether);
+        VAULT.addLiquiditySwap(keccak256("order") ,TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether, RECEIVER);
 
         assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
         assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
@@ -116,6 +117,7 @@ contract GeniusVaultFees is Test {
 
         IGeniusVault.Order memory orderToFill = IGeniusVault.Order({
             trader: TRADER,
+            receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 43114, // Use the current chain ID
@@ -133,12 +135,14 @@ contract GeniusVaultFees is Test {
             orderToFill.amountIn,
             orderToFill.destChainId,
             orderToFill.fillDeadline,
-            orderToFill.fee
+            orderToFill.fee,
+            orderToFill.receiver
         );
 
         // Create an Order struct for removing liquidity
         IGeniusVault.Order memory order = IGeniusVault.Order({
             trader: TRADER,
+            receiver: RECEIVER,
             amountIn: 999 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
@@ -186,12 +190,14 @@ contract GeniusVaultFees is Test {
             1_000 ether,
             destChainId,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            RECEIVER
         );
 
         // Create an Order struct for removing liquidity
         IGeniusVault.Order memory order = IGeniusVault.Order({
             trader: TRADER,
+            receiver: RECEIVER,
             amountIn: 1_001 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
