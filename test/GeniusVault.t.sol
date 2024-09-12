@@ -33,7 +33,7 @@ contract GeniusVaultTest is Test {
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
-    bytes32 RECEIVER = keccak256("RECEIVER");
+    bytes32 RECEIVER = keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
 
     ERC20 public USDC;
     ERC20 public WETH;

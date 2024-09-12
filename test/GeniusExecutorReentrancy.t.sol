@@ -24,7 +24,7 @@ contract GeniusExecutorReentrancy is Test {
 
     address public OWNER;
     address public trader;
-    bytes32 private encodedReceiver = keccak256("receiver");
+    bytes32 public RECEIVER = keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
     uint256 private privateKey;
     uint48 private nonce;
 
@@ -166,7 +166,7 @@ function testReentrancyMultiSwapAndDeposit() public {
             destChainId,
             fillDeadline,
             1 ether,
-            encodedReceiver
+            RECEIVER
         );
     }
 
