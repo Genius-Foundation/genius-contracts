@@ -37,6 +37,7 @@ interface IGeniusVault {
         bytes32 seed;
         uint256 amountIn;
         address trader;
+        bytes32 receiver;
         uint16 srcChainId;
         uint32 destChainId;
         uint32 fillDeadline; 
@@ -100,6 +101,7 @@ interface IGeniusVault {
     event SwapWithdrawal(
         bytes32 indexed seed,
         address indexed trader,
+        bytes32 receiver,
         address tokenOut,
         uint256 amountOut,
         uint16 indexed srcChainId,
@@ -120,6 +122,7 @@ interface IGeniusVault {
     event OrderFilled(
         bytes32 indexed seed,
         address indexed trader,
+        bytes32 receiver,
         address tokenIn,
         uint256 amountIn,
         uint16 srcChainId,
@@ -141,6 +144,7 @@ interface IGeniusVault {
     event OrderReverted(
         bytes32 indexed seed,
         address indexed trader,
+        bytes32 receiver,
         address tokenIn,
         uint256 amountIn,
         uint16 srcChainId,
@@ -242,7 +246,8 @@ interface IGeniusVault {
         uint256 amountIn,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee
+        uint256 fee,
+        bytes32 receiver
     ) external payable;
 
     /**

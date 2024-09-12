@@ -95,7 +95,8 @@ interface IGeniusExecutor {
         address owner,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 feeAmount
+        uint256 fee,
+        bytes32 receiver
     ) external;
 
     /**
@@ -120,7 +121,8 @@ interface IGeniusExecutor {
         address owner,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 feeAmount
+        uint256 fee,
+        bytes32 receiver
     ) external payable;
 
     /**
@@ -139,7 +141,8 @@ interface IGeniusExecutor {
         uint256 value,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 feeAmount
+        uint256 feeAmount,
+        bytes32 receiver
     ) external payable;
 
     /**

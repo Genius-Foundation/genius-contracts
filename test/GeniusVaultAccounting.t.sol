@@ -35,6 +35,7 @@ contract GeniusVaultAccounting is Test {
     address public OWNER;
     address public TRADER;
     address public ORCHESTRATOR;
+    bytes32 public RECEIVER = keccak256("receiver");
 
         // Add new variables for Permit2
     address public permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -279,7 +280,8 @@ contract GeniusVaultAccounting is Test {
             TRADER,
             destChainId,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            RECEIVER
         );
 
         vm.stopPrank();
@@ -350,7 +352,8 @@ contract GeniusVaultAccounting is Test {
             TRADER,
             destChainId,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            RECEIVER
         );
 
         vm.stopPrank();
@@ -440,7 +443,8 @@ contract GeniusVaultAccounting is Test {
             TRADER,
             destChainId,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            RECEIVER
         );
 
         vm.stopPrank();
@@ -543,7 +547,8 @@ contract GeniusVaultAccounting is Test {
             TRADER,
             destChainId,
             uint32(block.timestamp + 1000),
-            1 ether
+            1 ether,
+            RECEIVER
         );
 
         vm.stopPrank();

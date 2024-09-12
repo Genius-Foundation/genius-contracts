@@ -93,6 +93,7 @@ contract GeniusVault is GeniusVaultCore {
         emit SwapWithdrawal(
             order.seed,
             order.trader,
+            order.receiver,
             address(STABLECOIN),
             order.amountIn,
             order.srcChainId,
@@ -111,7 +112,8 @@ contract GeniusVault is GeniusVaultCore {
         uint256 amountIn,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee
+        uint256 fee,
+        bytes32 receiver
     ) external payable virtual override onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
@@ -121,6 +123,7 @@ contract GeniusVault is GeniusVaultCore {
 
         Order memory order = Order({
             trader: trader,
+            receiver: receiver,
             amountIn: amountIn,
             seed: seed,
             srcChainId: uint16(_currentChainId()),
@@ -194,6 +197,7 @@ contract GeniusVault is GeniusVaultCore {
         emit OrderFilled(
             order.seed,
             order.trader,
+            order.receiver,
             order.tokenIn,
             order.amountIn,
             order.srcChainId,
@@ -227,6 +231,7 @@ contract GeniusVault is GeniusVaultCore {
         emit OrderReverted(
             order.seed,
             order.trader,
+            order.receiver,
             order.tokenIn,
             order.amountIn,
             order.srcChainId,
