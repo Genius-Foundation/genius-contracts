@@ -28,6 +28,7 @@ interface IGeniusVault {
      * @param amountIn The amount of tokens to be swapped.
      * @param seed Seed used for the order, to avoid 2 same orders having the same hash.
      * @param trader Address of the trader initiating the order.
+    * @param receiver Address of the receiver of the swapped tokens.
      * @param srcChainId The source chain ID.
      * @param destChainId The destination chain ID.
      * @param fillDeadline The deadline by which the order must be filled.
@@ -238,6 +239,8 @@ interface IGeniusVault {
      * @param amountIn The amount of input tokens.
      * @param destChainId The destination chain ID.
      * @param fillDeadline The deadline for filling the order.
+     * @param fee The fee to be paid for the swap.
+     * @param receiver The address of the receiver of the swapped tokens.
      */
     function addLiquiditySwap(
         bytes32 seed,
