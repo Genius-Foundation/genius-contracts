@@ -71,8 +71,11 @@ contract GeniusVault is GeniusVaultCore {
      * @dev See {IGeniusVault-removeLiquiditySwap}.
      */
     function removeLiquiditySwap(
-        Order memory order
-    ) external virtual override onlyExecutor whenNotPaused {
+        Order memory order,
+        address[] memory targets,
+        uint256[] calldata values,
+        bytes[] memory data
+    ) external virtual override onlyOrchestrator whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
         if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
@@ -81,15 +84,26 @@ contract GeniusVault is GeniusVaultCore {
 
         uint256 _totalAssets = stablecoinBalance();
         uint256 _neededLiquidity = minLiquidity();
+        uint256 _expectedDelta = order.amountIn - order.fee;
 
-        _isAmountValid(order.amountIn, _availableAssets(_totalAssets, _neededLiquidity));
+        _isAmountValid(_expectedDelta, _availableAssets(_totalAssets, _neededLiquidity));
 
         if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
 
         orderStatus[orderHash_] = OrderStatus.Filled;
 
-        _transferERC20(address(STABLECOIN), msg.sender, order.amountIn);
-        
+        uint256 _preStableBalance = stablecoinBalance();
+
+        _batchExecution(targets, data, values);
+
+        uint256 _postStableBalance = stablecoinBalance();
+        uint256 _stableDelta = _preStableBalance - _postStableBalance;
+ 
+        if (_stableDelta > _expectedDelta) revert GeniusErrors.AmountInAndDeltaMismatch(
+            _expectedDelta,
+             _stableDelta
+        );
+
         emit SwapWithdrawal(
             order.seed,
             order.trader,
@@ -212,8 +226,11 @@ contract GeniusVault is GeniusVaultCore {
     * @param order The order to revert
     */
     function revertOrder(
-        Order calldata order
-    ) external onlyExecutor whenNotPaused {
+        Order calldata order,
+        address[] memory targets,
+        uint256[] calldata values,
+        bytes[] memory data
+    ) external onlyOrchestrator whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
         if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
@@ -223,7 +240,17 @@ contract GeniusVault is GeniusVaultCore {
         
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
-        _transferERC20(address(STABLECOIN), msg.sender, _totalRefund);
+        uint256 _preStableBalance = stablecoinBalance();
+
+        _batchExecution(targets, data, values);
+
+        uint256 _postStableBalance = stablecoinBalance();
+        uint256 _stableDelta = _preStableBalance - _postStableBalance;
+ 
+        if (_stableDelta > _totalRefund) revert GeniusErrors.AmountInAndDeltaMismatch(
+            _totalRefund,
+            _stableDelta
+        );
         
         reservedAssets -= order.amountIn;
         unclaimedFees += _protocolFee;

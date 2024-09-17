@@ -225,7 +225,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      * @dev See {IGeniusMultiTokenPool-removeLiquiditySwap}.
      */
     function removeLiquiditySwap(
-        Order memory order
+        Order memory order,
+        address[] memory targets,
+        uint256[] calldata values,
+        bytes[] memory data
     ) external override onlyExecutor whenNotPaused {
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(_orderHash);
@@ -235,14 +238,25 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         uint256 _stablecoinBalance = stablecoinBalance();
         uint256 _neededLiquidity = minLiquidity();
+        uint256 _expectedDelta = order.amountIn - order.fee;
         
-        _isAmountValid(order.amountIn, _availableAssets(_stablecoinBalance, _neededLiquidity));
+        _isAmountValid(_expectedDelta, _availableAssets(_stablecoinBalance, _neededLiquidity));
         
         if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
 
         orderStatus[_orderHash] = OrderStatus.Filled;
 
-        _transferERC20(address(STABLECOIN), msg.sender, order.amountIn);
+        uint256 _preStableBalance = stablecoinBalance();
+
+        _batchExecution(targets, data, values);
+
+        uint256 _postStableBalance = stablecoinBalance();
+        uint256 _actualDelta = _preStableBalance - _postStableBalance;
+ 
+        if (_actualDelta > _expectedDelta) revert GeniusErrors.AmountInAndDeltaMismatch(
+            _expectedDelta,
+            _actualDelta
+        );
         
         emit SwapWithdrawal(
             order.seed,
@@ -346,8 +360,11 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      * @dev See {IGeniusVault-revertOrder}.
      */
     function revertOrder(
-        Order calldata order
-    ) external onlyExecutor whenNotPaused {
+        Order calldata order,
+        address[] memory targets,
+        uint256[] calldata values,
+        bytes[] memory data
+    ) external onlyOrchestrator whenNotPaused {
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
         if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
@@ -359,7 +376,17 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         supportedTokenFees[order.tokenIn] += _protocolFee;
         supportedTokenReserves[order.tokenIn] -= order.amountIn;
 
-        _transferERC20(order.tokenIn, msg.sender, _totalRefund);
+        uint256 _preStableBalance = stablecoinBalance();
+
+        _batchExecution(targets, data, values);
+
+        uint256 _postStableBalance = stablecoinBalance();
+        uint256 _stableDelta = _postStableBalance - _preStableBalance;
+ 
+        if (_stableDelta > _totalRefund) revert GeniusErrors.AmountInAndDeltaMismatch(
+            _totalRefund,
+            _stableDelta
+        );
 
         emit OrderReverted(
             order.seed,
@@ -474,7 +501,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256 reduction = totalStakedAssets > 0 ? (totalStakedAssets * rebalanceThreshold) / 100 : 0;
         uint256 minBalance = totalStakedAssets > reduction ? totalStakedAssets - reduction : 0;
         
-        return minBalance + supportedTokenFees[address(STABLECOIN)] + supportedTokenReserves[address(STABLECOIN)];
+        uint256 result = minBalance + supportedTokenFees[address(STABLECOIN)] + supportedTokenReserves[address(STABLECOIN)];
+        
+        return result;
     }
 
     /**

@@ -259,7 +259,10 @@ interface IGeniusVault {
      * @param order The Order struct containing the order details.
      */
     function removeLiquiditySwap(
-        Order memory order
+        Order memory order,
+        address[] memory targets,
+        uint256[] calldata values,
+        bytes[] memory data
     ) external;
 
     /**

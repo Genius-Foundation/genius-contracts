@@ -155,40 +155,61 @@ contract GeniusMultiTokenVaultFees is Test {
             order.fee,
             order.receiver
         );
-        vm.stopPrank(); 
+        vm.stopPrank();
 
         assertEq(VAULT.supportedTokenReserves(address(USDC)), 1000 ether, "Token reserve should be 1000 tokens");
         assertEq(VAULT.availableAssets(), 0 ether, "Available assets should be 0");
 
-        // Set the order as filled
+                // Set the order as filled
         vm.startPrank(ORCHESTRATOR);
         VAULT.setOrderAsFilled(order);
-        vm.stopPrank();
+        vm.stopPrank(); 
 
         order = IGeniusVault.Order({
             trader: TRADER,
             receiver: RECEIVER,
-            amountIn: 999 ether,
+            amountIn: 1000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 42, // Use the current chain ID
             destChainId: uint16(block.chainid),
             fillDeadline: uint32(block.timestamp + 1000),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 3 ether
         });
+
+        // Create dummy targets, calldata, and values arrays to call removeLiquiditySwap
+        address[] memory targets = new address[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        uint256[] memory values = new uint256[](1);
+
+        // Target is stablecoin
+        targets[0] = address(USDC);
+        // Create calldata to transfer the stablecoin to this contract
+        calldatas[0] = abi.encodeWithSelector(USDC.transfer.selector, address(this), 997 ether);
+        // Value is 0
+        values[0] = 0;
+
+        console.log("Removing liquidity");
+        console.log("USDC balance before removing liquidity: ", USDC.balanceOf(address(VAULT)));
+        console.log("USDC available assets before removing liquidity: ", VAULT.availableAssets());
 
         // Remove liquidity
         vm.startPrank(address(EXECUTOR));
-        VAULT.removeLiquiditySwap(order);
+        VAULT.removeLiquiditySwap(
+            order,
+            targets,
+            values,
+            calldatas
+        );
 
         // Add assertions to check the state after removing liquidity
-        assertEq(USDC.balanceOf(address(VAULT)), 1 ether, "GeniusVault balance should be 1 ether (only fees left)");
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 999 ether, "Executor balance should be 999 ether");
+        assertEq(USDC.balanceOf(address(VAULT)), 3 ether, "GeniusVault balance should be 3 ether (only fees left)");
+        assertEq(USDC.balanceOf(address(EXECUTOR)), 0 ether, "Executor balance should be 999 ether");
         assertEq(VAULT.supportedTokenFees(address(USDC)), 1 ether, "Total unclaimed fees should still be 1 ether");
         assertEq(VAULT.minLiquidity(), 1 ether, "Minimum liquidity should be 1");
-        assertEq(VAULT.availableAssets(), 0 ether, "Available assets should be 0");
-        assertEq(VAULT.tokenBalance(address(USDC)), 1 ether, "Stablecoin balance should be 1 ether");
-        assertEq(VAULT.supportedTokenReserves(address(USDC)), 0 ether, "Token reserve should be 1000 tokens");
+        assertEq(VAULT.availableAssets(), 2 ether, "Available assets should be 0");
+        assertEq(VAULT.tokenBalance(address(USDC)), 3 ether, "Stablecoin balance should be 1 ether");
+        assertEq(VAULT.supportedTokenReserves(address(USDC)), 0 ether, "Token reserve should be 0 tokens");
     }
 
     function testRemoveTooMuchLiquidity() public {
@@ -218,10 +239,26 @@ contract GeniusMultiTokenVaultFees is Test {
             fee: 1 ether
         });
 
+        address[] memory targets = new address[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        uint256[] memory values = new uint256[](1);
+
+        // Target is stablecoin
+        targets[0] = address(USDC);
+        // Create calldata to transfer the stablecoin to this contract
+        calldatas[0] = abi.encodeWithSelector(USDC.transfer.selector, address(this), 1001 ether);
+        // Value is 0
+        values[0] = 0;
+
         // Remove liquidity
         vm.startPrank(address(EXECUTOR));
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InsufficientLiquidity.selector, 0 ether, 1001 ether));
-        VAULT.removeLiquiditySwap(order);
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InsufficientLiquidity.selector, 0 ether, 1000 ether));
+        VAULT.removeLiquiditySwap(
+            order,
+            targets,
+            values,
+            calldatas
+        );
 
         // Add assertions to check the state after removing liquidity
         assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");

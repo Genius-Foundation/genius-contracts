@@ -378,14 +378,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         for (uint256 i; i < targetsLength;) {
             address target = targets[i];
 
-            if (target == address(VAULT)) {
-
-                if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
-                    revert GeniusErrors.InvalidTarget(target);
-                }
-
-            }
-
             if (allowedTargets[target] == 0 && target != owner) {
                 if (tokenDetailsLength == 0) {
                     revert GeniusErrors.InvalidTarget(target);
