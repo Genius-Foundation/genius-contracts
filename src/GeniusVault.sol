@@ -75,7 +75,7 @@ contract GeniusVault is GeniusVaultCore {
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
-    ) external virtual override onlyOrchestrator whenNotPaused {
+    ) external virtual override nonReentrant onlyOrchestrator whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(orderHash_);
         if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
@@ -94,7 +94,8 @@ contract GeniusVault is GeniusVaultCore {
 
         uint256 _preStableBalance = stablecoinBalance();
 
-        _batchExecution(targets, data, values);
+        _transferERC20(address(STABLECOIN), address(EXECUTOR), _expectedDelta);
+       EXECUTOR.aggregate(targets, data, values);
 
         uint256 _postStableBalance = stablecoinBalance();
         uint256 _stableDelta = _preStableBalance - _postStableBalance;
@@ -230,7 +231,7 @@ contract GeniusVault is GeniusVaultCore {
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
-    ) external onlyOrchestrator whenNotPaused {
+    ) external nonReentrant onlyOrchestrator whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
         if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
@@ -242,7 +243,8 @@ contract GeniusVault is GeniusVaultCore {
 
         uint256 _preStableBalance = stablecoinBalance();
 
-        _batchExecution(targets, data, values);
+        _transferERC20(address(STABLECOIN), address(EXECUTOR), _totalRefund);
+       EXECUTOR.aggregate(targets, data, values);
 
         uint256 _postStableBalance = stablecoinBalance();
         uint256 _stableDelta = _preStableBalance - _postStableBalance;

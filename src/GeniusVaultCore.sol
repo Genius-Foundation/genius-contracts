@@ -8,7 +8,9 @@ import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
 import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
+import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
 import { GeniusErrors } from "./libs/GeniusErrors.sol";
 import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
 
@@ -20,7 +22,7 @@ import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
  *         liquidity management and swaps utilizing stablecoins as the
  *         primary asset.
  */
-abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgradeable, AccessControlUpgradeable, PausableUpgradeable {
+abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgradeable, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -31,7 +33,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
     IERC20 public STABLECOIN;
-    address public EXECUTOR;
+    IGeniusExecutor public EXECUTOR;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         VARIABLES                         ║
@@ -49,7 +51,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     // ╚═══════════════════════════════════════════════════════════╝
 
     modifier onlyExecutor() {
-        if (msg.sender != EXECUTOR) revert GeniusErrors.IsNotExecutor();
+        if (msg.sender != address(EXECUTOR)) revert GeniusErrors.IsNotExecutor();
         _;
     }
 
@@ -157,7 +159,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      */
     function setExecutor(address executor) external override onlyAdmin {
         if (executor == address(0)) revert GeniusErrors.NonAddress0();
-        EXECUTOR = executor;
+        EXECUTOR = IGeniusExecutor(executor);
     }
 
     /**

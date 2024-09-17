@@ -229,7 +229,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
-    ) external override onlyExecutor whenNotPaused {
+    ) external override nonReentrant onlyOrchestrator whenNotPaused {
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Nonexistant) revert GeniusErrors.OrderAlreadyFilled(_orderHash);
         if (order.destChainId != _currentChainId()) revert GeniusErrors.InvalidDestChainId(order.destChainId);     
@@ -248,7 +248,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         uint256 _preStableBalance = stablecoinBalance();
 
-        _batchExecution(targets, data, values);
+        _transferERC20(address(STABLECOIN), address(EXECUTOR), _expectedDelta);
+       EXECUTOR.aggregate(targets, data, values);
 
         uint256 _postStableBalance = stablecoinBalance();
         uint256 _actualDelta = _preStableBalance - _postStableBalance;
@@ -364,7 +365,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
-    ) external onlyOrchestrator whenNotPaused {
+    ) external nonReentrant onlyOrchestrator whenNotPaused {
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Created) revert GeniusErrors.InvalidOrderStatus();
         if (order.srcChainId != _currentChainId()) revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
@@ -378,7 +379,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         uint256 _preStableBalance = stablecoinBalance();
 
-        _batchExecution(targets, data, values);
+        _transferERC20(address(STABLECOIN), address(EXECUTOR), _totalRefund);
+       EXECUTOR.aggregate(targets, data, values);
 
         uint256 _postStableBalance = stablecoinBalance();
         uint256 _stableDelta = _postStableBalance - _preStableBalance;
