@@ -221,7 +221,7 @@ contract GeniusExecutorDrain is Test {
 
         // Test swap through approved DEX_ROUTER
         address[] memory initial_targets = new address[](2);
-        initial_targets[0] = address(USDC);
+        initial_targets[0] = address(WETH);
         initial_targets[1] = address(DEX_ROUTER);
 
         bytes[] memory initial_data = new bytes[](2);
@@ -241,8 +241,10 @@ contract GeniusExecutorDrain is Test {
         initial_values[0] = 0;
         initial_values[1] = 0;
 
+        
+
         vm.prank(trader);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, address(USDC)));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, address(WETH)));
         EXECUTOR.aggregate(initial_targets, initial_data, initial_values);
 
         // Check balances after successful swap

@@ -194,7 +194,7 @@ contract GeniusMultiTokenVaultFees is Test {
         console.log("USDC available assets before removing liquidity: ", VAULT.availableAssets());
 
         // Remove liquidity
-        vm.startPrank(address(EXECUTOR));
+        vm.startPrank(address(ORCHESTRATOR));
         VAULT.removeLiquiditySwap(
             order,
             targets,
@@ -251,7 +251,7 @@ contract GeniusMultiTokenVaultFees is Test {
         values[0] = 0;
 
         // Remove liquidity
-        vm.startPrank(address(EXECUTOR));
+        vm.startPrank(address(ORCHESTRATOR));
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InsufficientLiquidity.selector, 0 ether, 1000 ether));
         VAULT.removeLiquiditySwap(
             order,

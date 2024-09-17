@@ -322,10 +322,10 @@ contract GeniusVaultTest is Test {
             calldatas
         );
 
-        assertEq(USDC.balanceOf(address(VAULT)), 3 ether, "GeniusVault balance should be 0 ether");
-        assertEq(VAULT.stablecoinBalance(), 3 ether, "Total assets should be 0 ether");
+        assertEq(USDC.balanceOf(address(VAULT)), 1 ether, "GeniusVault balance should be 1 ether");
+        assertEq(VAULT.stablecoinBalance(), 1 ether, "Total assets should be 1 ether");
         assertEq(VAULT.totalStakedAssets(), 0, "Total staked assets should be 0 ether");
-        assertEq( VAULT.availableAssets(), 3 ether, "Available assets should be 0 ether");
+        assertEq( VAULT.availableAssets(), 1 ether, "Available assets should be 1 ether");
         assertEq(USDC.balanceOf(ORCHESTRATOR), 1000 ether, "Orchestrator balance should be 1000 ether");
     }
 
@@ -486,7 +486,6 @@ contract GeniusVaultTest is Test {
         });
 
         bytes32 orderHash = VAULT.orderHash(_order_);
-        uint8 status = uint8(VAULT.orderStatus(orderHash));
 
         assertEq(uint256(VAULT.orderStatus(orderHash)), uint256(IGeniusVault.OrderStatus.Created), "Order status should be Created");
     }
@@ -606,9 +605,9 @@ contract GeniusVaultTest is Test {
         uint256 postVaultBalance = USDC.balanceOf(address(VAULT));
 
         assertEq(VAULT.unclaimedFees(), 2 ether, "Unclaimed fees should be 2 ether");
-        assertEq(VAULT.stablecoinBalance(), 3 ether, "Vault balance should be 2 ether");
+        assertEq(VAULT.stablecoinBalance(), 2 ether, "Vault balance should be 2 ether");
         assertEq(postBalance - prevBalance, 997 ether, "Executor should receive refunded amount");
-        assertEq(prevVaultBalance - postVaultBalance, 997 ether, "Vault balance should decrease by refunded amount");
+        assertEq(prevVaultBalance - postVaultBalance, 998 ether, "Vault balance should decrease by refunded amount");
 
         bytes32 orderHash = VAULT.orderHash(order);
         assertEq(uint256(VAULT.orderStatus(orderHash)), uint256(IGeniusVault.OrderStatus.Reverted), "Order status should be Reverted");

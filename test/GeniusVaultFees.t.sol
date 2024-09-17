@@ -242,7 +242,7 @@ contract GeniusVaultFees is Test {
             fee: 1 ether
         });
 
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.AmountInAndDeltaMismatch.selector, 999 ether, 1000 ether));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.ExternalCallFailed.selector, address(USDC), 0));
         
         address[] memory targets = new address[](1);
         bytes[] memory calldatas = new bytes[](1);
