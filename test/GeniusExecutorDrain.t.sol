@@ -460,7 +460,7 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -485,7 +485,7 @@ contract GeniusExecutorDrain is Test {
      */
     function testMultiSwapAndDepositArrayLengthMismatch() public {
         uint16 destChainId = 42;
-        uint32 fillDeadline = uint32(block.timestamp + 1000);
+        uint32 fillDeadline = uint32(block.timestamp + 200);
 
         vm.startPrank(OWNER);
         EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
@@ -557,7 +557,7 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -617,7 +617,7 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -652,7 +652,7 @@ contract GeniusExecutorDrain is Test {
             swapData,
             100 ether,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -671,7 +671,7 @@ contract GeniusExecutorDrain is Test {
             swapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -691,7 +691,7 @@ contract GeniusExecutorDrain is Test {
             invalidSwapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -705,7 +705,7 @@ contract GeniusExecutorDrain is Test {
             swapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );

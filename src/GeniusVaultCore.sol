@@ -1,28 +1,35 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { UUPSUpgradeable } from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
-import { PausableUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import { AccessControlUpgradeable } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
-import { GeniusErrors } from "./libs/GeniusErrors.sol";
-import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
+import {IGeniusExecutor} from "./interfaces/IGeniusExecutor.sol";
+import {GeniusErrors} from "./libs/GeniusErrors.sol";
+import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 
 /**
  * @title GeniusVault
  * @author @altloot, @samuel_vdu
- * 
+ *
  * @notice The GeniusVaultCore contract helps to facilitate cross-chain
  *         liquidity management and swaps utilizing stablecoins as the
  *         primary asset.
  */
-abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgradeable, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuard {
+abstract contract GeniusVaultCore is
+    IGeniusVault,
+    UUPSUpgradeable,
+    ERC20Upgradeable,
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    ReentrancyGuard
+{
     using SafeERC20 for IERC20;
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -39,6 +46,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     // ║                         VARIABLES                         ║
     // ╚═══════════════════════════════════════════════════════════╝
 
+    uint32 public maxOrderTime; // In seconds
+    uint32 public orderRevertBuffer; // In seconds
+
     uint256 public crosschainFee; // The fee charged for cross-chain swaps
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
     uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
@@ -51,22 +61,26 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     // ╚═══════════════════════════════════════════════════════════╝
 
     modifier onlyExecutor() {
-        if (msg.sender != address(EXECUTOR)) revert GeniusErrors.IsNotExecutor();
+        if (msg.sender != address(EXECUTOR))
+            revert GeniusErrors.IsNotExecutor();
         _;
     }
 
     modifier onlyAdmin() {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert GeniusErrors.IsNotAdmin();
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
+            revert GeniusErrors.IsNotAdmin();
         _;
     }
 
     modifier onlyPauser() {
-        if(!hasRole(PAUSER_ROLE, msg.sender)) revert GeniusErrors.IsNotPauser();
+        if (!hasRole(PAUSER_ROLE, msg.sender))
+            revert GeniusErrors.IsNotPauser();
         _;
     }
 
     modifier onlyOrchestrator() {
-        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) revert GeniusErrors.IsNotOrchestrator();
+        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender))
+            revert GeniusErrors.IsNotOrchestrator();
         _;
     }
 
@@ -91,7 +105,9 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         STABLECOIN = IERC20(stablecoin);
         rebalanceThreshold = 75;
         crosschainFee = 30;
-        
+        orderRevertBuffer = 60;
+        maxOrderTime = 300;
+
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(PAUSER_ROLE, admin);
     }
@@ -103,7 +119,10 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     /**
      * @dev See {IGeniusVault-stakeDeposit}.
      */
-    function stakeDeposit(uint256 amount, address receiver) external override whenNotPaused {
+    function stakeDeposit(
+        uint256 amount,
+        address receiver
+    ) external override whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
@@ -128,11 +147,12 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         }
 
         if (amount > stablecoinBalance()) revert GeniusErrors.InvalidAmount();
-        if (amount > totalStakedAssets) revert GeniusErrors.InsufficientBalance(
-            address(STABLECOIN),
-            amount,
-            totalStakedAssets
-        );
+        if (amount > totalStakedAssets)
+            revert GeniusErrors.InsufficientBalance(
+                address(STABLECOIN),
+                amount,
+                totalStakedAssets
+            );
 
         totalStakedAssets -= amount;
 
@@ -148,9 +168,29 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     // ╚═══════════════════════════════════════════════════════════╝
 
     /**
+     * @dev See {IGeniusVault-setMaxOrderTime}.
+     */
+    function setMaxOrderTime(
+        uint32 _maxOrderTime
+    ) external override onlyAdmin {
+        maxOrderTime = _maxOrderTime;
+    }
+
+    /**
+     * @dev See {IGeniusVault-setOrderRevertBuffer}.
+     */
+    function setOrderRevertBuffer(
+        uint32 _orderRevertBuffer
+    ) external override onlyAdmin {
+        orderRevertBuffer = _orderRevertBuffer;
+    }
+
+    /**
      * @dev See {IGeniusVault-setRebalanceThreshold}.
      */
-    function setRebalanceThreshold(uint256 threshold) external override onlyAdmin {
+    function setRebalanceThreshold(
+        uint256 threshold
+    ) external override onlyAdmin {
         rebalanceThreshold = threshold;
     }
 
@@ -176,13 +216,18 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     /**
      * @dev See {IGeniusMultiTokenVault-manageBridge}.
      */
-    function manageBridge(address bridge, bool authorize) external override onlyAdmin {
+    function manageBridge(
+        address bridge,
+        bool authorize
+    ) external override onlyAdmin {
         if (authorize) {
-            if (supportedBridges[bridge] == 1) revert GeniusErrors.InvalidTarget(bridge);
+            if (supportedBridges[bridge] == 1)
+                revert GeniusErrors.InvalidTarget(bridge);
             supportedBridges[bridge] = 1;
             emit BridgeAuthorized(bridge, true);
         } else {
-            if (supportedBridges[bridge] == 0) revert GeniusErrors.InvalidTarget(bridge);
+            if (supportedBridges[bridge] == 0)
+                revert GeniusErrors.InvalidTarget(bridge);
             supportedBridges[bridge] = 0;
             emit BridgeAuthorized(bridge, false);
         }
@@ -213,14 +258,16 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
     /**
      * @dev See {IGeniusVault-totalAssets}.
      */
-    function stablecoinBalance() public override view returns (uint256) {
+    function stablecoinBalance() public view override returns (uint256) {
         return STABLECOIN.balanceOf(address(this));
     }
 
     /**
      * @dev See {IGeniusVault-orderHash}.
      */
-    function orderHash(Order memory order) public override pure returns (bytes32) {
+    function orderHash(
+        Order memory order
+    ) public pure override returns (bytes32) {
         return keccak256(abi.encode(order));
     }
 
@@ -230,7 +277,11 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @return availableAssets The number of assets available for use.
      * @return totalStakedAssets The total number of assets currently staked in the vault.
      */
-    function allAssets() external view virtual returns (uint256, uint256, uint256);
+    function allAssets()
+        external
+        view
+        virtual
+        returns (uint256, uint256, uint256);
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
@@ -241,7 +292,8 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @param amount The expected amount of native currency.
      */
     function _checkNative(uint256 amount) internal {
-        if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
+        if (msg.value != amount)
+            revert GeniusErrors.InvalidNativeAmount(amount);
     }
 
     /**
@@ -249,18 +301,17 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @param bridgeTargets The array of bridge target addresses to check.
      */
     function _checkBridgeTargets(address[] memory bridgeTargets) internal view {
-        
-        for (uint256 i; i < bridgeTargets.length;) {
+        for (uint256 i; i < bridgeTargets.length; ) {
             if (supportedBridges[bridgeTargets[i]] == 0) {
                 if (bridgeTargets[i] != address(STABLECOIN)) {
                     revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
                 }
             }
 
-            unchecked { i++; }
-
+            unchecked {
+                i++;
+            }
         }
-
     }
 
     /**
@@ -268,7 +319,10 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @param _totalAssets The total assets available after the operation.
      * @param _neededLiquidity The amount of assets needed for the operation.
      */
-    function _availableAssets(uint256 _totalAssets, uint256 _neededLiquidity) internal pure returns (uint256) {
+    function _availableAssets(
+        uint256 _totalAssets,
+        uint256 _neededLiquidity
+    ) internal pure returns (uint256) {
         if (_totalAssets < _neededLiquidity) {
             return 0;
         }
@@ -281,13 +335,17 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @param _amount The amount to withdraw.
      * @param _availableLiquidity The total available assets.
      */
-    function _isAmountValid(uint256 _amount, uint256 _availableLiquidity) internal pure {
+    function _isAmountValid(
+        uint256 _amount,
+        uint256 _availableLiquidity
+    ) internal pure {
         if (_amount == 0) revert GeniusErrors.InvalidAmount();
 
-        if (_amount > _availableLiquidity) revert GeniusErrors.InsufficientLiquidity(
-            _availableLiquidity,
-            _amount
-        );
+        if (_amount > _availableLiquidity)
+            revert GeniusErrors.InsufficientLiquidity(
+                _availableLiquidity,
+                _amount
+            );
     }
 
     /**
@@ -307,22 +365,29 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @dev Internal function to sum token amounts.
      * @param amounts The array of token amounts to sum.
      */
-    function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
-        for (uint i = 0; i < amounts.length;) {
+    function _sum(
+        uint256[] calldata amounts
+    ) internal pure returns (uint256 total) {
+        for (uint i = 0; i < amounts.length; ) {
             total += amounts[i];
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
     }
 
     /**
-    * @dev Internal function to calculate the refund amount for a reverted order.
-    * @param amountIn The total amount of stablecoins sent within the order.
-    * @param fee The total fee charged for the order.
-    * @return refundAmount The amount to refund to the user.
-    * @return protocolFee The fee without the swap fee.
+     * @dev Internal function to calculate the refund amount for a reverted order.
+     * @param amountIn The total amount of stablecoins sent within the order.
+     * @param fee The total fee charged for the order.
+     * @return refundAmount The amount to refund to the user.
+     * @return protocolFee The fee without the swap fee.
      */
-    function _calculateRefundAmount(uint256 amountIn, uint256 fee) internal view returns (uint256 refundAmount, uint256 protocolFee) {
+    function _calculateRefundAmount(
+        uint256 amountIn,
+        uint256 fee
+    ) internal view returns (uint256 refundAmount, uint256 protocolFee) {
         uint256 _swapFee = (amountIn * crosschainFee) / 10_000;
         uint256 _protocolFee = fee - _swapFee;
 
@@ -370,11 +435,14 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
         bytes[] memory data,
         uint256[] memory values
     ) internal {
-        for (uint i = 0; i < targets.length;) {
+        for (uint i = 0; i < targets.length; ) {
             (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], i);
+            if (!_success)
+                revert GeniusErrors.ExternalCallFailed(targets[i], i);
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
     }
 
@@ -396,5 +464,7 @@ abstract contract GeniusVaultCore is IGeniusVault, UUPSUpgradeable, ERC20Upgrade
      * @dev Authorizes contract upgrades.
      * @param newImplementation The address of the new implementation.
      */
-    function _authorizeUpgrade(address newImplementation) internal onlyAdmin override {}
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyAdmin {}
 }

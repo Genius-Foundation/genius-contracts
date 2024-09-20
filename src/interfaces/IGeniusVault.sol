@@ -6,13 +6,12 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /**
  * @title IGeniusVault
  * @author looter
- * 
+ *
  * @notice Interface for the GeniusVault contract that allows for Genius Orchestrators to credit and debit
  *         trader STABLECOIN balances for cross-chain swaps,
  *         and other Genius related activities.
  */
 interface IGeniusVault {
-
     /**
      * @notice Enum representing the possible statuses of an order.
      */
@@ -28,7 +27,7 @@ interface IGeniusVault {
      * @param amountIn The amount of tokens to be swapped.
      * @param seed Seed used for the order, to avoid 2 same orders having the same hash.
      * @param trader Address of the trader initiating the order.
-    * @param receiver Address of the receiver of the swapped tokens.
+     * @param receiver Address of the receiver of the swapped tokens.
      * @param srcChainId The source chain ID.
      * @param destChainId The destination chain ID.
      * @param fillDeadline The deadline by which the order must be filled.
@@ -41,7 +40,7 @@ interface IGeniusVault {
         bytes32 receiver;
         uint16 srcChainId;
         uint32 destChainId;
-        uint32 fillDeadline; 
+        uint32 fillDeadline;
         address tokenIn;
         uint256 fee;
     }
@@ -52,7 +51,11 @@ interface IGeniusVault {
      * @param owner The address of the owner of the staked assets.
      * @param amount The amount of assets staked.
      */
-    event StakeDeposit(address indexed caller, address indexed owner, uint256 amount);
+    event StakeDeposit(
+        address indexed caller,
+        address indexed owner,
+        uint256 amount
+    );
 
     /**
      * @notice Emitted when assets are withdrawn from the GeniusVault contract.
@@ -159,20 +162,14 @@ interface IGeniusVault {
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
      */
-    event RemovedLiquidity(
-        uint256 amount,
-        uint32 indexed chainId
-    );
+    event RemovedLiquidity(uint256 amount, uint32 indexed chainId);
 
     /**
      * @notice Emitted when fees are claimed from the Vault contract.
      * @param token The address of the token the fees were claimed in.
      * @param amount The amount of fees claimed.
      */
-    event FeesClaimed(
-        address indexed token,
-        uint256 amount
-    );
+    event FeesClaimed(address indexed token, uint256 amount);
 
     /**
      * @notice Emitted when the authorized status of a bridge target changes.
@@ -197,7 +194,7 @@ interface IGeniusVault {
      * @notice Stake assets in the GeniusVault contract.
      * @param amount The amount of assets to stake.
      * @param receiver The address of the receiver of the staked assets.
-     * @dev The receiver is the address that will receive gUSD tokens 
+     * @dev The receiver is the address that will receive gUSD tokens
      * in exchange for the staked assets with a 1:1 ratio.
      */
     function stakeDeposit(uint256 amount, address receiver) external;
@@ -215,7 +212,7 @@ interface IGeniusVault {
     ) external;
 
     /**
-     * @notice Removes liquidity from a bridge vault 
+     * @notice Removes liquidity from a bridge vault
      * and bridge it to the destination chain.
      * @param amountIn The amount of tokens to remove from the bridge vault.
      * @param dstChainId The chain ID of the destination chain.
@@ -232,7 +229,7 @@ interface IGeniusVault {
     ) external payable;
 
     /**
-     * @notice Adds liquidity to the GeniusVault contract 
+     * @notice Adds liquidity to the GeniusVault contract
      * of the source chain in a cross-chain order flow.
      * @param trader The address of the trader.
      * @param tokenIn The address of the input token.
@@ -254,7 +251,7 @@ interface IGeniusVault {
     ) external payable;
 
     /**
-     * @notice Removes liquidity from the GeniusVault contract 
+     * @notice Removes liquidity from the GeniusVault contract
      * of the destination chain in a cross-chain order flow.
      * @param order The Order struct containing the order details.
      */
@@ -290,6 +287,18 @@ interface IGeniusVault {
      * @param authorize True to authorize the bridge, false to unauthorize it.
      */
     function manageBridge(address bridge, bool authorize) external;
+
+    /**
+     * @notice Sets the order revert buffer.
+     * @param _orderRevertBuffer The new order revert buffer.
+     */
+    function setOrderRevertBuffer(uint32 _orderRevertBuffer) external;
+
+    /**
+     * @notice Sets the max order time.
+     * @param _maxOrderTime The new max order time.
+     */
+    function setMaxOrderTime(uint32 _maxOrderTime) external;
 
     /**
      * @notice Sets the cross-chain fee for the GeniusVault contract.
@@ -332,7 +341,7 @@ interface IGeniusVault {
      */
     function rebalanceThreshold() external view returns (uint256);
 
-     /**
+    /**
      * @notice Returns the address of the stablecoin used in the vault.
      * @return The IERC20 interface of the stablecoin.
      */
