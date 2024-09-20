@@ -107,19 +107,8 @@ contract GeniusVault is GeniusVaultCore {
 
         orderStatus[orderHash_] = OrderStatus.Filled;
 
-        uint256 _preStableBalance = stablecoinBalance();
-
         _transferERC20(address(STABLECOIN), address(EXECUTOR), _expectedDelta);
         EXECUTOR.aggregate(targets, data, values);
-
-        uint256 _postStableBalance = stablecoinBalance();
-        uint256 _stableDelta = _preStableBalance - _postStableBalance;
-
-        if (_stableDelta > _expectedDelta)
-            revert GeniusErrors.AmountInAndDeltaMismatch(
-                _expectedDelta,
-                _stableDelta
-            );
 
         emit SwapWithdrawal(
             order.seed,
@@ -287,19 +276,8 @@ contract GeniusVault is GeniusVaultCore {
 
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
-        uint256 _preStableBalance = stablecoinBalance();
-
         _transferERC20(address(STABLECOIN), address(EXECUTOR), _totalRefund);
         EXECUTOR.aggregate(targets, data, values);
-
-        uint256 _postStableBalance = stablecoinBalance();
-        uint256 _stableDelta = _preStableBalance - _postStableBalance;
-
-        if (_stableDelta > _totalRefund)
-            revert GeniusErrors.AmountInAndDeltaMismatch(
-                _totalRefund,
-                _stableDelta
-            );
 
         reservedAssets -= order.amountIn;
         unclaimedFees += _protocolFee;

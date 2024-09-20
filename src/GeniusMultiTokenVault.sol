@@ -279,19 +279,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         orderStatus[_orderHash] = OrderStatus.Filled;
 
-        uint256 _preStableBalance = stablecoinBalance();
-
         _transferERC20(address(STABLECOIN), address(EXECUTOR), _expectedDelta);
         EXECUTOR.aggregate(targets, data, values);
-
-        uint256 _postStableBalance = stablecoinBalance();
-        uint256 _actualDelta = _preStableBalance - _postStableBalance;
-
-        if (_actualDelta > _expectedDelta)
-            revert GeniusErrors.AmountInAndDeltaMismatch(
-                _expectedDelta,
-                _actualDelta
-            );
 
         emit SwapWithdrawal(
             order.seed,
@@ -438,19 +427,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         supportedTokenFees[order.tokenIn] += _protocolFee;
         supportedTokenReserves[order.tokenIn] -= order.amountIn;
 
-        uint256 _preStableBalance = stablecoinBalance();
-
         _transferERC20(address(STABLECOIN), address(EXECUTOR), _totalRefund);
         EXECUTOR.aggregate(targets, data, values);
-
-        uint256 _postStableBalance = stablecoinBalance();
-        uint256 _stableDelta = _postStableBalance - _preStableBalance;
-
-        if (_stableDelta > _totalRefund)
-            revert GeniusErrors.AmountInAndDeltaMismatch(
-                _totalRefund,
-                _stableDelta
-            );
 
         emit OrderReverted(
             order.seed,
