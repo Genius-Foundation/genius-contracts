@@ -236,4 +236,6 @@ library GeniusErrors {
     error DeadlineNotPassed(uint256 deadline);
 
     error InvalidDeadline();
+
+    error InvalidThreshold();
 }

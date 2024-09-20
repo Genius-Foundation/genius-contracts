@@ -170,10 +170,9 @@ abstract contract GeniusVaultCore is
     /**
      * @dev See {IGeniusVault-setMaxOrderTime}.
      */
-    function setMaxOrderTime(
-        uint32 _maxOrderTime
-    ) external override onlyAdmin {
+    function setMaxOrderTime(uint32 _maxOrderTime) external override onlyAdmin {
         maxOrderTime = _maxOrderTime;
+        emit MaxOrderTimeChanged(_maxOrderTime);
     }
 
     /**
@@ -183,15 +182,18 @@ abstract contract GeniusVaultCore is
         uint32 _orderRevertBuffer
     ) external override onlyAdmin {
         orderRevertBuffer = _orderRevertBuffer;
+        emit OrderRevertBufferChanged(_orderRevertBuffer);
     }
 
     /**
      * @dev See {IGeniusVault-setRebalanceThreshold}.
      */
     function setRebalanceThreshold(
-        uint256 threshold
+        uint256 _rebalanceThreshold
     ) external override onlyAdmin {
-        rebalanceThreshold = threshold;
+        if (_rebalanceThreshold > 100) revert GeniusErrors.InvalidThreshold();
+        rebalanceThreshold = _rebalanceThreshold;
+        emit RebalanceThresholdChanged(_rebalanceThreshold);
     }
 
     /**
@@ -200,6 +202,7 @@ abstract contract GeniusVaultCore is
     function setExecutor(address executor) external override onlyAdmin {
         if (executor == address(0)) revert GeniusErrors.NonAddress0();
         EXECUTOR = IGeniusExecutor(executor);
+        emit ExecutorChanged(executor);
     }
 
     /**
@@ -207,6 +210,7 @@ abstract contract GeniusVaultCore is
      */
     function setCrosschainFee(uint256 fee) external override onlyAdmin {
         crosschainFee = fee;
+        emit CrosschainFeeChanged(fee);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -224,13 +228,12 @@ abstract contract GeniusVaultCore is
             if (supportedBridges[bridge] == 1)
                 revert GeniusErrors.InvalidTarget(bridge);
             supportedBridges[bridge] = 1;
-            emit BridgeAuthorized(bridge, true);
         } else {
             if (supportedBridges[bridge] == 0)
                 revert GeniusErrors.InvalidTarget(bridge);
             supportedBridges[bridge] = 0;
-            emit BridgeAuthorized(bridge, false);
         }
+        emit BridgeAuthorized(bridge, authorize);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗

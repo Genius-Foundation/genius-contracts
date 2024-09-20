@@ -179,6 +179,36 @@ interface IGeniusVault {
     event BridgeAuthorized(address indexed bridge, bool indexed authorized);
 
     /**
+     * @notice Emitted when the max order time is changed.
+     * @param newMaxOrderTime The new maximum order time.
+     */
+    event MaxOrderTimeChanged(uint32 newMaxOrderTime);
+
+    /**
+     * @notice Emitted when the order revert buffer is changed.
+     * @param newOrderRevertBuffer The new order revert buffer time.
+     */
+    event OrderRevertBufferChanged(uint32 newOrderRevertBuffer);
+
+    /**
+     * @notice Emitted when the rebalance threshold is changed.
+     * @param newThreshold The new rebalance threshold.
+     */
+    event RebalanceThresholdChanged(uint256 newThreshold);
+
+    /**
+     * @notice Emitted when the executor address is changed.
+     * @param newExecutor The address of the new executor.
+     */
+    event ExecutorChanged(address newExecutor);
+
+    /**
+     * @notice Emitted when the cross-chain fee is changed.
+     * @param newFee The new cross-chain fee.
+     */
+    event CrosschainFeeChanged(uint256 newFee);
+
+    /**
      * @notice Returns the total balance of the vault.
      * @return The total balance of the vault.
      */
