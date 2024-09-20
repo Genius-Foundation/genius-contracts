@@ -50,7 +50,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
     address public ORCHESTRATOR;
     address public BRIDGE;
     bytes32 public DOMAIN_SEPERATOR;
-    bytes32 public RECEIVER = keccak256("receiver");
+    bytes32 public RECEIVER;
 
     // ============ Supported Tokens ============
     address public constant NATIVE = address(0);
@@ -155,6 +155,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         (address traderAddress, uint256 traderKey) = makeAddrAndKey("trader");
         TRADER = traderAddress;
+        RECEIVER = bytes32(uint256(uint160(TRADER)));
         privateKey = traderKey;
 
         // Deploy mock tokens
@@ -1362,6 +1363,152 @@ contract GeniusMultiTokenVaultAccounting is Test {
         );
 
         vm.stopPrank();
+    }
+
+    function testRemoveLiquiditySwapNoTargetsMultiToken() public {
+        // Setup initial state
+        deal(address(USDC), address(VAULT), 1_000 ether);
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            1_000 ether,
+            "GeniusMultiTokenVault initial USDC balance should be 1,000 ether"
+        );
+
+        // Create the order
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1_000 ether,
+            trader: TRADER,
+            srcChainId: 42,
+            destChainId: uint16(block.chainid),
+            fillDeadline: uint32(block.timestamp + 200),
+            tokenIn: address(USDC),
+            fee: 1 ether,
+            receiver: RECEIVER
+        });
+
+        // Empty arrays for targets, values, and calldatas
+        address[] memory targets = new address[](0);
+        uint256[] memory values = new uint256[](0);
+        bytes[] memory calldatas = new bytes[](0);
+
+        uint256 balanceTraderBefore = USDC.balanceOf(TRADER);
+
+        // Execute removeLiquiditySwap
+        vm.startPrank(ORCHESTRATOR);
+        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+
+        // Assertions
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            1 ether,
+            "GeniusMultiTokenVault USDC balance should be 1 ether after removal"
+        );
+        assertEq(
+            VAULT.stablecoinBalance(),
+            1 ether,
+            "Total stablecoin balance should be 1 ether"
+        );
+        assertEq(
+            VAULT.totalStakedAssets(),
+            0 ether,
+            "Total staked assets should be 0 ether"
+        );
+        assertEq(
+            VAULT.availableAssets(),
+            1 ether,
+            "Available assets should be 1 ether"
+        );
+        assertEq(
+            USDC.balanceOf(TRADER) - balanceTraderBefore,
+            999 ether,
+            "Trader balance should increase by 999 ether (amountIn - fee)"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertOrderNoTargetsMultiToken() public {
+        // Setup initial state
+        vm.startPrank(address(EXECUTOR));
+        deal(address(USDC), address(EXECUTOR), 1_000 ether);
+        USDC.approve(address(VAULT), 1_000 ether);
+        VAULT.addLiquiditySwap(
+            keccak256("order"),
+            TRADER,
+            address(USDC),
+            1_000 ether,
+            destChainId,
+            uint32(block.timestamp + 100),
+            5 ether,
+            RECEIVER
+        );
+        vm.stopPrank();
+
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1_000 ether,
+            trader: TRADER,
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            fillDeadline: uint32(block.timestamp + 100),
+            tokenIn: address(USDC),
+            fee: 5 ether
+        });
+
+        // Advance time past the fillDeadline
+        vm.warp(block.timestamp + 200);
+
+        uint256 prevTraderBalance = USDC.balanceOf(TRADER);
+        uint256 prevVaultBalance = USDC.balanceOf(address(VAULT));
+
+        // Empty arrays for targets, values, and data
+        address[] memory targets = new address[](0);
+        uint256[] memory values = new uint256[](0);
+        bytes[] memory data = new bytes[](0);
+
+        vm.startPrank(ORCHESTRATOR);
+        VAULT.revertOrder(order, targets, values, data);
+        vm.stopPrank();
+
+        uint256 postTraderBalance = USDC.balanceOf(TRADER);
+        uint256 postVaultBalance = USDC.balanceOf(address(VAULT));
+
+        uint256 expectedRefund = 998 ether; // 1000 - 2
+
+        assertEq(
+            VAULT.supportedTokenFees(address(USDC)),
+            2 ether,
+            "Supported token fees for USDC should be 2 ether"
+        );
+        assertEq(
+            VAULT.stablecoinBalance(),
+            2 ether,
+            "Vault stablecoin balance should be 2 ether"
+        );
+        assertEq(
+            postTraderBalance - prevTraderBalance,
+            expectedRefund,
+            "Trader should receive refunded amount"
+        );
+        assertEq(
+            prevVaultBalance - postVaultBalance,
+            expectedRefund,
+            "Vault balance should decrease by refunded amount"
+        );
+        assertEq(
+            VAULT.supportedTokenReserves(address(USDC)),
+            0,
+            "Supported token reserves for USDC should be 0"
+        );
+
+        bytes32 orderHash = VAULT.orderHash(order);
+        assertEq(
+            uint256(VAULT.orderStatus(orderHash)),
+            uint256(IGeniusVault.OrderStatus.Reverted),
+            "Order status should be Reverted"
+        );
     }
 
     function testAddBridgeLiquidity() public {

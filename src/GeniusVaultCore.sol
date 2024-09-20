@@ -470,4 +470,15 @@ abstract contract GeniusVaultCore is
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyAdmin {}
+
+    /**
+     * Extract an address from a right-padded bytes32 address
+     * @param _input bytes32 containing a right-padded bytes20 address
+     */
+    function _bytes32ToAddress(bytes32 _input) public pure returns (address) {
+        require(uint96(uint256(_input) >> 160) == 0, "First 12 bytes must be zero");
+        address extractedAddress = address(uint160(uint256(_input)));
+        require(extractedAddress != address(0), "Invalid zero address");
+        return extractedAddress;
+    }
 }

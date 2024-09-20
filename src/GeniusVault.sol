@@ -107,8 +107,20 @@ contract GeniusVault is GeniusVaultCore {
 
         orderStatus[orderHash_] = OrderStatus.Filled;
 
-        _transferERC20(address(STABLECOIN), address(EXECUTOR), _expectedDelta);
-        EXECUTOR.aggregate(targets, data, values);
+        if (targets.length == 0) {
+            _transferERC20(
+                address(STABLECOIN),
+                _bytes32ToAddress(order.receiver),
+                _expectedDelta
+            );
+        } else {
+            _transferERC20(
+                address(STABLECOIN),
+                address(EXECUTOR),
+                _expectedDelta
+            );
+            EXECUTOR.aggregate(targets, data, values);
+        }
 
         emit SwapWithdrawal(
             order.seed,
@@ -276,8 +288,16 @@ contract GeniusVault is GeniusVaultCore {
 
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
-        _transferERC20(address(STABLECOIN), address(EXECUTOR), _totalRefund);
-        EXECUTOR.aggregate(targets, data, values);
+        if (targets.length == 0) {
+            _transferERC20(address(STABLECOIN), order.trader, _totalRefund);
+        } else {
+            _transferERC20(
+                address(STABLECOIN),
+                address(EXECUTOR),
+                _totalRefund
+            );
+            EXECUTOR.aggregate(targets, data, values);
+        }
 
         reservedAssets -= order.amountIn;
         unclaimedFees += _protocolFee;

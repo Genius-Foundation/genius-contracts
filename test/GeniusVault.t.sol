@@ -30,8 +30,7 @@ contract GeniusVaultTest is Test {
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
-    bytes32 RECEIVER =
-        keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
+    bytes32 RECEIVER;
 
     ERC20 public USDC;
     ERC20 public WETH;
@@ -73,6 +72,7 @@ contract GeniusVaultTest is Test {
 
         OWNER = makeAddr("OWNER");
         TRADER = makeAddr("TRADER");
+        RECEIVER = bytes32(uint256(uint160(TRADER)));
         ORCHESTRATOR = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38; // The hardcoded tx.origin for forge
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
@@ -437,6 +437,69 @@ contract GeniusVaultTest is Test {
             1000 ether,
             "Orchestrator balance should be 1000 ether"
         );
+    }
+
+    function testRemoveLiquiditySwapNoTargets() public {
+        // Setup initial state
+        deal(address(USDC), address(VAULT), 1_000 ether);
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            1_000 ether,
+            "GeniusVault initial balance should be 1,000 ether"
+        );
+
+        // Create the order
+        order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1_000 ether,
+            trader: TRADER,
+            srcChainId: 42,
+            destChainId: uint16(block.chainid),
+            fillDeadline: uint32(block.timestamp + 200),
+            tokenIn: address(USDC),
+            fee: 1 ether,
+            receiver: RECEIVER
+        });
+
+        // Empty arrays for targets, values, and calldatas
+        address[] memory targets = new address[](0);
+        uint256[] memory values = new uint256[](0);
+        bytes[] memory calldatas = new bytes[](0);
+
+        uint256 balanceTraderBefore = USDC.balanceOf(TRADER);
+
+        // Execute removeLiquiditySwap
+        vm.startPrank(address(ORCHESTRATOR));
+        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+
+        // Assertions
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            1 ether,
+            "GeniusVault balance should be 1 ether after removal"
+        );
+        assertEq(
+            VAULT.stablecoinBalance(),
+            1 ether,
+            "Total assets should be 1 ether"
+        );
+        assertEq(
+            VAULT.totalStakedAssets(),
+            0 ether,
+            "Total staked assets should be 0 ether"
+        );
+        assertEq(
+            VAULT.availableAssets(),
+            1 ether,
+            "Available assets should be 1 ether"
+        );
+        assertEq(
+            USDC.balanceOf(TRADER) - balanceTraderBefore,
+            999 ether,
+            "Receiver balance should be 999 ether (amountIn - fee)"
+        );
+
+        vm.stopPrank();
     }
 
     function removeRewardLiquidity() public {
@@ -918,6 +981,84 @@ contract GeniusVaultTest is Test {
         assertEq(
             prevVaultBalance - postVaultBalance,
             998 ether,
+            "Vault balance should decrease by refunded amount"
+        );
+
+        bytes32 orderHash = VAULT.orderHash(order);
+        assertEq(
+            uint256(VAULT.orderStatus(orderHash)),
+            uint256(IGeniusVault.OrderStatus.Reverted),
+            "Order status should be Reverted"
+        );
+    }
+
+    function testRevertOrderNoTargets() public {
+        // Setup initial state
+        vm.startPrank(address(EXECUTOR));
+        deal(address(USDC), address(EXECUTOR), 1_000 ether);
+        USDC.approve(address(VAULT), 1_000 ether);
+        VAULT.addLiquiditySwap(
+            keccak256("order"),
+            TRADER,
+            address(USDC),
+            1_000 ether,
+            destChainId,
+            uint32(block.timestamp + 100),
+            5 ether,
+            RECEIVER
+        );
+        vm.stopPrank();
+
+        order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1_000 ether,
+            trader: TRADER,
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            fillDeadline: uint32(block.timestamp + 100),
+            tokenIn: address(USDC),
+            fee: 5 ether
+        });
+
+        // Advance time past the fillDeadline
+        vm.warp(block.timestamp + 200);
+
+        uint256 prevTraderBalance = USDC.balanceOf(TRADER);
+        uint256 prevVaultBalance = USDC.balanceOf(address(VAULT));
+
+        // Empty arrays for targets, values, and data
+        address[] memory targets = new address[](0);
+        uint256[] memory values = new uint256[](0);
+        bytes[] memory data = new bytes[](0);
+
+        vm.startPrank(address(ORCHESTRATOR));
+        VAULT.revertOrder(order, targets, values, data);
+        vm.stopPrank();
+
+        uint256 postTraderBalance = USDC.balanceOf(TRADER);
+        uint256 postVaultBalance = USDC.balanceOf(address(VAULT));
+
+        uint256 expectedRefund = 998 ether; // 1000 - 2
+
+        assertEq(
+            VAULT.unclaimedFees(),
+            2 ether,
+            "Unclaimed fees should be 5 ether"
+        );
+        assertEq(
+            VAULT.stablecoinBalance(),
+            2 ether,
+            "Vault balance should be 5 ether"
+        );
+        assertEq(
+            postTraderBalance - prevTraderBalance,
+            expectedRefund,
+            "Trader should receive refunded amount"
+        );
+        assertEq(
+            prevVaultBalance - postVaultBalance,
+            expectedRefund,
             "Vault balance should decrease by refunded amount"
         );
 
