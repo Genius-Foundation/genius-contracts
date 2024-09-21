@@ -237,5 +237,7 @@ library GeniusErrors {
 
     error InvalidDeadline();
 
-    error InvalidThreshold();
+    error InvalidPercentage();
+
+    error NoStablecoinBalanceIncrease();
 }

@@ -49,7 +49,7 @@ abstract contract GeniusVaultCore is
     uint32 public maxOrderTime; // In seconds
     uint32 public orderRevertBuffer; // In seconds
 
-    uint256 public crosschainFee; // The fee charged for cross-chain swaps
+    uint256 public feeRefundPercentage; // The percentage for which fees are refunded in case of revert
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
     uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
 
@@ -103,8 +103,8 @@ abstract contract GeniusVaultCore is
         __Pausable_init();
 
         STABLECOIN = IERC20(stablecoin);
-        rebalanceThreshold = 75;
-        crosschainFee = 30;
+        rebalanceThreshold = 7_500; // 75%
+        feeRefundPercentage = 10_000; // 100%
         orderRevertBuffer = 60;
         maxOrderTime = 300;
 
@@ -191,7 +191,8 @@ abstract contract GeniusVaultCore is
     function setRebalanceThreshold(
         uint256 _rebalanceThreshold
     ) external override onlyAdmin {
-        if (_rebalanceThreshold > 100) revert GeniusErrors.InvalidThreshold();
+        _validatePercentage(_rebalanceThreshold);
+
         rebalanceThreshold = _rebalanceThreshold;
         emit RebalanceThresholdChanged(_rebalanceThreshold);
     }
@@ -206,11 +207,15 @@ abstract contract GeniusVaultCore is
     }
 
     /**
-     * @dev See {IGeniusVault-setCrosschainFee}.
+     * @dev See {IGeniusVault-setFeeRefundPercentage}.
      */
-    function setCrosschainFee(uint256 fee) external override onlyAdmin {
-        crosschainFee = fee;
-        emit CrosschainFeeChanged(fee);
+    function setFeeRefundPercentage(
+        uint256 _feeRefundPercentage
+    ) external override onlyAdmin {
+        _validatePercentage(_feeRefundPercentage);
+        
+        feeRefundPercentage = _feeRefundPercentage;
+        emit FeeRefundPercentageChanged(_feeRefundPercentage);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -382,19 +387,15 @@ abstract contract GeniusVaultCore is
 
     /**
      * @dev Internal function to calculate the refund amount for a reverted order.
-     * @param amountIn The total amount of stablecoins sent within the order.
-     * @param fee The total fee charged for the order.
+     * @param fees The total fees charged for the order.
      * @return refundAmount The amount to refund to the user.
-     * @return protocolFee The fee without the swap fee.
      */
-    function _calculateRefundAmount(
-        uint256 amountIn,
-        uint256 fee
-    ) internal view returns (uint256 refundAmount, uint256 protocolFee) {
-        uint256 _swapFee = (amountIn * crosschainFee) / 10_000;
-        uint256 _protocolFee = fee - _swapFee;
+    function _feeRefundAmount(uint256 fees) internal view returns (uint256) {
+        return (fees * feeRefundPercentage) / 10_000;
+    }
 
-        return (amountIn - _protocolFee, _protocolFee);
+    function _validatePercentage(uint256 percentage) internal pure {
+        if (percentage > 10_000) revert GeniusErrors.InvalidPercentage();
     }
 
     /**
