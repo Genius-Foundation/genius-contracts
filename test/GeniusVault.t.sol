@@ -118,8 +118,8 @@ contract GeniusVaultTest is Test {
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), address(this));
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 
-        deal(address(USDC), TRADER, 1_000 ether);
-        deal(address(USDC), ORCHESTRATOR, 1_000 ether);
+        deal(address(USDC), TRADER, 1_001 ether);
+        deal(address(USDC), ORCHESTRATOR, 1_001 ether);
     }
 
     function testEmergencyLock() public {
@@ -153,6 +153,7 @@ contract GeniusVaultTest is Test {
             abi.encodeWithSelector(Pausable.EnforcedPause.selector)
         );
         VAULT.removeBridgeLiquidity(
+            address(USDC),
             0.5 ether,
             targetChainId,
             tokens,
@@ -200,7 +201,7 @@ contract GeniusVaultTest is Test {
 
     function testAddLiquiditySwapWhenNoBalance() public {
         vm.startPrank(address(EXECUTOR));
-        USDC.approve(address(VAULT), 1_000 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
 
         vm.expectRevert("ERC20: transfer amount exceeds balance");
         VAULT.addLiquiditySwap(
@@ -246,7 +247,7 @@ contract GeniusVaultTest is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            1001 ether
+            1000 ether
         );
         // Value is 0
         values[0] = 0;
@@ -293,35 +294,6 @@ contract GeniusVaultTest is Test {
         );
     }
 
-    function testAddBridgeLiquidity() public {
-        vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(VAULT), 1_000 ether);
-
-        assertEq(
-            USDC.balanceOf(address(VAULT)),
-            1_000 ether,
-            "GeniusVault balance should be 1,000 ether"
-        );
-
-        uint256 totalAssets = VAULT.stablecoinBalance();
-        uint256 availableAssets = VAULT.availableAssets();
-        uint256 totalStakedAssets = VAULT.totalStakedAssets();
-        uint256 orchestratorBalance = USDC.balanceOf(ORCHESTRATOR);
-
-        assertEq(
-            totalAssets,
-            1_000 ether,
-            "Total assets should be 1,000 ether"
-        );
-        assertEq(totalStakedAssets, 0, "Total staked assets should be0 ether");
-        assertEq(
-            availableAssets,
-            1_000 ether,
-            "Available assets should be 1,000 ether"
-        );
-        assertEq(orchestratorBalance, 0, "Orchestrator balance should be 0");
-    }
-
     function testAddLiquiditySwapNative() public {
         deal(address(USDC), address(DEX_ROUTER), 1_000 ether);
         bytes memory swapData = abi.encodeWithSelector(
@@ -343,14 +315,9 @@ contract GeniusVaultTest is Test {
         );
 
         assertEq(
-            USDC.balanceOf(address(VAULT)),
-            500 ether,
-            "GeniusVault balance should be 500 ether"
-        );
-        assertEq(
             VAULT.stablecoinBalance(),
             500 ether,
-            "Total assets should be 1,000 ether"
+            "Total assets should be 500 ether"
         );
         assertEq(
             VAULT.availableAssets(),
@@ -369,16 +336,16 @@ contract GeniusVaultTest is Test {
         );
         assertEq(
             USDC.balanceOf(TRADER),
-            1000 ether,
+            1001 ether,
             "Orchestrator balance should be unchanged"
         );
     }
 
     function testRemoveLiquiditySwap() public {
-        deal(address(USDC), address(VAULT), 1_000 ether);
+        deal(address(USDC), address(VAULT), 1_001 ether);
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            1_000 ether,
+            1_001 ether,
             "GeniusVault balance should be 1,000 ether"
         );
 
@@ -404,7 +371,7 @@ contract GeniusVaultTest is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            997 ether
+            1_000 ether
         );
         // Value is 0
         values[0] = 0;
@@ -434,19 +401,14 @@ contract GeniusVaultTest is Test {
         );
         assertEq(
             USDC.balanceOf(ORCHESTRATOR),
-            1000 ether,
-            "Orchestrator balance should be 1000 ether"
+            1001 ether,
+            "Orchestrator balance should be 1001 ether"
         );
     }
 
     function testRemoveLiquiditySwapNoTargets() public {
         // Setup initial state
-        deal(address(USDC), address(VAULT), 1_000 ether);
-        assertEq(
-            USDC.balanceOf(address(VAULT)),
-            1_000 ether,
-            "GeniusVault initial balance should be 1,000 ether"
-        );
+        deal(address(USDC), address(VAULT), 1_001 ether);
 
         // Create the order
         order = IGeniusVault.Order({
@@ -495,7 +457,7 @@ contract GeniusVaultTest is Test {
         );
         assertEq(
             USDC.balanceOf(TRADER) - balanceTraderBefore,
-            999 ether,
+            1000 ether,
             "Receiver balance should be 999 ether (amountIn - fee)"
         );
 
@@ -506,7 +468,7 @@ contract GeniusVaultTest is Test {
         uint256 initialOrchestatorBalance = USDC.balanceOf(ORCHESTRATOR);
 
         vm.startPrank(TRADER);
-        USDC.approve(address(VAULT), 1_000 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -520,22 +482,16 @@ contract GeniusVaultTest is Test {
 
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            1_000 ether,
-            "GeniusVault balance should be 1,000 ether"
+            1_001 ether,
+            "GeniusVault balance should be 1,001 ether"
         );
 
         vm.startPrank(ORCHESTRATOR);
         VAULT.removeRewardLiquidity(1_000 ether);
 
         assertEq(
-            USDC.balanceOf(address(VAULT)),
-            0,
-            "GeniusVault balance should be 0 ether"
-        );
-
-        assertEq(
             VAULT.stablecoinBalance(),
-            0,
+            1,
             "Total assets should be 0 ether"
         );
         assertEq(
@@ -603,7 +559,11 @@ contract GeniusVaultTest is Test {
             750 ether,
             "Available assets should be 100 ether"
         );
-        assertEq(USDC.balanceOf(TRADER), 0, "Trader balance should be 0 ether");
+        assertEq(
+            USDC.balanceOf(TRADER),
+            1 ether,
+            "Trader balance should be 1 ether"
+        );
 
         // Remove staked liquidity
         vm.startPrank(TRADER);
@@ -626,83 +586,9 @@ contract GeniusVaultTest is Test {
         );
         assertEq(
             USDC.balanceOf(TRADER),
-            1_000 ether,
-            "Trader balance should be 1,000 ether"
+            1_001 ether,
+            "Trader balance should be 1,001 ether"
         );
-    }
-
-    function testDonatedBalance() public {
-        /**
-         * Donated balances are balances that are transferred into the pool contract
-         * but are done so directly without going through a contract function.
-         */
-
-        vm.startPrank(TRADER);
-        USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.stakeDeposit(1_000 ether, TRADER);
-
-        assertEq(
-            VAULT.stablecoinBalance(),
-            1_000 ether,
-            "Total assets should be 1,000 ether"
-        );
-        assertEq(
-            VAULT.totalStakedAssets(),
-            1_000 ether,
-            "Total staked assets should be 1,000 ether"
-        );
-        assertEq(
-            VAULT.availableAssets(),
-            750 ether,
-            "Available assets should be 100 ether"
-        );
-        assertEq(USDC.balanceOf(TRADER), 0, "Trader balance should be 0 ether");
-
-        deal(address(USDC), TRADER, 1_000 ether);
-        vm.startPrank(TRADER);
-        USDC.transfer(address(VAULT), 500 ether);
-
-        assertEq(
-            VAULT.stablecoinBalance(),
-            1_500 ether,
-            "Total assets should be 1,500 ether"
-        );
-        assertEq(
-            VAULT.totalStakedAssets(),
-            1_000 ether,
-            "Total staked assets should be 1,000 ether"
-        );
-        assertEq(
-            VAULT.availableAssets(),
-            1250 ether,
-            "Available assets should be 100 ether"
-        );
-        assertEq(
-            USDC.balanceOf(TRADER),
-            500 ether,
-            "Trader balance should be 500 ether"
-        );
-
-        vm.startPrank(TRADER);
-        USDC.approve(address(VAULT), 500 ether);
-        VAULT.stakeDeposit(500 ether, TRADER);
-
-        assertEq(
-            VAULT.stablecoinBalance(),
-            2000 ether,
-            "Total assets should be 2,000 ether"
-        );
-        assertEq(
-            VAULT.totalStakedAssets(),
-            1_500 ether,
-            "Total staked assets should be 1,500 ether"
-        );
-        assertEq(
-            VAULT.availableAssets(),
-            1625 ether,
-            "Available assets should be 650 ether"
-        );
-        assertEq(USDC.balanceOf(TRADER), 0, "Trader balance should be 0 ether");
     }
 
     function testRemoveBridgeLiquidity() public {
@@ -751,6 +637,7 @@ contract GeniusVaultTest is Test {
         data[0] = stableTransferData;
 
         VAULT.removeBridgeLiquidity(
+            address(USDC),
             amountToRemove,
             targetChainId,
             targets,
@@ -793,8 +680,8 @@ contract GeniusVaultTest is Test {
 
     function testAddLiquiditySwapOrderCreation() public {
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_001 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
         uint32 _fillDeadline = uint32(block.timestamp + 200);
         VAULT.addLiquiditySwap(
             keccak256("order"),
@@ -830,7 +717,7 @@ contract GeniusVaultTest is Test {
 
     function testRemoveLiquiditySwapOrderFulfillment() public {
         vm.startPrank(ORCHESTRATOR);
-        deal(address(USDC), address(VAULT), 1_000 ether);
+        deal(address(USDC), address(VAULT), 1_001 ether);
 
         order = IGeniusVault.Order({
             seed: keccak256("order"),
@@ -854,7 +741,7 @@ contract GeniusVaultTest is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            999 ether
+            1000 ether
         );
         // Value is 0
         values[0] = 0;
@@ -871,8 +758,8 @@ contract GeniusVaultTest is Test {
 
     function testSetOrderAsFilled() public {
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_001 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -909,8 +796,8 @@ contract GeniusVaultTest is Test {
 
     function testRevertOrder() public {
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_004 ether);
+        USDC.approve(address(VAULT), 1_004 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -918,7 +805,7 @@ contract GeniusVaultTest is Test {
             1_000 ether,
             destChainId,
             uint32(block.timestamp + 100),
-            5 ether,
+            4 ether,
             RECEIVER
         );
         vm.stopPrank();
@@ -932,7 +819,7 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 5 ether
+            fee: 4 ether
         });
 
         // Advance time past the fillDeadline
@@ -951,7 +838,7 @@ contract GeniusVaultTest is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            997 ether
+            1002 ether
         );
         // Value is 0
         values[0] = 0;
@@ -975,12 +862,12 @@ contract GeniusVaultTest is Test {
         );
         assertEq(
             postBalance - prevBalance,
-            997 ether,
+            1002 ether,
             "Executor should receive refunded amount"
         );
         assertEq(
             prevVaultBalance - postVaultBalance,
-            998 ether,
+            1002 ether,
             "Vault balance should decrease by refunded amount"
         );
 
@@ -995,8 +882,8 @@ contract GeniusVaultTest is Test {
     function testRevertOrderNoTargets() public {
         // Setup initial state
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_004 ether);
+        USDC.approve(address(VAULT), 1_004 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -1004,7 +891,7 @@ contract GeniusVaultTest is Test {
             1_000 ether,
             destChainId,
             uint32(block.timestamp + 100),
-            5 ether,
+            4 ether,
             RECEIVER
         );
         vm.stopPrank();
@@ -1018,7 +905,7 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 5 ether
+            fee: 4 ether
         });
 
         // Advance time past the fillDeadline
@@ -1039,7 +926,7 @@ contract GeniusVaultTest is Test {
         uint256 postTraderBalance = USDC.balanceOf(TRADER);
         uint256 postVaultBalance = USDC.balanceOf(address(VAULT));
 
-        uint256 expectedRefund = 998 ether; // 1000 - 2
+        uint256 expectedRefund = 1002 ether; // 1000 + 2
 
         assertEq(
             VAULT.unclaimedFees(),
@@ -1071,9 +958,9 @@ contract GeniusVaultTest is Test {
     }
 
     function testCannotRevertOrderBeforeDeadline() public {
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_001 ether);
         vm.startPrank(address(EXECUTOR));
-        USDC.approve(address(VAULT), 1_000 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -1211,7 +1098,7 @@ contract GeniusVaultTest is Test {
 
     function testRemoveLiquiditySwapAfterDeadline() public {
         vm.startPrank(address(ORCHESTRATOR));
-        deal(address(USDC), address(VAULT), 1_000 ether);
+        deal(address(USDC), address(VAULT), 1_001 ether);
 
         order = IGeniusVault.Order({
             seed: keccak256("order"),
@@ -1238,7 +1125,7 @@ contract GeniusVaultTest is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            997 ether
+            1000 ether
         );
         // Value is 0
         values[0] = 0;
@@ -1254,8 +1141,8 @@ contract GeniusVaultTest is Test {
 
     function testSetOrderAsFilledWithWrongSourceChain() public {
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_001 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -1276,8 +1163,8 @@ contract GeniusVaultTest is Test {
 
     function testSetOrderAsFilledTwice() public {
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_001 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -1312,8 +1199,8 @@ contract GeniusVaultTest is Test {
 
     function testRevertOrderTwice() public {
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_003 ether);
+        USDC.approve(address(VAULT), 1_003 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -1367,8 +1254,8 @@ contract GeniusVaultTest is Test {
 
     function testRevertOrderAsNonExecutor() public {
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_003 ether);
+        USDC.approve(address(VAULT), 1_003 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -1429,8 +1316,8 @@ contract GeniusVaultTest is Test {
             1;
 
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_001 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
 
         vm.expectRevert(
             abi.encodeWithSelector(GeniusErrors.InvalidDeadline.selector)
@@ -1451,8 +1338,8 @@ contract GeniusVaultTest is Test {
     function testCannotRevertOrderBeforeRevertBuffer() public {
         // First, add a valid order
         vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
+        deal(address(USDC), address(EXECUTOR), 1_003 ether);
+        USDC.approve(address(VAULT), 1_003 ether);
         uint32 validDeadline = uint32(block.timestamp + 100);
         VAULT.addLiquiditySwap(
             keccak256("orderToRevert"),
@@ -1488,7 +1375,7 @@ contract GeniusVaultTest is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            997 ether
+            1000 ether
         );
         values[0] = 0;
 

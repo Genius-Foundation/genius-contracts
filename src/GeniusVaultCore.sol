@@ -104,7 +104,7 @@ abstract contract GeniusVaultCore is
 
         STABLECOIN = IERC20(stablecoin);
         rebalanceThreshold = 7_500; // 75%
-        feeRefundPercentage = 10_000; // 100%
+        feeRefundPercentage = 5_000; // 50%
         orderRevertBuffer = 60;
         maxOrderTime = 300;
 
@@ -213,7 +213,7 @@ abstract contract GeniusVaultCore is
         uint256 _feeRefundPercentage
     ) external override onlyAdmin {
         _validatePercentage(_feeRefundPercentage);
-        
+
         feeRefundPercentage = _feeRefundPercentage;
         emit FeeRefundPercentageChanged(_feeRefundPercentage);
     }
@@ -290,6 +290,30 @@ abstract contract GeniusVaultCore is
         view
         virtual
         returns (uint256, uint256, uint256);
+
+    /**
+     * @dev See {IGeniusVault-bytes32ToAddress}.
+     */
+    function bytes32ToAddress(
+        bytes32 _input
+    ) public pure override returns (address) {
+        require(
+            uint96(uint256(_input) >> 160) == 0,
+            "First 12 bytes must be zero"
+        );
+        address extractedAddress = address(uint160(uint256(_input)));
+        require(extractedAddress != address(0), "Invalid zero address");
+        return extractedAddress;
+    }
+
+    /**
+     * @dev See {IGeniusVault-addressToBytes32}.
+     */
+    function addressToBytes32(
+        address _input
+    ) public pure override returns (bytes32) {
+        return bytes32(uint256(uint160(_input)));
+    }
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
@@ -471,15 +495,4 @@ abstract contract GeniusVaultCore is
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyAdmin {}
-
-    /**
-     * Extract an address from a right-padded bytes32 address
-     * @param _input bytes32 containing a right-padded bytes20 address
-     */
-    function _bytes32ToAddress(bytes32 _input) public pure returns (address) {
-        require(uint96(uint256(_input) >> 160) == 0, "First 12 bytes must be zero");
-        address extractedAddress = address(uint160(uint256(_input)));
-        require(extractedAddress != address(0), "Invalid zero address");
-        return extractedAddress;
-    }
 }

@@ -106,9 +106,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            supportedTokens,
-            bridges,
-            routers
+            supportedTokens
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -131,22 +129,22 @@ contract MultiTokenVaultExecutorInteractions is Test {
         vm.stopPrank();
 
         // Provide tokens to TRADER and ORCHESTRATOR
-        deal(address(USDC), TRADER, 1_000 ether);
-        deal(address(USDC), ORCHESTRATOR, 1_000 ether);
-        deal(address(USDC), address(this), 1_000 ether);
-        deal(address(TOKEN1), TRADER, 1_000 ether);
-        deal(address(TOKEN2), TRADER, 1_000 ether);
-        deal(address(TOKEN3), TRADER, 1_000 ether);
+        deal(address(USDC), TRADER, 1_001 ether);
+        deal(address(USDC), ORCHESTRATOR, 1_001 ether);
+        deal(address(USDC), address(this), 1_001 ether);
+        deal(address(TOKEN1), TRADER, 1_001 ether);
+        deal(address(TOKEN2), TRADER, 1_001 ether);
+        deal(address(TOKEN3), TRADER, 1_001 ether);
         deal(address(USDC), address(ROUTER), 100 ether);
-        deal(TRADER, 1000 ether); // Provide ETH
+        deal(TRADER, 1001 ether); // Provide ETH
 
         // Approve tokens for MULTI_VAULT
         vm.startPrank(TRADER);
-        TOKEN1.approve(address(PERMIT2), 1_000 ether);
-        TOKEN2.approve(address(PERMIT2), 1_000 ether);
+        TOKEN1.approve(address(PERMIT2), type(uint256).max);
+        TOKEN2.approve(address(PERMIT2), type(uint256).max);
 
-        TOKEN1.approve(address(ROUTER), AMOUNT / 2);
-        TOKEN2.approve(address(ROUTER), AMOUNT / 2);
+        TOKEN1.approve(address(ROUTER), type(uint256).max);
+        TOKEN2.approve(address(ROUTER), type(uint256).max);
         vm.stopPrank();
     }
 
@@ -231,14 +229,14 @@ contract MultiTokenVaultExecutorInteractions is Test {
             memory permitDetails = new IAllowanceTransfer.PermitDetails[](2);
         permitDetails[0] = IAllowanceTransfer.PermitDetails({
             token: address(TOKEN1),
-            amount: AMOUNT,
+            amount: AMOUNT + 1 ether,
             expiration: 1900000000,
             nonce: 0
         });
 
         permitDetails[1] = IAllowanceTransfer.PermitDetails({
             token: address(TOKEN2),
-            amount: AMOUNT,
+            amount: AMOUNT + 1 ether,
             expiration: 1900000000,
             nonce: 0
         });
@@ -384,7 +382,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
             0,
             "MULTI_VAULT should have 0 USDC staked"
         );
-        assertEq(TRADER.balance, 900 ether, "TRADER should have 0 ETH");
+        assertEq(TRADER.balance, 901 ether, "TRADER should have 901 ETH");
     }
 
     function testDepositToVault() public {
@@ -547,8 +545,8 @@ contract MultiTokenVaultExecutorInteractions is Test {
         );
         assertEq(
             USDC.balanceOf(TRADER),
-            991 ether,
-            "TRADER should have 991 USDC"
+            992 ether,
+            "TRADER should have 992 USDC"
         );
     }
 }

@@ -27,8 +27,7 @@ contract GeniusVaultFees is Test {
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
-    bytes32 RECEIVER =
-        keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
+    bytes32 RECEIVER;
 
     ERC20 public USDC;
     ERC20 public WETH;
@@ -45,6 +44,7 @@ contract GeniusVaultFees is Test {
 
         OWNER = makeAddr("OWNER");
         TRADER = makeAddr("TRADER");
+        RECEIVER = bytes32(uint256(uint160(TRADER)));
         ORCHESTRATOR = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38; // The hardcoded tx.origin for forge
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
@@ -90,23 +90,13 @@ contract GeniusVaultFees is Test {
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), address(this));
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 
-        deal(address(USDC), TRADER, 1_000 ether);
-        deal(address(USDC), ORCHESTRATOR, 1_000 ether);
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-    }
-
-    function testSetFee() public {
-        assertEq(VAULT.crosschainFee(), 30, "Fee should be 30 bps");
-
-        vm.startPrank(OWNER);
-        VAULT.setCrosschainFee(10);
-
-        assertEq(VAULT.crosschainFee(), 10, "Fee should be 10 bps");
+        deal(address(USDC), address(EXECUTOR), 1_001 ether);
+        deal(address(USDC), ORCHESTRATOR, 1_001 ether);
     }
 
     function testAddLiquidity() public {
         vm.startPrank(address(EXECUTOR));
-        USDC.approve(address(VAULT), 1_000 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
@@ -120,7 +110,7 @@ contract GeniusVaultFees is Test {
 
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            1_000 ether,
+            1_001 ether,
             "GeniusVault balance should be 1,000 ether"
         );
         assertEq(
@@ -141,7 +131,7 @@ contract GeniusVaultFees is Test {
         );
         assertEq(
             VAULT.stablecoinBalance(),
-            1_000 ether,
+            1_001 ether,
             "Stablecoin balance should be 1,000 ether"
         );
         assertEq(
@@ -151,14 +141,14 @@ contract GeniusVaultFees is Test {
         );
         assertEq(
             VAULT.reservedAssets(),
-            1_000 ether,
+            1_001 ether,
             "Reserved Stablecoin balance should be 0 ether"
         );
     }
 
     function testAddLiquidityAndRemoveLiquidity() public {
         vm.startPrank(address(EXECUTOR));
-        USDC.approve(address(VAULT), 1_000 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
         uint32 timestamp = uint32(block.timestamp + 200);
 
         IGeniusVault.Order memory orderToFill = IGeniusVault.Order({
@@ -188,7 +178,7 @@ contract GeniusVaultFees is Test {
         IGeniusVault.Order memory order = IGeniusVault.Order({
             trader: TRADER,
             receiver: RECEIVER,
-            amountIn: 999 ether,
+            amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
@@ -203,7 +193,7 @@ contract GeniusVaultFees is Test {
             abi.encodeWithSelector(
                 GeniusErrors.InsufficientLiquidity.selector,
                 0 ether,
-                998 ether
+                1_000 ether
             )
         );
 
@@ -217,7 +207,7 @@ contract GeniusVaultFees is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            998 ether
+            1_000 ether
         );
         // Value is 0
         values[0] = 0;
@@ -234,7 +224,7 @@ contract GeniusVaultFees is Test {
         // Add assertions to check the state after removing liquidity
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            2 ether,
+            1 ether,
             "GeniusVault balance should be 1 ether (only fees left)"
         );
         assertEq(
@@ -254,12 +244,114 @@ contract GeniusVaultFees is Test {
         );
         assertEq(
             VAULT.stablecoinBalance(),
-            2 ether,
+            1 ether,
             "Stablecoin balance should be 1 ether"
         );
         assertEq(
             VAULT.availableAssets(),
+            0 ether,
+            "Available Stablecoin balance should be 0"
+        );
+        assertEq(
+            VAULT.reservedAssets(),
+            0 ether,
+            "Reserved Stablecoin balance should be 0 ether"
+        );
+    }
+
+    function testAddLiquidityAndRemoveLiquidityWithoutExternalCall() public {
+        vm.startPrank(address(EXECUTOR));
+        USDC.approve(address(VAULT), 1_001 ether);
+        uint32 timestamp = uint32(block.timestamp + 200);
+
+        IGeniusVault.Order memory orderToFill = IGeniusVault.Order({
+            trader: TRADER,
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order"), // This should be the correct order ID
+            srcChainId: 43114, // Use the current chain ID
+            destChainId: 1,
+            fillDeadline: timestamp,
+            tokenIn: address(USDC),
+            fee: 1 ether
+        });
+
+        VAULT.addLiquiditySwap(
+            keccak256("order"),
+            orderToFill.trader,
+            orderToFill.tokenIn,
+            orderToFill.amountIn,
+            orderToFill.destChainId,
+            orderToFill.fillDeadline,
+            orderToFill.fee,
+            orderToFill.receiver
+        );
+
+        // Create an Order struct for removing liquidity
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            trader: TRADER,
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order"), // This should be the correct order ID
+            srcChainId: 1, // Use the current chain ID
+            destChainId: uint16(block.chainid),
+            fillDeadline: uint32(block.timestamp + 200),
+            tokenIn: address(USDC),
+            fee: 1 ether
+        });
+
+        // Remove liquidity
+        vm.startPrank(address(ORCHESTRATOR));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InsufficientLiquidity.selector,
+                0 ether,
+                1_000 ether
+            )
+        );
+
+        address[] memory targets = new address[](0);
+        bytes[] memory calldatas = new bytes[](0);
+        uint256[] memory values = new uint256[](0);
+
+        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+
+        VAULT.setOrderAsFilled(orderToFill);
+        bytes32 hash = VAULT.orderHash(orderToFill);
+        assertEq(uint(VAULT.orderStatus(hash)), 2, "Order should be filled");
+
+        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+        vm.stopPrank();
+
+        // Add assertions to check the state after removing liquidity
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
             1 ether,
+            "GeniusVault balance should be 1 ether (only fees left)"
+        );
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            0 ether,
+            "Executor balance should be 0 ether"
+        );
+        assertEq(
+            VAULT.totalStakedAssets(),
+            0,
+            "Total staked assets should still be 0"
+        );
+        assertEq(
+            VAULT.unclaimedFees(),
+            1 ether,
+            "Total unclaimed fees should still be 0 ether"
+        );
+        assertEq(
+            VAULT.stablecoinBalance(),
+            1 ether,
+            "Stablecoin balance should be 1 ether"
+        );
+        assertEq(
+            VAULT.availableAssets(),
+            0 ether,
             "Available Stablecoin balance should be 0"
         );
         assertEq(
@@ -271,7 +363,7 @@ contract GeniusVaultFees is Test {
 
     function testRemoveTooMuchLiquidity() public {
         vm.startPrank(address(EXECUTOR));
-        USDC.approve(address(VAULT), 1_000 ether);
+        USDC.approve(address(VAULT), 1_001 ether);
 
         uint32 timestamp = uint32(block.timestamp + 200);
         IGeniusVault.Order memory orderToFill = IGeniusVault.Order({
@@ -306,7 +398,7 @@ contract GeniusVaultFees is Test {
         IGeniusVault.Order memory order = IGeniusVault.Order({
             trader: TRADER,
             receiver: RECEIVER,
-            amountIn: 1000 ether,
+            amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
@@ -333,7 +425,7 @@ contract GeniusVaultFees is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            1000 ether
+            1_001 ether
         );
         // Value is 0
         values[0] = 0;
@@ -343,7 +435,7 @@ contract GeniusVaultFees is Test {
         // Add assertions to check the state after removing liquidity
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            1_000 ether,
+            1_001 ether,
             "GeniusVault balance should be 1,000 ether"
         );
         assertEq(
@@ -363,13 +455,13 @@ contract GeniusVaultFees is Test {
         );
         assertEq(
             VAULT.stablecoinBalance(),
-            1_000 ether,
+            1_001 ether,
             "Stablecoin balance should be 1,000 ether"
         );
         assertEq(
             VAULT.availableAssets(),
-            999 ether,
-            "Available Stablecoin balance should be 0 ether"
+            1_000 ether,
+            "Available Stablecoin balance should be 1_000 ether"
         );
         assertEq(
             VAULT.reservedAssets(),

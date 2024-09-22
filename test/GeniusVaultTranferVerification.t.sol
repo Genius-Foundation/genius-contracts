@@ -88,15 +88,23 @@ contract GeniusVaultTransferVerificationTest is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            supportedTokens, 
-            bridges, 
+            supportedTokens,
+            bridges,
             routers
         );
 
-        ERC1967Proxy proxyMulti = new ERC1967Proxy(address(implementationMulti), dataMulti);
+        ERC1967Proxy proxyMulti = new ERC1967Proxy(
+            address(implementationMulti),
+            dataMulti
+        );
 
         MULTIVAULT = GeniusMultiTokenVault(address(proxyMulti));
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER, new address[](0));
+        EXECUTOR = new GeniusExecutor(
+            PERMIT2,
+            address(VAULT),
+            OWNER,
+            new address[](0)
+        );
 
         VAULT.setExecutor(address(EXECUTOR));
         MULTIVAULT.setExecutor(address(EXECUTOR));
@@ -134,12 +142,18 @@ contract GeniusVaultTransferVerificationTest is Test {
         data[0] = transferData;
 
         vm.expectRevert();
-        VAULT.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
+        VAULT.removeBridgeLiquidity(
+            address(USDC),
+            amountToRemove,
+            targetChainId,
+            targets,
+            values,
+            data
+        );
         vm.stopPrank();
     }
 
     function testWrongTransferOnRemoveBridgeLiquidityMULTIVAULT() public {
-
         // Add initial liquidity
         vm.startPrank(ORCHESTRATOR);
         USDC.transfer(address(MULTIVAULT), 500 ether);
@@ -170,7 +184,14 @@ contract GeniusVaultTransferVerificationTest is Test {
         data[0] = transferData;
 
         vm.expectRevert();
-        MULTIVAULT.removeBridgeLiquidity(amountToRemove, targetChainId, targets, values, data);
+        MULTIVAULT.removeBridgeLiquidity(
+            address(USDC),
+            amountToRemove,
+            targetChainId,
+            targets,
+            values,
+            data
+        );
         vm.stopPrank();
     }
 }

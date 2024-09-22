@@ -265,7 +265,7 @@ contract GeniusVaultAccounting is Test {
 
         // Change the threshold
         vm.startPrank(OWNER);
-        VAULT.setRebalanceThreshold(10);
+        VAULT.setRebalanceThreshold(1_000);
         vm.stopPrank();
 
         // Check the staked value
@@ -614,7 +614,7 @@ contract GeniusVaultAccounting is Test {
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
-        VAULT.setRebalanceThreshold(10);
+        VAULT.setRebalanceThreshold(1_000);
         vm.stopPrank();
 
         assertEq(
@@ -767,7 +767,7 @@ contract GeniusVaultAccounting is Test {
 
         // =================== CHANGE THRESHOLD ===================
         vm.startPrank(OWNER);
-        VAULT.setRebalanceThreshold(10);
+        VAULT.setRebalanceThreshold(1_000);
         vm.stopPrank();
 
         assertEq(

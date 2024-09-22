@@ -92,7 +92,7 @@ contract GeniusVault is GeniusVaultCore {
         if (targets.length == 0) {
             _transferERC20(
                 address(STABLECOIN),
-                _bytes32ToAddress(order.receiver),
+                bytes32ToAddress(order.receiver),
                 order.amountIn
             );
         } else {
@@ -289,7 +289,7 @@ contract GeniusVault is GeniusVaultCore {
 
     function minLiquidity() public view override returns (uint256) {
         uint256 reduction = totalStakedAssets > 0
-            ? (totalStakedAssets * rebalanceThreshold) / 100
+            ? (totalStakedAssets * rebalanceThreshold) / 10_000
             : 0;
         uint256 minBalance = totalStakedAssets > reduction
             ? totalStakedAssets - reduction

@@ -165,7 +165,11 @@ interface IGeniusVault {
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
      */
-    event RemovedLiquidity(address indexed token, uint256 amount, uint32 indexed chainId);
+    event RemovedLiquidity(
+        address indexed token,
+        uint256 amount,
+        uint32 indexed chainId
+    );
 
     /**
      * @notice Emitted when fees are claimed from the Vault contract.
@@ -375,6 +379,18 @@ interface IGeniusVault {
      * @return The rebalance threshold as a percentage.
      */
     function rebalanceThreshold() external view returns (uint256);
+
+    /**
+     * Extract an address from a right-padded bytes32 address
+     * @param _input bytes32 containing a right-padded bytes20 address
+     */
+    function bytes32ToAddress(bytes32 _input) external pure returns (address);
+
+    /**
+     * Convert an address to a right-padded bytes32 address
+     * @param _input address to convert
+     */
+    function addressToBytes32(address _input) external pure returns (bytes32);
 
     /**
      * @notice Returns the address of the stablecoin used in the vault.

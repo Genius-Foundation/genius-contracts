@@ -31,7 +31,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     // ║                         VARIABLES                         ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    uint256 public supportedTokensCount; // The total number of supported tokens
     mapping(address token => bool isSupported) public supportedTokens; // Mapping of token addresses to TokenInfo structs
     mapping(address token => uint256 amount) public supportedTokenFees; // Mapping of token address to total unclaimed fees
     mapping(address token => uint256 amount) public supportedTokenReserves; // Mapping of token address to total reserved assets
@@ -210,7 +209,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (targets.length == 0) {
             _transferERC20(
                 order.tokenIn,
-                _bytes32ToAddress(order.receiver),
+                bytes32ToAddress(order.receiver),
                 order.amountIn
             );
         } else {
@@ -250,7 +249,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         orderStatus[_orderHash] = OrderStatus.Filled;
 
         supportedTokenFees[order.tokenIn] += order.fee;
-        supportedTokenReserves[order.tokenIn] -= order.amountIn - order.fee;
+        supportedTokenReserves[order.tokenIn] -= order.amountIn + order.fee;
 
         emit OrderFilled(
             order.seed,
@@ -288,7 +287,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         orderStatus[_orderHash] = OrderStatus.Reverted;
         supportedTokenFees[order.tokenIn] += order.fee - _feeRefund;
-        supportedTokenReserves[order.tokenIn] -= order.amountIn - order.fee;
+        supportedTokenReserves[order.tokenIn] -= order.amountIn + order.fee;
 
         if (targets.length == 0) {
             _transferERC20(
@@ -333,7 +332,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (token == address(STABLECOIN)) {
             revert GeniusErrors.InvalidToken(token);
         }
-        supportedTokens[token] = true;
+        supportedTokens[token] = supported;
         emit TokenSupported(token, supported);
     }
 
@@ -381,7 +380,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
     function minLiquidity() public view override returns (uint256) {
         uint256 reduction = totalStakedAssets > 0
-            ? (totalStakedAssets * rebalanceThreshold) / 100
+            ? (totalStakedAssets * rebalanceThreshold) / 10_000
             : 0;
         uint256 minBalance = totalStakedAssets > reduction
             ? totalStakedAssets - reduction
