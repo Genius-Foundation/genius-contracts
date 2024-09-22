@@ -54,7 +54,6 @@ contract GeniusVault is GeniusVaultCore {
     ) external payable virtual override onlyOrchestrator whenNotPaused {
         if (token != address(STABLECOIN))
             revert GeniusErrors.InvalidToken(token);
-        _checkBridgeTargets(targets);
         _isAmountValid(amountIn, availableAssets());
         _checkNative(_sum(values));
 

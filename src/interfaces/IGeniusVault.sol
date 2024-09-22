@@ -321,13 +321,6 @@ interface IGeniusVault {
     function setRebalanceThreshold(uint256 threshold) external;
 
     /**
-     * @notice Authorizes or unauthorizes a bridge target.
-     * @param bridge The address of the bridge target to be managed.
-     * @param authorize True to authorize the bridge, false to unauthorize it.
-     */
-    function manageBridge(address bridge, bool authorize) external;
-
-    /**
      * @notice Sets the order revert buffer.
      * @param _orderRevertBuffer The new order revert buffer.
      */

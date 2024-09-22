@@ -218,28 +218,6 @@ abstract contract GeniusVaultCore is
         emit FeeRefundPercentageChanged(_feeRefundPercentage);
     }
 
-    // ╔═══════════════════════════════════════════════════════════╗
-    // ║                    BRIDGE MANAGEMENT                      ║
-    // ╚═══════════════════════════════════════════════════════════╝
-
-    /**
-     * @dev See {IGeniusMultiTokenVault-manageBridge}.
-     */
-    function manageBridge(
-        address bridge,
-        bool authorize
-    ) external override onlyAdmin {
-        if (authorize) {
-            if (supportedBridges[bridge] == 1)
-                revert GeniusErrors.InvalidTarget(bridge);
-            supportedBridges[bridge] = 1;
-        } else {
-            if (supportedBridges[bridge] == 0)
-                revert GeniusErrors.InvalidTarget(bridge);
-            supportedBridges[bridge] = 0;
-        }
-        emit BridgeAuthorized(bridge, authorize);
-    }
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         EMERGENCY                         ║
@@ -326,24 +304,6 @@ abstract contract GeniusVaultCore is
     function _checkNative(uint256 amount) internal {
         if (msg.value != amount)
             revert GeniusErrors.InvalidNativeAmount(amount);
-    }
-
-    /**
-     * @dev Internal function to check if the given bridge targets are supported.
-     * @param bridgeTargets The array of bridge target addresses to check.
-     */
-    function _checkBridgeTargets(address[] memory bridgeTargets) internal view {
-        for (uint256 i; i < bridgeTargets.length; ) {
-            if (supportedBridges[bridgeTargets[i]] == 0) {
-                if (bridgeTargets[i] != address(STABLECOIN)) {
-                    revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
-                }
-            }
-
-            unchecked {
-                i++;
-            }
-        }
     }
 
     /**
@@ -450,28 +410,6 @@ abstract contract GeniusVaultCore is
         uint256 amount
     ) internal {
         IERC20(token).safeTransferFrom(from, to, amount);
-    }
-
-    /**
-     * @dev Internal function to batch execute external calls.
-     * @param targets The array of target addresses to call.
-     * @param data The array of data to pass to the target addresses.
-     * @param values The array of values to send to the target addresses.
-     */
-    function _batchExecution(
-        address[] memory targets,
-        bytes[] memory data,
-        uint256[] memory values
-    ) internal {
-        for (uint i = 0; i < targets.length; ) {
-            (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            if (!_success)
-                revert GeniusErrors.ExternalCallFailed(targets[i], i);
-
-            unchecked {
-                i++;
-            }
-        }
     }
 
     /**

@@ -159,12 +159,6 @@ contract GeniusVaultTransferVerificationTest is Test {
         USDC.transfer(address(MULTIVAULT), 500 ether);
         vm.stopPrank();
 
-        // Prepare removal of bridge liquidity
-        vm.startPrank(OWNER);
-        // Ensure the USDC token is a valid target for bridge operations
-        MULTIVAULT.manageBridge(address(USDC), true);
-        vm.stopPrank();
-
         vm.startPrank(ORCHESTRATOR);
         address[] memory targets = new address[](1);
         targets[0] = address(USDC);

@@ -171,12 +171,6 @@ contract GeniusVaultDOSTest is Test {
         // Simulate a donation to the vault
         deal(address(USDC), address(MULTIVAULT), 500 ether + 100 ether);
 
-        // Prepare removal of bridge liquidity
-        vm.startPrank(OWNER);
-        // Ensure the USDC token is a valid target for bridge operations
-        MULTIVAULT.manageBridge(address(USDC), true);
-        vm.stopPrank();
-
         vm.startPrank(ORCHESTRATOR);
         address[] memory targets = new address[](1);
         targets[0] = address(USDC);
