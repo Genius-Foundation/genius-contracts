@@ -5,7 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {PermitSignature} from "./utils/SigUtils.sol";
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { IAllowanceTransfer, IEIP712 } from "permit2/interfaces/IAllowanceTransfer.sol";
+import {IAllowanceTransfer, IEIP712} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
@@ -43,7 +43,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
 
     // ============ Constants ============
     bytes32 public DOMAIN_SEPERATOR;
-    uint160 AMOUNT = 10 ether; 
+    uint160 AMOUNT = 10 ether;
 
     // ============ Accounts ============
     address public OWNER;
@@ -106,19 +106,24 @@ contract MultiTokenVaultExecutorInteractions is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            supportedTokens, 
-            bridges, 
+            supportedTokens,
+            bridges,
             routers
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         MULTI_VAULT = GeniusMultiTokenVault(address(proxy));
-        EXECUTOR = new GeniusExecutor(address(PERMIT2), address(MULTI_VAULT), OWNER, new address[](0));
+        EXECUTOR = new GeniusExecutor(
+            address(PERMIT2),
+            address(MULTI_VAULT),
+            OWNER,
+            new address[](0)
+        );
 
         MULTI_VAULT.setExecutor(address(EXECUTOR));
         EXECUTOR.setAllowedTarget(address(ROUTER), true);
-        
+
         // Add Orchestrator
         MULTI_VAULT.grantRole(MULTI_VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
@@ -145,9 +150,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         vm.stopPrank();
     }
 
-
     function testTokenSwapAndDeposit() public {
-
         bytes memory swapCalldata = abi.encodeWithSelector(
             MockSwapTarget.mockSwap.selector,
             address(TOKEN1),
@@ -158,7 +161,8 @@ contract MultiTokenVaultExecutorInteractions is Test {
         );
 
         // Set up permit details for WAVAX
-        IAllowanceTransfer.PermitDetails[] memory permitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        IAllowanceTransfer.PermitDetails[]
+            memory permitDetails = new IAllowanceTransfer.PermitDetails[](1);
         permitDetails[0] = IAllowanceTransfer.PermitDetails({
             token: address(TOKEN1),
             amount: AMOUNT,
@@ -166,13 +170,12 @@ contract MultiTokenVaultExecutorInteractions is Test {
             nonce: 0
         });
 
-
-
-        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer.PermitBatch({
-            details: permitDetails,
-            spender: address(EXECUTOR),
-            sigDeadline: 1900000000
-        });
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer
+            .PermitBatch({
+                details: permitDetails,
+                spender: address(EXECUTOR),
+                sigDeadline: 1900000000
+            });
 
         bytes memory signature = SIG_UTILS.getPermitBatchSignature(
             permitBatch,
@@ -190,22 +193,42 @@ contract MultiTokenVaultExecutorInteractions is Test {
             signature,
             TRADER,
             destChainId,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             RECEIVER
         );
 
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 5 ether, "MULTI_VAULT should have 5 test tokens");
-        assertEq(MULTI_VAULT.stablecoinBalance(), 5 ether, "MULTI_VAULT should have 5 test tokens available");
-        assertEq(MULTI_VAULT.availableAssets(), 0 ether, "MULTI_VAULT should have 90% of test tokens available");
-        assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 test tokens staked");
-
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            0,
+            "EXECUTOR should have 0 test tokens"
+        );
+        assertEq(
+            USDC.balanceOf(address(MULTI_VAULT)),
+            5 ether,
+            "MULTI_VAULT should have 5 test tokens"
+        );
+        assertEq(
+            MULTI_VAULT.stablecoinBalance(),
+            5 ether,
+            "MULTI_VAULT should have 5 test tokens available"
+        );
+        assertEq(
+            MULTI_VAULT.availableAssets(),
+            0 ether,
+            "MULTI_VAULT should have 90% of test tokens available"
+        );
+        assertEq(
+            MULTI_VAULT.totalStakedAssets(),
+            0,
+            "MULTI_VAULT should have 0 test tokens staked"
+        );
     }
 
     function testMultiSwapAndDeposit() public {
         // Set up permit details for WAVAX
-        IAllowanceTransfer.PermitDetails[] memory permitDetails = new IAllowanceTransfer.PermitDetails[](2);
+        IAllowanceTransfer.PermitDetails[]
+            memory permitDetails = new IAllowanceTransfer.PermitDetails[](2);
         permitDetails[0] = IAllowanceTransfer.PermitDetails({
             token: address(TOKEN1),
             amount: AMOUNT,
@@ -220,11 +243,12 @@ contract MultiTokenVaultExecutorInteractions is Test {
             nonce: 0
         });
 
-        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer.PermitBatch({
-            details: permitDetails,
-            spender: address(EXECUTOR),
-            sigDeadline: 1900000000
-        });
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer
+            .PermitBatch({
+                details: permitDetails,
+                spender: address(EXECUTOR),
+                sigDeadline: 1900000000
+            });
 
         bytes memory signature = SIG_UTILS.getPermitBatchSignature(
             permitBatch,
@@ -254,7 +278,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         targets[0] = address(ROUTER);
         targets[1] = address(ROUTER);
 
-        uint256[]memory values = new uint256[](2);
+        uint256[] memory values = new uint256[](2);
         values[0] = 0;
         values[1] = 0;
 
@@ -268,6 +292,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         vm.stopPrank();
 
         // Perform the swap and deposit via GeniusExecutor
+        vm.startPrank(ORCHESTRATOR);
         EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
             targets,
@@ -277,16 +302,36 @@ contract MultiTokenVaultExecutorInteractions is Test {
             signature,
             TRADER,
             42,
-            uint32(uint32(block.timestamp + 1000)),
+            uint32(uint32(block.timestamp + 200)),
             1 ether,
             RECEIVER
         );
 
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 test tokens");
-        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 10 ether, "MULTI_VAULT should have 10 test tokens");
-        assertEq(MULTI_VAULT.stablecoinBalance(), 10 ether, "MULTI_VAULT should have 10 test tokens available");
-        assertEq(MULTI_VAULT.availableAssets(), 0 ether, "MULTI_VAULT should have 90% of test tokens available");
-        assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 test tokens staked ");
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            0,
+            "EXECUTOR should have 0 test tokens"
+        );
+        assertEq(
+            USDC.balanceOf(address(MULTI_VAULT)),
+            10 ether,
+            "MULTI_VAULT should have 10 test tokens"
+        );
+        assertEq(
+            MULTI_VAULT.stablecoinBalance(),
+            10 ether,
+            "MULTI_VAULT should have 10 test tokens available"
+        );
+        assertEq(
+            MULTI_VAULT.availableAssets(),
+            0 ether,
+            "MULTI_VAULT should have 90% of test tokens available"
+        );
+        assertEq(
+            MULTI_VAULT.totalStakedAssets(),
+            0,
+            "MULTI_VAULT should have 0 test tokens staked "
+        );
     }
 
     function testNativeSwapAndDeposit() public {
@@ -310,30 +355,51 @@ contract MultiTokenVaultExecutorInteractions is Test {
             swapCalldata,
             swapAmount,
             destChainId,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             RECEIVER
         );
 
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 USDC");
-        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 50 ether, "MULTI_VAULT should have 5 USDC");
-        assertEq(MULTI_VAULT.stablecoinBalance(), 50 ether, "MULTI_VAULT should have 5 USDC available");
-        assertEq(MULTI_VAULT.availableAssets(), 0 ether, "MULTI_VAULT should have 90% of USDC available");
-        assertEq(MULTI_VAULT.totalStakedAssets(), 0, "MULTI_VAULT should have 0 USDC staked");
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            0,
+            "EXECUTOR should have 0 USDC"
+        );
+        assertEq(
+            USDC.balanceOf(address(MULTI_VAULT)),
+            50 ether,
+            "MULTI_VAULT should have 5 USDC"
+        );
+        assertEq(
+            MULTI_VAULT.stablecoinBalance(),
+            50 ether,
+            "MULTI_VAULT should have 5 USDC available"
+        );
+        assertEq(
+            MULTI_VAULT.availableAssets(),
+            0 ether,
+            "MULTI_VAULT should have 90% of USDC available"
+        );
+        assertEq(
+            MULTI_VAULT.totalStakedAssets(),
+            0,
+            "MULTI_VAULT should have 0 USDC staked"
+        );
         assertEq(TRADER.balance, 900 ether, "TRADER should have 0 ETH");
     }
 
     function testDepositToVault() public {
         // Set up initial balances
         deal(address(USDC), TRADER, 100 ether);
-        
+
         vm.startPrank(TRADER);
         USDC.approve(address(PERMIT2), 100 ether);
         USDC.approve(address(EXECUTOR), 100 ether);
         vm.stopPrank();
 
         // Set up permit details for USDC
-        IAllowanceTransfer.PermitDetails[] memory permitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        IAllowanceTransfer.PermitDetails[]
+            memory permitDetails = new IAllowanceTransfer.PermitDetails[](1);
         permitDetails[0] = IAllowanceTransfer.PermitDetails({
             token: address(USDC),
             amount: depositAmount,
@@ -341,11 +407,12 @@ contract MultiTokenVaultExecutorInteractions is Test {
             nonce: 0
         });
 
-        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer.PermitBatch({
-            details: permitDetails,
-            spender: address(EXECUTOR),
-            sigDeadline: 1900000000
-        });
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer
+            .PermitBatch({
+                details: permitDetails,
+                spender: address(EXECUTOR),
+                sigDeadline: 1900000000
+            });
 
         bytes memory signature = SIG_UTILS.getPermitBatchSignature(
             permitBatch,
@@ -355,21 +422,33 @@ contract MultiTokenVaultExecutorInteractions is Test {
 
         // Perform the deposit via GeniusExecutor
         vm.prank(ORCHESTRATOR);
-        EXECUTOR.depositToVault(
-            permitBatch,
-            signature,
-            TRADER
-        );
+        EXECUTOR.depositToVault(permitBatch, signature, TRADER);
 
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 USDC");
-        assertEq(MULTI_VAULT.totalStakedAssets(), depositAmount, "VAULT should have 10 USDC");
-        assertEq(MULTI_VAULT.balanceOf(TRADER), depositAmount, "TRADER should have 10 vault shares");
-        assertEq(USDC.balanceOf(TRADER), 90 ether, "TRADER should have 90 USDC");
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            0,
+            "EXECUTOR should have 0 USDC"
+        );
+        assertEq(
+            MULTI_VAULT.totalStakedAssets(),
+            depositAmount,
+            "VAULT should have 10 USDC"
+        );
+        assertEq(
+            MULTI_VAULT.balanceOf(TRADER),
+            depositAmount,
+            "TRADER should have 10 vault shares"
+        );
+        assertEq(
+            USDC.balanceOf(TRADER),
+            90 ether,
+            "TRADER should have 90 USDC"
+        );
     }
 
     function testWithdrawFromVault() public {
         uint160 withdrawAmount = 1 ether;
-        
+
         vm.startPrank(TRADER);
         USDC.approve(address(MULTI_VAULT), 100 ether);
         USDC.approve(address(PERMIT2), 100 ether);
@@ -378,7 +457,10 @@ contract MultiTokenVaultExecutorInteractions is Test {
         vm.stopPrank();
 
         // Set up permit details for deposit
-        IAllowanceTransfer.PermitDetails[] memory depositPermitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        IAllowanceTransfer.PermitDetails[]
+            memory depositPermitDetails = new IAllowanceTransfer.PermitDetails[](
+                1
+            );
         depositPermitDetails[0] = IAllowanceTransfer.PermitDetails({
             token: address(USDC),
             amount: depositAmount,
@@ -386,11 +468,12 @@ contract MultiTokenVaultExecutorInteractions is Test {
             nonce: 0
         });
 
-        IAllowanceTransfer.PermitBatch memory depositPermitBatch = IAllowanceTransfer.PermitBatch({
-            details: depositPermitDetails,
-            spender: address(EXECUTOR),
-            sigDeadline: 1900000000
-        });
+        IAllowanceTransfer.PermitBatch
+            memory depositPermitBatch = IAllowanceTransfer.PermitBatch({
+                details: depositPermitDetails,
+                spender: address(EXECUTOR),
+                sigDeadline: 1900000000
+            });
 
         bytes memory depositSignature = SIG_UTILS.getPermitBatchSignature(
             depositPermitBatch,
@@ -406,10 +489,13 @@ contract MultiTokenVaultExecutorInteractions is Test {
         vm.startPrank(TRADER);
         MULTI_VAULT.approve(address(EXECUTOR), MULTI_VAULT.balanceOf(TRADER));
         vm.stopPrank();
-        
+
         // Now set up the withdrawal
         // Set up permit details for withdrawal (vault shares)
-        IAllowanceTransfer.PermitDetails[] memory withdrawPermitDetails = new IAllowanceTransfer.PermitDetails[](1);
+        IAllowanceTransfer.PermitDetails[]
+            memory withdrawPermitDetails = new IAllowanceTransfer.PermitDetails[](
+                1
+            );
         withdrawPermitDetails[0] = IAllowanceTransfer.PermitDetails({
             token: address(MULTI_VAULT),
             amount: withdrawAmount,
@@ -417,11 +503,12 @@ contract MultiTokenVaultExecutorInteractions is Test {
             nonce: 0
         });
 
-        IAllowanceTransfer.PermitBatch memory withdrawPermitBatch = IAllowanceTransfer.PermitBatch({
-            details: withdrawPermitDetails,
-            spender: address(EXECUTOR),
-            sigDeadline: 1900000000
-        });
+        IAllowanceTransfer.PermitBatch
+            memory withdrawPermitBatch = IAllowanceTransfer.PermitBatch({
+                details: withdrawPermitDetails,
+                spender: address(EXECUTOR),
+                sigDeadline: 1900000000
+            });
 
         bytes memory withdrawSignature = SIG_UTILS.getPermitBatchSignature(
             withdrawPermitBatch,
@@ -430,8 +517,6 @@ contract MultiTokenVaultExecutorInteractions is Test {
         );
         vm.stopPrank();
 
-
-
         vm.startPrank(ORCHESTRATOR);
         // Perform the withdrawal via GeniusExecutor
         EXECUTOR.withdrawFromVault(
@@ -439,12 +524,32 @@ contract MultiTokenVaultExecutorInteractions is Test {
             withdrawSignature,
             TRADER
         );
-        vm.stopPrank(); 
+        vm.stopPrank();
 
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "EXECUTOR should have 0 USDC");
-        assertEq(USDC.balanceOf(address(MULTI_VAULT)), 9 ether, "MULTI_VAULT should have 9 USDC");
-        assertEq(MULTI_VAULT.totalStakedAssets(), 9 ether, "VAULT should have 9 USDC");
-        assertEq(MULTI_VAULT.balanceOf(TRADER), 9 ether, "TRADER should have 9 vault shares");
-        assertEq(USDC.balanceOf(TRADER), 991 ether, "TRADER should have 991 USDC");
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            0,
+            "EXECUTOR should have 0 USDC"
+        );
+        assertEq(
+            USDC.balanceOf(address(MULTI_VAULT)),
+            9 ether,
+            "MULTI_VAULT should have 9 USDC"
+        );
+        assertEq(
+            MULTI_VAULT.totalStakedAssets(),
+            9 ether,
+            "VAULT should have 9 USDC"
+        );
+        assertEq(
+            MULTI_VAULT.balanceOf(TRADER),
+            9 ether,
+            "TRADER should have 9 vault shares"
+        );
+        assertEq(
+            USDC.balanceOf(TRADER),
+            991 ether,
+            "TRADER should have 991 USDC"
+        );
     }
 }

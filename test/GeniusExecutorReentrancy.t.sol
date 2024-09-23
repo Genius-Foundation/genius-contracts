@@ -23,8 +23,10 @@ contract GeniusExecutorReentrancy is Test {
     bytes32 public DOMAIN_SEPERATOR;
 
     address public OWNER;
+    address public ORCHESTRATOR;
     address public trader;
-    bytes32 public RECEIVER = keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
+    bytes32 public RECEIVER =
+        keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
     uint256 private privateKey;
     uint48 private nonce;
 
@@ -52,6 +54,7 @@ contract GeniusExecutorReentrancy is Test {
         (address traderAddress, uint256 traderKey) = makeAddrAndKey("trader");
         trader = traderAddress;
         privateKey = traderKey;
+        ORCHESTRATOR = makeAddr("orchestrator");
 
         USDC = new TestERC20();
         WETH = new TestERC20();
@@ -72,8 +75,14 @@ contract GeniusExecutorReentrancy is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
-        EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER, new address[](0));
+        EXECUTOR = new GeniusExecutor(
+            permit2Address,
+            address(VAULT),
+            OWNER,
+            new address[](0)
+        );
         VAULT.setExecutor(address(EXECUTOR));
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         DEX_ROUTER = new MockDEXRouter();
         ATTACKER = new MockReentrancyAttacker(payable(EXECUTOR));
         MALICIOUS_TOKEN = new MaliciousToken(address(EXECUTOR));
@@ -93,10 +102,16 @@ contract GeniusExecutorReentrancy is Test {
         address[2] memory tokens,
         uint160[2] memory amounts
     ) internal returns (IAllowanceTransfer.PermitBatch memory, bytes memory) {
-        require(tokens.length == amounts.length, "Tokens and amounts length mismatch");
+        require(
+            tokens.length == amounts.length,
+            "Tokens and amounts length mismatch"
+        );
 
-        IAllowanceTransfer.PermitDetails[] memory permitDetails = new IAllowanceTransfer.PermitDetails[](tokens.length);
-        
+        IAllowanceTransfer.PermitDetails[]
+            memory permitDetails = new IAllowanceTransfer.PermitDetails[](
+                tokens.length
+            );
+
         for (uint i = 0; i < tokens.length; i++) {
             permitDetails[i] = IAllowanceTransfer.PermitDetails({
                 token: tokens[i],
@@ -108,11 +123,12 @@ contract GeniusExecutorReentrancy is Test {
 
         nonce++;
 
-        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer.PermitBatch({
-            details: permitDetails,
-            spender: spender,
-            sigDeadline: 1900000000
-        });
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer
+            .PermitBatch({
+                details: permitDetails,
+                spender: spender,
+                sigDeadline: 1900000000
+            });
 
         bytes memory signature = sigUtils.getPermitBatchSignature(
             permitBatch,
@@ -123,9 +139,9 @@ contract GeniusExecutorReentrancy is Test {
         return (permitBatch, signature);
     }
 
-function testReentrancyMultiSwapAndDeposit() public {
+    function testReentrancyMultiSwapAndDeposit() public {
         uint32 destChainId = 42;
-        uint32 fillDeadline = uint32(block.timestamp + 1000);
+        uint32 fillDeadline = uint32(block.timestamp + 200);
 
         vm.startPrank(OWNER);
         EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
@@ -139,9 +155,22 @@ function testReentrancyMultiSwapAndDeposit() public {
         targets[3] = address(ATTACKER);
 
         bytes[] memory data = new bytes[](4);
-        data[0] = abi.encodeWithSignature("approve(address,uint256)", address(DEX_ROUTER), 10 ether);
-        data[1] = abi.encodeWithSignature("approve(address,uint256)", address(DEX_ROUTER), 5 ether);
-        data[2] = abi.encodeWithSignature("swap(address,address,uint256)", address(USDC), address(WETH), 10 ether);
+        data[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(DEX_ROUTER),
+            10 ether
+        );
+        data[1] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(DEX_ROUTER),
+            5 ether
+        );
+        data[2] = abi.encodeWithSignature(
+            "swap(address,address,uint256)",
+            address(USDC),
+            address(WETH),
+            10 ether
+        );
         data[3] = abi.encodeWithSignature("attack()");
 
         uint256[] memory values = new uint256[](4);
@@ -150,8 +179,14 @@ function testReentrancyMultiSwapAndDeposit() public {
         values[2] = 0;
         values[3] = 0;
 
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
         vm.prank(trader);
         vm.expectRevert();
@@ -183,9 +218,22 @@ function testReentrancyMultiSwapAndDeposit() public {
         targets[3] = address(ATTACKER);
 
         bytes[] memory data = new bytes[](4);
-        data[0] = abi.encodeWithSignature("approve(address,uint256)", address(DEX_ROUTER), 10 ether);
-        data[1] = abi.encodeWithSignature("approve(address,uint256)", address(DEX_ROUTER), 5 ether);
-        data[2] = abi.encodeWithSignature("swap(address,address,uint256)", address(USDC), address(WETH), 10 ether);
+        data[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(DEX_ROUTER),
+            10 ether
+        );
+        data[1] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(DEX_ROUTER),
+            5 ether
+        );
+        data[2] = abi.encodeWithSignature(
+            "swap(address,address,uint256)",
+            address(USDC),
+            address(WETH),
+            10 ether
+        );
         data[3] = abi.encodeWithSignature("attack()");
 
         uint256[] memory values = new uint256[](4);
@@ -194,11 +242,23 @@ function testReentrancyMultiSwapAndDeposit() public {
         values[2] = 0;
         values[3] = 0;
 
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
-        vm.prank(trader);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.ExternalCallFailed.selector, address(ATTACKER), 3));
+        vm.startPrank(ORCHESTRATOR);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.ExternalCallFailed.selector,
+                address(ATTACKER),
+                3
+            )
+        );
         EXECUTOR.aggregateWithPermit2(
             targets,
             data,
@@ -224,12 +284,14 @@ function testReentrancyMultiSwapAndDeposit() public {
         values[0] = 0;
 
         vm.prank(trader);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.ExternalCallFailed.selector, address(ATTACKER), 0));
-        EXECUTOR.aggregate(
-            targets,
-            data,
-            values
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.ExternalCallFailed.selector,
+                address(ATTACKER),
+                0
+            )
         );
+        EXECUTOR.aggregate(targets, data, values);
     }
 
     function testReentrancyAggregateWithPermit2MaliciousToken() public {
@@ -247,19 +309,35 @@ function testReentrancyMultiSwapAndDeposit() public {
         targets[1] = address(MALICIOUS_TOKEN);
 
         bytes[] memory data = new bytes[](2);
-        data[0] = abi.encodeWithSignature("swap(address,address,uint256)", address(USDC), address(MALICIOUS_TOKEN), 10 ether);
-        data[1] = abi.encodeWithSignature("transferFrom(address,address,uint256)", address(DEX_ROUTER), address(EXECUTOR), 10 ether);
+        data[0] = abi.encodeWithSignature(
+            "swap(address,address,uint256)",
+            address(USDC),
+            address(MALICIOUS_TOKEN),
+            10 ether
+        );
+        data[1] = abi.encodeWithSignature(
+            "transferFrom(address,address,uint256)",
+            address(DEX_ROUTER),
+            address(EXECUTOR),
+            10 ether
+        );
 
         uint256[] memory values = new uint256[](2);
         values[0] = 0;
         values[1] = 0;
 
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(address(EXECUTOR), [address(USDC), address(MALICIOUS_TOKEN)], [uint160(10 ether), uint160(10 ether)]);
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                address(EXECUTOR),
+                [address(USDC), address(MALICIOUS_TOKEN)],
+                [uint160(10 ether), uint160(10 ether)]
+            );
 
         uint256 initialExecutorBalance = address(EXECUTOR).balance;
 
-        vm.prank(trader);
+        vm.startPrank(ORCHESTRATOR);
         vm.expectRevert("TRANSFER_FROM_FAILED");
         EXECUTOR.aggregateWithPermit2(
             targets,
@@ -271,9 +349,17 @@ function testReentrancyMultiSwapAndDeposit() public {
         );
 
         // Check that the EXECUTOR's ether balance hasn't changed
-        assertEq(address(EXECUTOR).balance, initialExecutorBalance, "EXECUTOR's ether balance should not change");
+        assertEq(
+            address(EXECUTOR).balance,
+            initialExecutorBalance,
+            "EXECUTOR's ether balance should not change"
+        );
 
         // Check that the attacker (MALICIOUS_TOKEN deployer) hasn't received any ether
-        assertEq(MALICIOUS_TOKEN.attacker().balance, 0, "Attacker should not receive any ether");
+        assertEq(
+            MALICIOUS_TOKEN.attacker().balance,
+            0,
+            "Attacker should not receive any ether"
+        );
     }
 }

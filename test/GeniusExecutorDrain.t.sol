@@ -22,6 +22,7 @@ contract GeniusExecutorDrain is Test {
     bytes32 public DOMAIN_SEPERATOR;
 
     address public OWNER;
+    address public ORCHESTRATOR;
     address public trader;
     bytes32 public receiver;
     uint256 private privateKey;
@@ -128,6 +129,7 @@ contract GeniusExecutorDrain is Test {
         assertEq(vm.activeFork(), avalanche);
 
         OWNER = makeAddr("owner");
+        ORCHESTRATOR = makeAddr("orchestrator");
         (address traderAddress, uint256 traderKey) = makeAddrAndKey("trader");
         trader = traderAddress;
         receiver = keccak256(abi.encodePacked(trader));
@@ -153,8 +155,11 @@ contract GeniusExecutorDrain is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
+        VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         
         EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER, new address[](0));
+        EXECUTOR.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+
         VAULT.setExecutor(address(EXECUTOR));
         MALICIOUS = new MaliciousContract(address(EXECUTOR));
         DEX_ROUTER = new MockDEXRouter();
@@ -221,7 +226,7 @@ contract GeniusExecutorDrain is Test {
 
         // Test swap through approved DEX_ROUTER
         address[] memory initial_targets = new address[](2);
-        initial_targets[0] = address(USDC);
+        initial_targets[0] = address(WETH);
         initial_targets[1] = address(DEX_ROUTER);
 
         bytes[] memory initial_data = new bytes[](2);
@@ -241,8 +246,10 @@ contract GeniusExecutorDrain is Test {
         initial_values[0] = 0;
         initial_values[1] = 0;
 
+        
+
         vm.prank(trader);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, address(USDC)));
+        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, address(WETH)));
         EXECUTOR.aggregate(initial_targets, initial_data, initial_values);
 
         // Check balances after successful swap
@@ -284,6 +291,7 @@ contract GeniusExecutorDrain is Test {
         assertEq(WETH.balanceOf(trader), 100 ether, "Trader's WETH balance should not change");
     }
 
+///
     function testAggregateWithPermit2MaliciousCallRevert() public {
         setupMaliciousTest();
 
@@ -294,14 +302,14 @@ contract GeniusExecutorDrain is Test {
         data[0] = abi.encodeWithSignature("maliciousCall(address,address)", address(USDC), address(WETH));
 
         uint256[] memory values = new uint256[](1);
-        values[0] = 1 ether;
+        values[0] = 0 ether;
 
         (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
             generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
 
-        vm.prank(trader);
+        vm.startPrank(ORCHESTRATOR);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.ExternalCallFailed.selector, address(MALICIOUS), 0));
-        EXECUTOR.aggregateWithPermit2{value: 1 ether}(
+        EXECUTOR.aggregateWithPermit2(
             targets,
             data,
             values,
@@ -448,7 +456,7 @@ contract GeniusExecutorDrain is Test {
         uint256 initialVaultUSDCBalance = USDC.balanceOf(address(VAULT));
 
         // Execute multiSwapAndDeposit
-        vm.prank(trader);
+        vm.prank(ORCHESTRATOR);
         EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
             targets,
@@ -458,7 +466,7 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -483,7 +491,7 @@ contract GeniusExecutorDrain is Test {
      */
     function testMultiSwapAndDepositArrayLengthMismatch() public {
         uint16 destChainId = 42;
-        uint32 fillDeadline = uint32(block.timestamp + 1000);
+        uint32 fillDeadline = uint32(block.timestamp + 200);
 
         vm.startPrank(OWNER);
         EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
@@ -493,7 +501,7 @@ contract GeniusExecutorDrain is Test {
         (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
             generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
 
-        vm.prank(trader);
+        vm.prank(ORCHESTRATOR);
         vm.expectRevert(GeniusErrors.ArrayLengthsMismatch.selector);
         EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
@@ -544,7 +552,7 @@ contract GeniusExecutorDrain is Test {
         targets[2] = fakeRouter;
         targets[3] = fakeRouter;
 
-        vm.prank(trader);
+        vm.prank(ORCHESTRATOR);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, fakeRouter));
         EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
@@ -555,7 +563,7 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -600,13 +608,13 @@ contract GeniusExecutorDrain is Test {
         );
 
         uint256[] memory maliciousValues = new uint256[](1);
-        maliciousValues[0] = 1 ether;
+        maliciousValues[0] = 0 ether;
 
         vm.deal(trader, 1 ether);  // Ensure trader has enough ETH for the call
 
-        vm.prank(trader);
+        vm.prank(ORCHESTRATOR);
         vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, address(MALICIOUS)));
-        EXECUTOR.multiSwapAndDeposit{value: 1 ether}(
+        EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
             maliciousTargets,
             maliciousData,
@@ -615,7 +623,7 @@ contract GeniusExecutorDrain is Test {
             signature,
             trader,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -650,7 +658,7 @@ contract GeniusExecutorDrain is Test {
             swapData,
             100 ether,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -669,7 +677,7 @@ contract GeniusExecutorDrain is Test {
             swapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -689,7 +697,7 @@ contract GeniusExecutorDrain is Test {
             invalidSwapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );
@@ -703,7 +711,7 @@ contract GeniusExecutorDrain is Test {
             swapData,
             1 ether,
             42,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             receiver
         );

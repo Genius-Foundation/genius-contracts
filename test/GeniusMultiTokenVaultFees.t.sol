@@ -27,14 +27,15 @@ contract GeniusMultiTokenVaultFees is Test {
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
-    bytes32 RECEIVER = keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
+    bytes32 RECEIVER =
+        keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
 
     ERC20 public USDC;
     ERC20 public WETH;
     ERC20 public USDT; // Additional token for multi-token testing
 
     GeniusMultiTokenVault public VAULT;
-    
+
     GeniusExecutor public EXECUTOR;
     MockDEXRouter public DEX_ROUTER;
 
@@ -76,12 +77,21 @@ contract GeniusMultiTokenVaultFees is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusMultiTokenVault(address(proxy));
-        EXECUTOR = new GeniusExecutor(PERMIT2, address(VAULT), OWNER, new address[](0));
+        EXECUTOR = new GeniusExecutor(
+            PERMIT2,
+            address(VAULT),
+            OWNER,
+            new address[](0)
+        );
         DEX_ROUTER = new MockDEXRouter();
 
         vm.stopPrank();
 
-        assertEq(VAULT.hasRole(VAULT.DEFAULT_ADMIN_ROLE(), OWNER), true, "Owner should be ORCHESTRATOR");
+        assertEq(
+            VAULT.hasRole(VAULT.DEFAULT_ADMIN_ROLE(), OWNER),
+            true,
+            "Owner should be ORCHESTRATOR"
+        );
 
         vm.startPrank(OWNER);
         VAULT.setExecutor(address(EXECUTOR));
@@ -114,18 +124,53 @@ contract GeniusMultiTokenVaultFees is Test {
     function testAddLiquidity() public {
         vm.startPrank(address(EXECUTOR));
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether, RECEIVER);
+        VAULT.addLiquiditySwap(
+            keccak256("order"),
+            TRADER,
+            address(USDC),
+            1_000 ether,
+            destChainId,
+            uint32(block.timestamp + 200),
+            1 ether,
+            RECEIVER
+        );
 
-        assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            1_000 ether,
+            "GeniusVault balance should be 1,000 ether"
+        );
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            0,
+            "Executor balance should be 0"
+        );
 
-        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "Total unclaimed fees should be 1 ether");
-        assertEq(VAULT.minLiquidity(), 1000 ether, "Needed liquidity should be 1000 ether");
-        assertEq(VAULT.tokenBalance(address(USDC)), 1_000 ether, "Stablecoin balance should be 1,000 ether");
-        assertEq(VAULT.availableAssets(), 0 ether, "Available assets should be 0");
-        assertEq(VAULT.supportedTokenReserves(address(USDC)), 1000 ether, "Token reserve should be 1000 tokens");
-
-
+        assertEq(
+            VAULT.supportedTokenFees(address(USDC)),
+            0,
+            "Total unclaimed fees should be 1 ether"
+        );
+        assertEq(
+            VAULT.minLiquidity(),
+            1000 ether,
+            "Needed liquidity should be 1000 ether"
+        );
+        assertEq(
+            VAULT.tokenBalance(address(USDC)),
+            1_000 ether,
+            "Stablecoin balance should be 1,000 ether"
+        );
+        assertEq(
+            VAULT.availableAssets(),
+            0 ether,
+            "Available assets should be 0"
+        );
+        assertEq(
+            VAULT.supportedTokenReserves(address(USDC)),
+            1000 ether,
+            "Token reserve should be 1000 tokens"
+        );
     }
 
     function testAddLiquidityAndRemoveLiquidity() public {
@@ -139,7 +184,7 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: uint16(block.chainid), // Use the current chain ID
             destChainId: 42,
-            fillDeadline: uint32(block.timestamp + 1000),
+            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
             fee: 1 ether
         });
@@ -155,10 +200,18 @@ contract GeniusMultiTokenVaultFees is Test {
             order.fee,
             order.receiver
         );
-        vm.stopPrank(); 
+        vm.stopPrank();
 
-        assertEq(VAULT.supportedTokenReserves(address(USDC)), 1000 ether, "Token reserve should be 1000 tokens");
-        assertEq(VAULT.availableAssets(), 0 ether, "Available assets should be 0");
+        assertEq(
+            VAULT.supportedTokenReserves(address(USDC)),
+            1000 ether,
+            "Token reserve should be 1000 tokens"
+        );
+        assertEq(
+            VAULT.availableAssets(),
+            0 ether,
+            "Available assets should be 0"
+        );
 
         // Set the order as filled
         vm.startPrank(ORCHESTRATOR);
@@ -168,27 +221,81 @@ contract GeniusMultiTokenVaultFees is Test {
         order = IGeniusVault.Order({
             trader: TRADER,
             receiver: RECEIVER,
-            amountIn: 999 ether,
+            amountIn: 1000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 42, // Use the current chain ID
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 1000),
+            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 3 ether
         });
 
+        // Create dummy targets, calldata, and values arrays to call removeLiquiditySwap
+        address[] memory targets = new address[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        uint256[] memory values = new uint256[](1);
+
+        // Target is stablecoin
+        targets[0] = address(USDC);
+        // Create calldata to transfer the stablecoin to this contract
+        calldatas[0] = abi.encodeWithSelector(
+            USDC.transfer.selector,
+            address(this),
+            997 ether
+        );
+        // Value is 0
+        values[0] = 0;
+
+        console.log("Removing liquidity");
+        console.log(
+            "USDC balance before removing liquidity: ",
+            USDC.balanceOf(address(VAULT))
+        );
+        console.log(
+            "USDC available assets before removing liquidity: ",
+            VAULT.availableAssets()
+        );
+
         // Remove liquidity
-        vm.startPrank(address(EXECUTOR));
-        VAULT.removeLiquiditySwap(order);
+        vm.startPrank(address(ORCHESTRATOR));
+        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
 
         // Add assertions to check the state after removing liquidity
-        assertEq(USDC.balanceOf(address(VAULT)), 1 ether, "GeniusVault balance should be 1 ether (only fees left)");
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 999 ether, "Executor balance should be 999 ether");
-        assertEq(VAULT.supportedTokenFees(address(USDC)), 1 ether, "Total unclaimed fees should still be 1 ether");
-        assertEq(VAULT.minLiquidity(), 1 ether, "Minimum liquidity should be 1");
-        assertEq(VAULT.availableAssets(), 0 ether, "Available assets should be 0");
-        assertEq(VAULT.tokenBalance(address(USDC)), 1 ether, "Stablecoin balance should be 1 ether");
-        assertEq(VAULT.supportedTokenReserves(address(USDC)), 0 ether, "Token reserve should be 1000 tokens");
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            3 ether,
+            "GeniusVault balance should be 3 ether (only fees left)"
+        );
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            0 ether,
+            "Executor balance should be 999 ether"
+        );
+        assertEq(
+            VAULT.supportedTokenFees(address(USDC)),
+            1 ether,
+            "Total unclaimed fees should still be 1 ether"
+        );
+        assertEq(
+            VAULT.minLiquidity(),
+            1 ether,
+            "Minimum liquidity should be 1"
+        );
+        assertEq(
+            VAULT.availableAssets(),
+            2 ether,
+            "Available assets should be 0"
+        );
+        assertEq(
+            VAULT.tokenBalance(address(USDC)),
+            3 ether,
+            "Stablecoin balance should be 1 ether"
+        );
+        assertEq(
+            VAULT.supportedTokenReserves(address(USDC)),
+            0 ether,
+            "Token reserve should be 0 tokens"
+        );
     }
 
     function testRemoveTooMuchLiquidity() public {
@@ -200,7 +307,7 @@ contract GeniusMultiTokenVaultFees is Test {
             address(USDC),
             1_000 ether,
             destChainId,
-            uint32(block.timestamp + 1000),
+            uint32(block.timestamp + 200),
             1 ether,
             RECEIVER
         );
@@ -213,48 +320,152 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 1000),
+            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
             fee: 1 ether
         });
 
+        address[] memory targets = new address[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        uint256[] memory values = new uint256[](1);
+
+        // Target is stablecoin
+        targets[0] = address(USDC);
+        // Create calldata to transfer the stablecoin to this contract
+        calldatas[0] = abi.encodeWithSelector(
+            USDC.transfer.selector,
+            address(this),
+            1001 ether
+        );
+        // Value is 0
+        values[0] = 0;
+
         // Remove liquidity
-        vm.startPrank(address(EXECUTOR));
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InsufficientLiquidity.selector, 0 ether, 1001 ether));
-        VAULT.removeLiquiditySwap(order);
+        vm.startPrank(address(ORCHESTRATOR));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InsufficientLiquidity.selector,
+                0 ether,
+                1000 ether
+            )
+        );
+        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
 
         // Add assertions to check the state after removing liquidity
-        assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "GeniusVault balance should be 1,000 ether");
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 0, "Executor balance should be 0");
-        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "Total unclaimed fees should still be 1 ether");
-        assertEq(VAULT.availableAssets(), 0 ether, "Available assets should be 0 ether");
-        assertEq(VAULT.tokenBalance(address(USDC)), 1_000 ether, "Stablecoin balance should be 1,000 ether");
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            1_000 ether,
+            "GeniusVault balance should be 1,000 ether"
+        );
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            0,
+            "Executor balance should be 0"
+        );
+        assertEq(
+            VAULT.supportedTokenFees(address(USDC)),
+            0,
+            "Total unclaimed fees should still be 1 ether"
+        );
+        assertEq(
+            VAULT.availableAssets(),
+            0 ether,
+            "Available assets should be 0 ether"
+        );
+        assertEq(
+            VAULT.tokenBalance(address(USDC)),
+            1_000 ether,
+            "Stablecoin balance should be 1,000 ether"
+        );
     }
 
     function testAddLiquidityMultipleTokens() public {
         deal(address(WETH), address(EXECUTOR), 1_000 ether);
         deal(address(USDT), address(EXECUTOR), 1_000 ether);
         deal(address(WETH), address(EXECUTOR), 1_000 ether);
-        
+
         vm.startPrank(address(EXECUTOR));
         USDC.approve(address(VAULT), 10000 ether);
         WETH.approve(address(VAULT), 10000 ether);
         USDT.approve(address(VAULT), 10000 ether);
 
-        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDC), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether, RECEIVER);
-        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(WETH), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether, RECEIVER);
-        VAULT.addLiquiditySwap(keccak256("order"), TRADER, address(USDT), 1_000 ether, destChainId, uint32(block.timestamp + 1000), 1 ether, RECEIVER);
+        VAULT.addLiquiditySwap(
+            keccak256("order"),
+            TRADER,
+            address(USDC),
+            1_000 ether,
+            destChainId,
+            uint32(block.timestamp + 200),
+            1 ether,
+            RECEIVER
+        );
+        VAULT.addLiquiditySwap(
+            keccak256("order"),
+            TRADER,
+            address(WETH),
+            1_000 ether,
+            destChainId,
+            uint32(block.timestamp + 200),
+            1 ether,
+            RECEIVER
+        );
+        VAULT.addLiquiditySwap(
+            keccak256("order"),
+            TRADER,
+            address(USDT),
+            1_000 ether,
+            destChainId,
+            uint32(block.timestamp + 200),
+            1 ether,
+            RECEIVER
+        );
 
-        assertEq(USDC.balanceOf(address(VAULT)), 1_000 ether, "USDC balance should be 1,000 ether");
-        assertEq(WETH.balanceOf(address(VAULT)), 1_000 ether, "WETH balance should be 1,000 ether");
-        assertEq(USDT.balanceOf(address(VAULT)), 1_000 ether, "USDT balance should be 1,000 ether");
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            1_000 ether,
+            "USDC balance should be 1,000 ether"
+        );
+        assertEq(
+            WETH.balanceOf(address(VAULT)),
+            1_000 ether,
+            "WETH balance should be 1,000 ether"
+        );
+        assertEq(
+            USDT.balanceOf(address(VAULT)),
+            1_000 ether,
+            "USDT balance should be 1,000 ether"
+        );
 
-        assertEq(VAULT.supportedTokenFees(address(USDC)), 0, "USDC unclaimed fees should be 1 ether");
-        assertEq(VAULT.supportedTokenFees(address(WETH)), 0, "WETH unclaimed fees should be 1 ether");
-        assertEq(VAULT.supportedTokenFees(address(USDT)), 0, "USDT unclaimed fees should be 1 ether");
+        assertEq(
+            VAULT.supportedTokenFees(address(USDC)),
+            0,
+            "USDC unclaimed fees should be 1 ether"
+        );
+        assertEq(
+            VAULT.supportedTokenFees(address(WETH)),
+            0,
+            "WETH unclaimed fees should be 1 ether"
+        );
+        assertEq(
+            VAULT.supportedTokenFees(address(USDT)),
+            0,
+            "USDT unclaimed fees should be 1 ether"
+        );
 
-        assertEq(VAULT.supportedTokenReserves(address(USDC)), 1_000 ether, "USDC reserve should be 1000 tokens");
-        assertEq(VAULT.supportedTokenReserves(address(WETH)), 1_000 ether, "WETH reserve should be 1,000 ether");
-        assertEq(VAULT.supportedTokenReserves(address(USDT)), 1_000 ether, "USDT reserve should be 1,000 ether");
+        assertEq(
+            VAULT.supportedTokenReserves(address(USDC)),
+            1_000 ether,
+            "USDC reserve should be 1000 tokens"
+        );
+        assertEq(
+            VAULT.supportedTokenReserves(address(WETH)),
+            1_000 ether,
+            "WETH reserve should be 1,000 ether"
+        );
+        assertEq(
+            VAULT.supportedTokenReserves(address(USDT)),
+            1_000 ether,
+            "USDT reserve should be 1,000 ether"
+        );
     }
 }

@@ -91,7 +91,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external override payable nonReentrant {
+    ) external override payable onlyOrchestrator nonReentrant {
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
@@ -199,7 +199,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 fillDeadline,
         uint256 fee,
         bytes32 receiver
-    ) external override payable nonReentrant {
+    ) external override payable onlyOrchestrator nonReentrant {
         if (
             targets.length != data.length ||
             data.length != values.length
@@ -378,15 +378,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         for (uint256 i; i < targetsLength;) {
             address target = targets[i];
 
-            if (target == address(VAULT)) {
-
-                if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
-                    revert GeniusErrors.InvalidTarget(target);
-                }
-
-            }
-
-            if (allowedTargets[target] == 0 && target != owner) {
+            if (allowedTargets[target] == 0 && target != owner && target != address(STABLECOIN)) {
                 if (tokenDetailsLength == 0) {
                     revert GeniusErrors.InvalidTarget(target);
                 }
