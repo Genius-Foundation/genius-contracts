@@ -23,6 +23,7 @@ contract GeniusExecutorReentrancy is Test {
     bytes32 public DOMAIN_SEPERATOR;
 
     address public OWNER;
+    address public ORCHESTRATOR;
     address public trader;
     bytes32 public RECEIVER =
         keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
@@ -53,6 +54,7 @@ contract GeniusExecutorReentrancy is Test {
         (address traderAddress, uint256 traderKey) = makeAddrAndKey("trader");
         trader = traderAddress;
         privateKey = traderKey;
+        ORCHESTRATOR = makeAddr("orchestrator");
 
         USDC = new TestERC20();
         WETH = new TestERC20();
@@ -80,6 +82,7 @@ contract GeniusExecutorReentrancy is Test {
             new address[](0)
         );
         VAULT.setExecutor(address(EXECUTOR));
+        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         DEX_ROUTER = new MockDEXRouter();
         ATTACKER = new MockReentrancyAttacker(payable(EXECUTOR));
         MALICIOUS_TOKEN = new MaliciousToken(address(EXECUTOR));
@@ -248,7 +251,7 @@ contract GeniusExecutorReentrancy is Test {
                 [uint160(10 ether), uint160(5 ether)]
             );
 
-        vm.prank(trader);
+        vm.startPrank(ORCHESTRATOR);
         vm.expectRevert(
             abi.encodeWithSelector(
                 GeniusErrors.ExternalCallFailed.selector,
@@ -334,7 +337,7 @@ contract GeniusExecutorReentrancy is Test {
 
         uint256 initialExecutorBalance = address(EXECUTOR).balance;
 
-        vm.prank(trader);
+        vm.startPrank(ORCHESTRATOR);
         vm.expectRevert("TRANSFER_FROM_FAILED");
         EXECUTOR.aggregateWithPermit2(
             targets,

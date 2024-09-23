@@ -292,6 +292,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
         vm.stopPrank();
 
         // Perform the swap and deposit via GeniusExecutor
+        vm.startPrank(ORCHESTRATOR);
         EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
             targets,
