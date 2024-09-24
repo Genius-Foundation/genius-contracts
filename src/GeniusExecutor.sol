@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
-import { AccessControl } from "@openzeppelin/contracts/access/AccessControl.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import { IGeniusVault } from "./interfaces/IGeniusVault.sol";
-import { GeniusErrors } from "./libs/GeniusErrors.sol";
-import { IGeniusExecutor } from "./interfaces/IGeniusExecutor.sol";
+import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
+import {GeniusErrors} from "./libs/GeniusErrors.sol";
+import {IGeniusExecutor} from "./interfaces/IGeniusExecutor.sol";
 
 /**
  * @title GeniusExecutor
  * @author @altloot, @samuel_vdu
- * 
+ *
  * @notice The GeniusExecutor contract allows for the aggregation of multiple calls
  *         in a single transaction, as well as facilitating interactions with the GeniusVault contract.
  */
@@ -54,12 +54,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
 
         uint256 length = routers.length;
-        for (uint256 i = 0; i < length;) {
+        for (uint256 i = 0; i < length; ) {
             address router = routers[i];
             if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
             setAllowedTarget(router, true);
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -68,12 +70,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // ╚═══════════════════════════════════════════════════════════╝
 
     modifier onlyAdmin() {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert GeniusErrors.IsNotAdmin();
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
+            revert GeniusErrors.IsNotAdmin();
         _;
     }
 
     modifier onlyOrchestrator() {
-        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) revert GeniusErrors.IsNotOrchestrator();
+        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender))
+            revert GeniusErrors.IsNotOrchestrator();
         _;
     }
 
@@ -91,7 +95,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external override payable onlyOrchestrator nonReentrant {
+    ) external payable override onlyOrchestrator nonReentrant {
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
@@ -101,6 +105,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _sweepERC20s(permitBatch, owner);
 
         if (msg.value > 0) _sweepNative(msg.sender);
+        _sweepStablecoin(msg.sender);
     }
 
     /**
@@ -111,12 +116,16 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes[] calldata data,
         uint256[] calldata values
     ) external payable override nonReentrant {
-        IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
+        IAllowanceTransfer.PermitDetails[]
+            memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](
+                0
+            );
         _checkTargets(targets, emptyPermitDetails, msg.sender);
         _checkNative(_sum(values));
 
         _batchExecution(targets, data, values);
         if (msg.value > 0) _sweepNative(msg.sender);
+        _sweepStablecoin(msg.sender);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -138,7 +147,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint256 fee,
         bytes32 receiver
     ) external override onlyOrchestrator nonReentrant {
-        if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
+        if (permitBatch.details.length != 1)
+            revert GeniusErrors.InvalidPermitBatchLength();
 
         address[] memory targets = new address[](1);
         targets[0] = target;
@@ -146,29 +156,39 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
-        if (!IERC20(permitBatch.details[0].token).approve(target, permitBatch.details[0].amount)) revert GeniusErrors.ApprovalFailure(
-            permitBatch.details[0].token,
-            permitBatch.details[0].amount
-        );
+        if (
+            !IERC20(permitBatch.details[0].token).approve(
+                target,
+                permitBatch.details[0].amount
+            )
+        )
+            revert GeniusErrors.ApprovalFailure(
+                permitBatch.details[0].token,
+                permitBatch.details[0].amount
+            );
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
         (bool _success, ) = target.call{value: 0}(data);
-        if(!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+        if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
-        uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
+        uint256 _depositAmount = _postStableValue > _initStableValue
+            ? _postStableValue - _initStableValue
+            : 0;
 
-        if (_depositAmount == 0) revert GeniusErrors.UnexpectedBalanceChange(
-            address(STABLECOIN),
-            _initStableValue,
-            _postStableValue
-        );
+        if (_depositAmount == 0)
+            revert GeniusErrors.UnexpectedBalanceChange(
+                address(STABLECOIN),
+                _initStableValue,
+                _postStableValue
+            );
 
-        if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(
-            address(STABLECOIN),
-            _depositAmount
-        );
+        if (!STABLECOIN.approve(address(VAULT), _depositAmount))
+            revert GeniusErrors.ApprovalFailure(
+                address(STABLECOIN),
+                _depositAmount
+            );
 
         VAULT.addLiquiditySwap(
             seed,
@@ -199,11 +219,9 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 fillDeadline,
         uint256 fee,
         bytes32 receiver
-    ) external override payable onlyOrchestrator nonReentrant {
-        if (
-            targets.length != data.length ||
-            data.length != values.length
-        ) revert GeniusErrors.ArrayLengthsMismatch();
+    ) external payable override onlyOrchestrator nonReentrant {
+        if (targets.length != data.length || data.length != values.length)
+            revert GeniusErrors.ArrayLengthsMismatch();
 
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
@@ -214,23 +232,30 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _batchExecution(targets, data, values);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
-        uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
+        uint256 _depositAmount = _postStableValue > _initStableValue
+            ? _postStableValue - _initStableValue
+            : 0;
 
-        if (_depositAmount == 0) revert GeniusErrors.UnexpectedBalanceChange(
-            address(STABLECOIN),
-            _initStableValue,
-            _postStableValue
-        );
+        if (_depositAmount == 0)
+            revert GeniusErrors.UnexpectedBalanceChange(
+                address(STABLECOIN),
+                _initStableValue,
+                _postStableValue
+            );
 
-        if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), _depositAmount);
+        if (!STABLECOIN.approve(address(VAULT), _depositAmount))
+            revert GeniusErrors.ApprovalFailure(
+                address(STABLECOIN),
+                _depositAmount
+            );
 
         VAULT.addLiquiditySwap(
-            seed, 
-            owner, 
-            address(STABLECOIN), 
-            _depositAmount, 
-            destChainId, 
-            fillDeadline, 
+            seed,
+            owner,
+            address(STABLECOIN),
+            _depositAmount,
+            destChainId,
+            fillDeadline,
             fee,
             receiver
         );
@@ -251,8 +276,11 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 fillDeadline,
         uint256 fee,
         bytes32 receiver
-    ) external override payable {
-        IAllowanceTransfer.PermitDetails[] memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](0);
+    ) external payable override {
+        IAllowanceTransfer.PermitDetails[]
+            memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](
+                0
+            );
         address[] memory targets = new address[](1);
         targets[0] = target;
 
@@ -265,21 +293,29 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
-        uint256 _depositAmount = _postStableValue > _initStableValue ? _postStableValue - _initStableValue : 0;
+        uint256 _depositAmount = _postStableValue > _initStableValue
+            ? _postStableValue - _initStableValue
+            : 0;
 
-        if (_depositAmount == 0) revert GeniusErrors.UnexpectedBalanceChange(address(STABLECOIN), _initStableValue, _postStableValue);
-        if (!STABLECOIN.approve(address(VAULT), _depositAmount)) revert GeniusErrors.ApprovalFailure(
-            address(STABLECOIN),
-            _depositAmount
-        );
+        if (_depositAmount == 0)
+            revert GeniusErrors.UnexpectedBalanceChange(
+                address(STABLECOIN),
+                _initStableValue,
+                _postStableValue
+            );
+        if (!STABLECOIN.approve(address(VAULT), _depositAmount))
+            revert GeniusErrors.ApprovalFailure(
+                address(STABLECOIN),
+                _depositAmount
+            );
 
         VAULT.addLiquiditySwap(
-            seed, 
-            msg.sender, 
-            address(STABLECOIN), 
-            _depositAmount, 
-            destChainId, 
-            fillDeadline, 
+            seed,
+            msg.sender,
+            address(STABLECOIN),
+            _depositAmount,
+            destChainId,
+            fillDeadline,
             fee,
             receiver
         );
@@ -299,7 +335,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes calldata signature,
         address owner
     ) external override onlyOrchestrator nonReentrant {
-        if (permitBatch.details.length != 1) revert GeniusErrors.ArrayLengthsMismatch();
+        if (permitBatch.details.length != 1)
+            revert GeniusErrors.ArrayLengthsMismatch();
         if (permitBatch.details[0].token != address(STABLECOIN)) {
             revert GeniusErrors.InvalidToken(permitBatch.details[0].token);
         }
@@ -326,9 +363,11 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _withdrawFromVault(owner, permitBatch.details[0].amount);
 
-        uint256 _residBalance = STABLECOIN.balanceOf(address(this)) - _initStableValue;
+        uint256 _residBalance = STABLECOIN.balanceOf(address(this)) -
+            _initStableValue;
 
-        if (_residBalance > 0) revert GeniusErrors.ResidualBalance(_residBalance);
+        if (_residBalance > 0)
+            revert GeniusErrors.ResidualBalance(_residBalance);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -338,7 +377,10 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     /**
      * @dev See {IGeniusExecutor-setAllowedTarget}.
      */
-    function setAllowedTarget(address target, bool isAllowed) public override onlyAdmin {
+    function setAllowedTarget(
+        address target,
+        bool isAllowed
+    ) public override onlyAdmin {
         allowedTargets[target] = isAllowed ? 1 : 0;
         emit AllowedTarget(target, isAllowed);
     }
@@ -375,29 +417,37 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint256 targetsLength = targets.length;
         uint256 tokenDetailsLength = tokenDetails.length;
 
-        for (uint256 i; i < targetsLength;) {
+        for (uint256 i; i < targetsLength; ) {
             address target = targets[i];
 
-            if (allowedTargets[target] == 0 && target != owner && target != address(STABLECOIN)) {
+            if (
+                allowedTargets[target] == 0 &&
+                target != owner &&
+                target != address(STABLECOIN)
+            ) {
                 if (tokenDetailsLength == 0) {
                     revert GeniusErrors.InvalidTarget(target);
                 }
 
                 uint256 isValid;
-                for (uint256 j; j < tokenDetailsLength;) {
+                for (uint256 j; j < tokenDetailsLength; ) {
                     if (target == tokenDetails[j].token) {
                         isValid = 1;
                         break;
                     }
 
-                    unchecked { ++j; }
+                    unchecked {
+                        ++j;
+                    }
                 }
                 if (isValid == 0) {
                     revert GeniusErrors.InvalidTarget(target);
                 }
             }
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -406,18 +456,23 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      * @param amount The amount of native tokens expected.
      */
     function _checkNative(uint256 amount) internal {
-        if (msg.value != amount) revert GeniusErrors.InvalidNativeAmount(amount);
+        if (msg.value != amount)
+            revert GeniusErrors.InvalidNativeAmount(amount);
     }
 
     /**
      * @dev Sums the amounts in an array.
      * @param amounts The array of amounts to be summed.
      */
-    function _sum(uint256[] calldata amounts) internal pure returns (uint256 total) {
-        for (uint i; i < amounts.length;) {
+    function _sum(
+        uint256[] calldata amounts
+    ) internal pure returns (uint256 total) {
+        for (uint i; i < amounts.length; ) {
             total += amounts[i];
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
     }
 
@@ -430,18 +485,34 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         address owner
     ) internal {
-        for (uint i; i < permitBatch.details.length;) {
+        for (uint i; i < permitBatch.details.length; ) {
             IERC20 token = IERC20(permitBatch.details[i].token);
             uint256 balance = token.balanceOf(address(this));
             if (balance > 0) {
-                uint256 _delta = balance > permitBatch.details[i].amount ? balance - permitBatch.details[i].amount : 0;
+                uint256 _delta = balance > permitBatch.details[i].amount
+                    ? balance - permitBatch.details[i].amount
+                    : 0;
 
                 if (_delta > 0) {
-                    if (!token.transfer(owner, _delta)) revert GeniusErrors.TransferFailed(address(token), _delta);
+                    if (!token.transfer(owner, _delta))
+                        revert GeniusErrors.TransferFailed(
+                            address(token),
+                            _delta
+                        );
                 }
             }
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
+        }
+    }
+
+    function _sweepStablecoin(address receiver) internal {
+        uint256 _balance = STABLECOIN.balanceOf(address(this));
+
+        if (_balance > 0) {
+            STABLECOIN.safeTransfer(receiver, _balance);
         }
     }
 
@@ -453,7 +524,11 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint256 _balance = address(this).balance;
 
         if (_balance > 0) {
-            if (!payable(receiver).send(_balance)) revert GeniusErrors.TransferFailed(address(0), address(this).balance);
+            if (!payable(receiver).send(_balance))
+                revert GeniusErrors.TransferFailed(
+                    address(0),
+                    address(this).balance
+                );
         }
     }
 
@@ -473,9 +548,10 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         }
         PERMIT2.permit(owner, permitBatch, signature);
 
-        IAllowanceTransfer.AllowanceTransferDetails[] memory transferDetails = new IAllowanceTransfer.AllowanceTransferDetails[](
-            permitBatch.details.length
-        );
+        IAllowanceTransfer.AllowanceTransferDetails[]
+            memory transferDetails = new IAllowanceTransfer.AllowanceTransferDetails[](
+                permitBatch.details.length
+            );
         for (uint i; i < permitBatch.details.length; ) {
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
@@ -484,7 +560,9 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
                 token: permitBatch.details[i].token
             });
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
 
         PERMIT2.transferFrom(transferDetails);
@@ -501,11 +579,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes[] calldata data,
         uint256[] calldata values
     ) private {
-        for (uint i; i < targets.length;) {
+        for (uint i; i < targets.length; ) {
             (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(targets[i], i);
+            if (!_success)
+                revert GeniusErrors.ExternalCallFailed(targets[i], i);
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
     }
 
@@ -518,13 +599,19 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address[] calldata routers,
         IAllowanceTransfer.PermitBatch calldata permitBatch
     ) private {
-        for (uint i; i < permitBatch.details.length;) {
+        for (uint i; i < permitBatch.details.length; ) {
             IERC20 tokenToApprove = IERC20(permitBatch.details[i].token);
             uint256 amountToApprove = permitBatch.details[i].amount;
 
-            if (!tokenToApprove.approve(routers[i], amountToApprove)) revert GeniusErrors.ApprovalFailure(permitBatch.details[i].token, amountToApprove);
+            if (!tokenToApprove.approve(routers[i], amountToApprove))
+                revert GeniusErrors.ApprovalFailure(
+                    permitBatch.details[i].token,
+                    amountToApprove
+                );
 
-            unchecked { i++; }
+            unchecked {
+                i++;
+            }
         }
     }
 
@@ -533,7 +620,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      * @param amount The amount of tokens to be approved.
      */
     function _approveVault(uint256 amount) private {
-        if (!STABLECOIN.approve(address(VAULT), amount)) revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amount);
+        if (!STABLECOIN.approve(address(VAULT), amount))
+            revert GeniusErrors.ApprovalFailure(address(STABLECOIN), amount);
     }
 
     /**
