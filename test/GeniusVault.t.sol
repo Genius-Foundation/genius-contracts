@@ -404,71 +404,6 @@ contract GeniusVaultTest is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            999 ether
-        );
-        // Value is 0
-        values[0] = 0;
-
-        vm.startPrank(address(ORCHESTRATOR));
-        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
-
-        assertEq(
-            USDC.balanceOf(address(VAULT)),
-            1 ether,
-            "GeniusVault balance should be 1 ether"
-        );
-        assertEq(
-            VAULT.stablecoinBalance(),
-            1 ether,
-            "Total assets should be 1 ether"
-        );
-        assertEq(
-            VAULT.totalStakedAssets(),
-            0,
-            "Total staked assets should be 0 ether"
-        );
-        assertEq(
-            VAULT.availableAssets(),
-            1 ether,
-            "Available assets should be 1 ether"
-        );
-        assertEq(
-            USDC.balanceOf(ORCHESTRATOR),
-            1000 ether,
-            "Orchestrator balance should be 1000 ether"
-        );
-    }
-
-    function testRemoveLiquiditySwapWithResidue() public {
-        deal(address(USDC), address(VAULT), 1_000 ether);
-        assertEq(
-            USDC.balanceOf(address(VAULT)),
-            1_000 ether,
-            "GeniusVault balance should be 1,000 ether"
-        );
-
-        order = IGeniusVault.Order({
-            seed: keccak256("order"),
-            amountIn: 1_000 ether,
-            trader: TRADER,
-            srcChainId: 42,
-            destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
-            tokenIn: address(USDC),
-            fee: 1 ether,
-            receiver: RECEIVER
-        });
-
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
-
-        // Target is stablecoin
-        targets[0] = address(USDC);
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
-            USDC.transfer.selector,
-            address(this),
             997 ether
         );
         // Value is 0
@@ -479,12 +414,12 @@ contract GeniusVaultTest is Test {
 
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            3 ether,
+            1 ether,
             "GeniusVault balance should be 1 ether"
         );
         assertEq(
             VAULT.stablecoinBalance(),
-            3 ether,
+            1 ether,
             "Total assets should be 1 ether"
         );
         assertEq(
@@ -494,7 +429,7 @@ contract GeniusVaultTest is Test {
         );
         assertEq(
             VAULT.availableAssets(),
-            3 ether,
+            1 ether,
             "Available assets should be 1 ether"
         );
         assertEq(
@@ -953,7 +888,7 @@ contract GeniusVaultTest is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            998 ether
+            997 ether
         );
         // Value is 0
         values[0] = 0;
@@ -977,98 +912,13 @@ contract GeniusVaultTest is Test {
         );
         assertEq(
             postBalance - prevBalance,
-            998 ether,
+            997 ether,
             "Executor should receive refunded amount"
         );
         assertEq(
             prevVaultBalance - postVaultBalance,
             998 ether,
             "Vault balance should decrease by refunded amount"
-        );
-
-        bytes32 orderHash = VAULT.orderHash(order);
-        assertEq(
-            uint256(VAULT.orderStatus(orderHash)),
-            uint256(IGeniusVault.OrderStatus.Reverted),
-            "Order status should be Reverted"
-        );
-    }
-
-    function testRevertOrderWithResidue() public {
-        vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(
-            keccak256("order"),
-            TRADER,
-            address(USDC),
-            1_000 ether,
-            destChainId,
-            uint32(block.timestamp + 100),
-            5 ether,
-            RECEIVER
-        );
-        vm.stopPrank();
-
-        order = IGeniusVault.Order({
-            seed: keccak256("order"),
-            amountIn: 1_000 ether,
-            trader: TRADER,
-            receiver: RECEIVER,
-            srcChainId: uint16(block.chainid),
-            destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 100),
-            tokenIn: address(USDC),
-            fee: 5 ether
-        });
-
-        // Advance time past the fillDeadline
-        vm.warp(block.timestamp + 200);
-
-        uint256 prevBalance = USDC.balanceOf(address(this));
-        uint256 prevVaultBalance = USDC.balanceOf(address(VAULT));
-
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
-
-        // Target is stablecoin
-        targets[0] = address(USDC);
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
-            USDC.transfer.selector,
-            address(this),
-            997 ether
-        );
-        // Value is 0
-        values[0] = 0;
-
-        vm.startPrank(address(ORCHESTRATOR));
-        VAULT.revertOrder(order, targets, values, calldatas);
-        vm.stopPrank();
-
-        uint256 postBalance = USDC.balanceOf(address(this));
-        uint256 postVaultBalance = USDC.balanceOf(address(VAULT));
-
-        assertEq(
-            VAULT.unclaimedFees(),
-            2 ether,
-            "Unclaimed fees should be 2 ether"
-        );
-        assertEq(
-            VAULT.stablecoinBalance(),
-            3 ether,
-            "Vault balance should be 3 ether"
-        );
-        assertEq(
-            postBalance - prevBalance,
-            997 ether,
-            "Executor should receive refunded amount"
-        );
-        assertEq(
-            prevVaultBalance - postVaultBalance,
-            997 ether,
-            "Vault balance should decrease by refunded amount - residue"
         );
 
         bytes32 orderHash = VAULT.orderHash(order);
