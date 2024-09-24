@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import {PermitSignature} from "./utils/SigUtils.sol";
 
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
@@ -1539,15 +1539,15 @@ contract GeniusMultiTokenVaultAccounting is Test {
         );
         values[0] = 0;
 
-        // Advance time to just after the deadline but before the revert buffer
         vm.warp(validDeadline + 1);
+        uint256 _expectedRevertTS = validDeadline + VAULT.orderRevertBuffer();
 
         // Attempt to revert the order
         vm.startPrank(ORCHESTRATOR);
         vm.expectRevert(
             abi.encodeWithSelector(
                 GeniusErrors.DeadlineNotPassed.selector,
-                validDeadline + VAULT.orderRevertBuffer()
+                _expectedRevertTS
             )
         );
         VAULT.revertOrder(orderToRevert, targets, values, calldatas);

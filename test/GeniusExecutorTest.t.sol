@@ -304,6 +304,7 @@ contract GeniusExecutorTest is Test {
             DOMAIN_SEPERATOR
         );
 
+        vm.startPrank(ORCHESTRATOR);
         EXECUTOR.aggregateWithPermit2(
             targets,
             data,
@@ -570,7 +571,7 @@ contract GeniusExecutorTest is Test {
 
         uint256 traderBalance = USDC.balanceOf(TRADER);
 
-        vm.prank(TRADER);
+        vm.prank(ORCHESTRATOR);
         EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
             targets,
