@@ -45,22 +45,20 @@ contract GeniusVault is GeniusVaultCore {
      * @dev See {IGeniusVault-removeBridgeLiquidity}.
      */
     function removeBridgeLiquidity(
-        address token,
         uint256 amountIn,
         uint32 dstChainId,
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
     ) external payable virtual override onlyOrchestrator whenNotPaused {
-        if (token != address(STABLECOIN))
-            revert GeniusErrors.InvalidToken(token);
         _isAmountValid(amountIn, availableAssets());
         _checkNative(_sum(values));
 
         _transferERC20(address(STABLECOIN), address(EXECUTOR), amountIn);
+
         EXECUTOR.aggregate(targets, data, values);
 
-        emit RemovedLiquidity(address(STABLECOIN), amountIn, dstChainId);
+        emit RemovedLiquidity(amountIn, dstChainId);
     }
 
     /**
@@ -82,7 +80,7 @@ contract GeniusVault is GeniusVaultCore {
         if (order.srcChainId == _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
-        _isAmountValid(order.amountIn, availableAssets());
+        _isAmountValid(order.amountIn - order.fee, availableAssets());
 
         if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
 
@@ -92,13 +90,13 @@ contract GeniusVault is GeniusVaultCore {
             _transferERC20(
                 address(STABLECOIN),
                 bytes32ToAddress(order.receiver),
-                order.amountIn
+                order.amountIn - order.fee
             );
         } else {
             _transferERC20(
                 address(STABLECOIN),
                 address(EXECUTOR),
-                order.amountIn
+                order.amountIn - order.fee
             );
             EXECUTOR.aggregate(targets, data, values);
         }
@@ -159,10 +157,10 @@ contract GeniusVault is GeniusVaultCore {
             address(STABLECOIN),
             msg.sender,
             address(this),
-            order.amountIn + fee
+            order.amountIn
         );
 
-        reservedAssets += order.amountIn + fee;
+        reservedAssets += order.amountIn;
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit SwapDeposit(
@@ -215,7 +213,7 @@ contract GeniusVault is GeniusVaultCore {
 
         orderStatus[_orderHash] = OrderStatus.Filled;
         unclaimedFees += order.fee;
-        reservedAssets -= order.amountIn + order.fee;
+        reservedAssets -= order.amountIn;
 
         emit OrderFilled(
             order.seed,
@@ -250,27 +248,26 @@ contract GeniusVault is GeniusVaultCore {
                 order.fillDeadline + orderRevertBuffer
             );
 
-        uint256 _feeRefund = _feeRefundAmount(order.fee);
+        (uint256 _totalRefund, uint256 _protocolFee) = _calculateRefundAmount(
+            order.amountIn,
+            order.fee
+        );
 
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
         if (targets.length == 0) {
-            _transferERC20(
-                address(STABLECOIN),
-                order.trader,
-                order.amountIn + _feeRefund
-            );
+            _transferERC20(address(STABLECOIN), order.trader, _totalRefund);
         } else {
             _transferERC20(
                 address(STABLECOIN),
                 address(EXECUTOR),
-                order.amountIn + _feeRefund
+                _totalRefund
             );
             EXECUTOR.aggregate(targets, data, values);
         }
 
-        reservedAssets -= order.amountIn + order.fee;
-        unclaimedFees += order.fee - _feeRefund;
+        reservedAssets -= order.amountIn;
+        unclaimedFees += _protocolFee;
 
         emit OrderReverted(
             order.seed,
@@ -281,8 +278,7 @@ contract GeniusVault is GeniusVaultCore {
             order.srcChainId,
             order.destChainId,
             order.fillDeadline,
-            order.fee,
-            _feeRefund
+            order.fee
         );
     }
 

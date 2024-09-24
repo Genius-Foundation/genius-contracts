@@ -143,7 +143,6 @@ contract GeniusVaultTransferVerificationTest is Test {
 
         vm.expectRevert();
         VAULT.removeBridgeLiquidity(
-            address(USDC),
             amountToRemove,
             targetChainId,
             targets,
@@ -179,7 +178,6 @@ contract GeniusVaultTransferVerificationTest is Test {
 
         vm.expectRevert();
         MULTIVAULT.removeBridgeLiquidity(
-            address(USDC),
             amountToRemove,
             targetChainId,
             targets,

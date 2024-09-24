@@ -144,7 +144,6 @@ contract GeniusVaultDOSTest is Test {
 
         // This should not revert
         VAULT.removeBridgeLiquidity(
-            address(USDC),
             amountToRemove,
             targetChainId,
             targets,
@@ -191,7 +190,6 @@ contract GeniusVaultDOSTest is Test {
 
         // This should now succeed
         MULTIVAULT.removeBridgeLiquidity(
-            address(USDC),
             500 ether,
             targetChainId,
             targets,
@@ -225,7 +223,6 @@ contract GeniusVaultDOSTest is Test {
         uint256 excessiveAmount = MULTIVAULT.availableAssets() + 1 ether;
         vm.expectRevert();
         MULTIVAULT.removeBridgeLiquidity(
-            address(USDC),
             excessiveAmount,
             targetChainId,
             targets,

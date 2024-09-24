@@ -145,7 +145,6 @@ interface IGeniusVault {
      * @param destChainId The destination chain ID.
      * @param fillDeadline The deadline for filling the order.
      * @param fee the fees paid for the order
-     * @param feeRefunded the fees refunded
      */
     event OrderReverted(
         bytes32 indexed seed,
@@ -156,8 +155,7 @@ interface IGeniusVault {
         uint16 srcChainId,
         uint32 indexed destChainId,
         uint32 fillDeadline,
-        uint256 fee,
-        uint256 feeRefunded
+        uint256 fee
     );
 
     /**
@@ -165,11 +163,7 @@ interface IGeniusVault {
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
      */
-    event RemovedLiquidity(
-        address indexed token,
-        uint256 amount,
-        uint32 indexed chainId
-    );
+    event RemovedLiquidity(uint256 amount, uint32 indexed chainId);
 
     /**
      * @notice Emitted when fees are claimed from the Vault contract.
@@ -210,10 +204,10 @@ interface IGeniusVault {
     event ExecutorChanged(address newExecutor);
 
     /**
-     * @notice Emitted when the feeRefundPercentage is changed.
-     * @param newFee The new feeRefundPercentage.
+     * @notice Emitted when the cross-chain fee is changed.
+     * @param newFee The new cross-chain fee.
      */
-    event FeeRefundPercentageChanged(uint256 newFee);
+    event CrosschainFeeChanged(uint256 newFee);
 
     /**
      * @notice Returns the total balance of the vault.
@@ -251,7 +245,6 @@ interface IGeniusVault {
     /**
      * @notice Removes liquidity from a bridge vault
      * and bridge it to the destination chain.
-     * @param token The liquidity token to remove
      * @param amountIn The amount of tokens to remove from the bridge vault.
      * @param dstChainId The chain ID of the destination chain.
      * @param targets The array of target addresses to call.
@@ -259,7 +252,6 @@ interface IGeniusVault {
      * @param data The array of function call data.
      */
     function removeBridgeLiquidity(
-        address token,
         uint256 amountIn,
         uint32 dstChainId,
         address[] memory targets,
@@ -333,10 +325,10 @@ interface IGeniusVault {
     function setMaxOrderTime(uint32 _maxOrderTime) external;
 
     /**
-     * @notice Sets the fee refund percentage for the GeniusVault contract.
-     * @param _feeRefundPercentage The new fee refund percentage.
+     * @notice Sets the cross-chain fee for the GeniusVault contract.
+     * @param fee The new cross-chain fee to be set.
      */
-    function setFeeRefundPercentage(uint256 _feeRefundPercentage) external;
+    function setCrosschainFee(uint256 fee) external;
 
     /**
      * @notice Sets the executor address for the GeniusVault contract.
