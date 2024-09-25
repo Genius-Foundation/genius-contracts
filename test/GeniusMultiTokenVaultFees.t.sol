@@ -27,8 +27,7 @@ contract GeniusMultiTokenVaultFees is Test {
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
-    bytes32 RECEIVER =
-        keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
+    bytes32 RECEIVER;
 
     ERC20 public USDC;
     ERC20 public WETH;
@@ -46,6 +45,7 @@ contract GeniusMultiTokenVaultFees is Test {
 
         OWNER = makeAddr("OWNER");
         TRADER = makeAddr("TRADER");
+        RECEIVER = bytes32(uint256(uint160(TRADER)));
         ORCHESTRATOR = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38; // The hardcoded tx.origin for forge
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
@@ -187,7 +187,7 @@ contract GeniusMultiTokenVaultFees is Test {
             tokenIn: address(USDC),
             fee: 1 ether,
             minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
+            tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         USDC.approve(address(VAULT), 1_000 ether);
@@ -232,7 +232,7 @@ contract GeniusMultiTokenVaultFees is Test {
             tokenIn: address(USDC),
             fee: 3 ether,
             minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
+            tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         // Create dummy targets, calldata, and values arrays to call removeLiquiditySwap

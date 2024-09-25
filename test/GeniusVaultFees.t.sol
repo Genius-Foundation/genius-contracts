@@ -174,7 +174,7 @@ contract GeniusVaultFees is Test {
             tokenIn: address(USDC),
             fee: 1 ether,
             minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
+            tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         VAULT.addLiquiditySwap(
@@ -202,7 +202,7 @@ contract GeniusVaultFees is Test {
             tokenIn: address(USDC),
             fee: 1 ether,
             minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
+            tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         // Remove liquidity
@@ -434,7 +434,7 @@ contract GeniusVaultFees is Test {
             tokenIn: address(USDC),
             fee: 1 ether,
             minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
+            tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         vm.expectRevert(

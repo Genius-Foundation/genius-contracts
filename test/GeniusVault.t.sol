@@ -373,7 +373,7 @@ contract GeniusVaultTest is Test {
             fee: 1 ether,
             receiver: RECEIVER,
             minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
+            tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         address[] memory targets = new address[](1);
@@ -759,7 +759,7 @@ contract GeniusVaultTest is Test {
             tokenIn: address(USDC),
             fee: 1 ether,
             minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
+            tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         address[] memory targets = new address[](1);
