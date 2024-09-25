@@ -373,7 +373,9 @@ contract GeniusVaultAccounting is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         vm.stopPrank();
@@ -468,7 +470,9 @@ contract GeniusVaultAccounting is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         vm.stopPrank();
@@ -589,7 +593,9 @@ contract GeniusVaultAccounting is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         vm.stopPrank();
@@ -739,7 +745,9 @@ contract GeniusVaultAccounting is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         vm.stopPrank();

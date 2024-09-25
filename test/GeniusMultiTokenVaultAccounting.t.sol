@@ -346,12 +346,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             100 ether,
+            0,
             42,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         vm.stopPrank();
 
@@ -416,12 +418,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             100 ether,
+            0,
             42,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         vm.stopPrank();
 
@@ -549,7 +553,9 @@ contract GeniusMultiTokenVaultAccounting is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(
@@ -709,7 +715,9 @@ contract GeniusMultiTokenVaultAccounting is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         vm.stopPrank();
@@ -831,12 +839,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             bridgeAmount,
+            0,
             42,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         assertEq(
             VAULT.stablecoinBalance(),
@@ -860,12 +870,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(TOKEN1),
+            bytes32(uint256(1)),
             bridgeAmount,
+            0,
             42,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         assertEq(
@@ -884,12 +896,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(TOKEN2),
+            bytes32(uint256(1)),
             bridgeAmount,
+            0,
             42,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         assertEq(
             TOKEN2.balanceOf(address(VAULT)),
@@ -908,12 +922,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(TOKEN3),
+            bytes32(uint256(1)),
             bridgeAmount,
+            0,
             42,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         assertEq(
             TOKEN3.balanceOf(address(VAULT)),
@@ -933,12 +949,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap{value: bridgeAmount}(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             NATIVE,
+            bytes32(uint256(1)),
             bridgeAmount,
+            0,
             42,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         assertEq(
             address(VAULT).balance - initialETHBalance,
@@ -1026,7 +1044,9 @@ contract GeniusMultiTokenVaultAccounting is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(
@@ -1078,12 +1098,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(TOKEN1),
+            bytes32(0),
             swapAmount,
+            0,
             42,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         deal(address(USDC), address(DEX_ROUTER), swapAmount);
         vm.stopPrank();
@@ -1121,7 +1143,9 @@ contract GeniusMultiTokenVaultAccounting is Test {
             42,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         // Assertions
@@ -1173,7 +1197,9 @@ contract GeniusMultiTokenVaultAccounting is Test {
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
             fee: 1 ether,
-            receiver: RECEIVER
+            receiver: RECEIVER,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Empty arrays for targets, values, and calldatas
@@ -1225,12 +1251,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 100),
-            5 ether,
-            RECEIVER
+            5 ether
         );
         vm.stopPrank();
 
@@ -1243,7 +1271,9 @@ contract GeniusMultiTokenVaultAccounting is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 5 ether
+            fee: 5 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Advance time past the fillDeadline
@@ -1351,13 +1381,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
         // Test with zero amount (should revert)
         vm.prank(ORCHESTRATOR);
         vm.expectRevert(GeniusErrors.InvalidAmount.selector);
-        VAULT.removeBridgeLiquidity(
-            0,
-            testChainId,
-            targets,
-            values,
-            data
-        );
+        VAULT.removeBridgeLiquidity(0, testChainId, targets, values, data);
 
         // Test when vault is paused
         vm.prank(OWNER);
@@ -1439,12 +1463,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(newToken),
+            bytes32(0),
             100 ether,
+            0,
             42,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         vm.stopPrank();
 
@@ -1485,12 +1511,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("invalidDeadlineOrder"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             invalidDeadline,
-            1 ether,
-            RECEIVER
+            1 ether
         );
         vm.stopPrank();
     }
@@ -1504,12 +1532,14 @@ contract GeniusMultiTokenVaultAccounting is Test {
         VAULT.addLiquiditySwap(
             keccak256("orderToRevert"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             validDeadline,
-            3 ether,
-            RECEIVER
+            3 ether
         );
         vm.stopPrank();
 
@@ -1523,7 +1553,9 @@ contract GeniusMultiTokenVaultAccounting is Test {
             destChainId: destChainId,
             fillDeadline: validDeadline,
             tokenIn: address(USDC),
-            fee: 3 ether
+            fee: 3 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Prepare revert parameters

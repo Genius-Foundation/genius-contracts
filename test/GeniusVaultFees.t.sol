@@ -110,12 +110,14 @@ contract GeniusVaultFees is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         assertEq(
@@ -170,18 +172,22 @@ contract GeniusVaultFees is Test {
             destChainId: 1,
             fillDeadline: timestamp,
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         VAULT.addLiquiditySwap(
             keccak256("order"),
             orderToFill.trader,
+            orderToFill.receiver,
             orderToFill.tokenIn,
+            orderToFill.tokenOut,
             orderToFill.amountIn,
+            orderToFill.minAmountOut,
             orderToFill.destChainId,
             orderToFill.fillDeadline,
-            orderToFill.fee,
-            orderToFill.receiver
+            orderToFill.fee
         );
 
         // Create an Order struct for removing liquidity
@@ -194,7 +200,9 @@ contract GeniusVaultFees is Test {
             destChainId: uint16(block.chainid),
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Remove liquidity
@@ -283,18 +291,22 @@ contract GeniusVaultFees is Test {
             destChainId: 1,
             fillDeadline: timestamp,
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         VAULT.addLiquiditySwap(
             keccak256("order"),
             orderToFill.trader,
+            orderToFill.receiver,
             orderToFill.tokenIn,
+            orderToFill.tokenOut,
             orderToFill.amountIn,
+            orderToFill.minAmountOut,
             orderToFill.destChainId,
             orderToFill.fillDeadline,
-            orderToFill.fee,
-            orderToFill.receiver
+            orderToFill.fee
         );
 
         // Create an Order struct for removing liquidity
@@ -307,7 +319,9 @@ contract GeniusVaultFees is Test {
             destChainId: uint16(block.chainid),
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Remove liquidity
@@ -385,18 +399,22 @@ contract GeniusVaultFees is Test {
             destChainId: 1,
             fillDeadline: timestamp,
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         VAULT.addLiquiditySwap(
             keccak256("order"),
             orderToFill.trader,
+            orderToFill.receiver,
             orderToFill.tokenIn,
+            orderToFill.tokenOut,
             orderToFill.amountIn,
+            orderToFill.minAmountOut,
             orderToFill.destChainId,
             orderToFill.fillDeadline,
-            orderToFill.fee,
-            orderToFill.receiver
+            orderToFill.fee
         );
         vm.stopPrank();
 
@@ -414,7 +432,9 @@ contract GeniusVaultFees is Test {
             destChainId: uint16(block.chainid),
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         vm.expectRevert(

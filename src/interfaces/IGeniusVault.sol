@@ -34,15 +34,17 @@ interface IGeniusVault {
      * @param tokenIn The address of the token to be swapped.
      */
     struct Order {
-        bytes32 seed;
-        uint256 amountIn;
-        address trader;
-        bytes32 receiver;
-        uint16 srcChainId;
-        uint32 destChainId;
-        uint32 fillDeadline;
-        address tokenIn;
-        uint256 fee;
+        bytes32 seed; // slot 0
+        uint256 amountIn; // slot 1
+        bytes32 receiver; // slot 2
+        address trader; // slot 3 bytes20
+        uint16 srcChainId; // slot 3 bytes22
+        uint32 destChainId; //slot 3 bytes26
+        uint32 fillDeadline; //slot 3 bytes30
+        address tokenIn; // slot 4 bytes20
+        uint256 fee; // slot 5
+        uint256 minAmountOut; // slot 6
+        bytes32 tokenOut; // slot 7
     }
 
     /**
@@ -273,12 +275,14 @@ interface IGeniusVault {
     function addLiquiditySwap(
         bytes32 seed,
         address trader,
+        bytes32 receiver,
         address tokenIn,
+        bytes32 tokenOut,
         uint256 amountIn,
+        uint256 minAmountOut,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee,
-        bytes32 receiver
+        uint256 fee
     ) external payable;
 
     /**

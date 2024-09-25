@@ -102,12 +102,14 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     function addLiquiditySwap(
         bytes32 seed,
         address trader,
+        bytes32 receiver,
         address tokenIn,
+        bytes32 tokenOut,
         uint256 amountIn,
+        uint256 minAmountOut,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee,
-        bytes32 receiver
+        uint256 fee
     ) external payable override onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
@@ -119,6 +121,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             fillDeadline <= _currentTimeStamp() ||
             fillDeadline > _currentTimeStamp() + maxOrderTime
         ) revert GeniusErrors.InvalidDeadline();
+        if (tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
 
         Order memory order = Order({
             trader: trader,
@@ -129,7 +132,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             destChainId: destChainId,
             fillDeadline: fillDeadline,
             tokenIn: tokenIn,
-            fee: fee
+            fee: fee,
+            minAmountOut: minAmountOut,
+            tokenOut: tokenOut
         });
 
         bytes32 _orderHash = orderHash(order);

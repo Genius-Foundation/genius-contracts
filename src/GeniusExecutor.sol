@@ -95,7 +95,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external override payable onlyOrchestrator nonReentrant {
+    ) external payable override onlyOrchestrator nonReentrant {
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
@@ -143,7 +143,9 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee,
-        bytes32 receiver
+        bytes32 receiver,
+        uint256 minAmountOut,
+        bytes32 tokenOut
     ) external override onlyOrchestrator nonReentrant {
         if (permitBatch.details.length != 1)
             revert GeniusErrors.InvalidPermitBatchLength();
@@ -191,12 +193,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         VAULT.addLiquiditySwap(
             seed,
             owner,
+            receiver,
             address(STABLECOIN),
+            tokenOut,
             _depositAmount,
+            minAmountOut,
             destChainId,
             fillDeadline,
-            fee,
-            receiver
+            fee
         );
 
         _sweepERC20s(permitBatch, owner);
@@ -216,12 +220,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee,
-        bytes32 receiver
-    ) external override payable onlyOrchestrator nonReentrant {
-        if (
-            targets.length != data.length ||
-            data.length != values.length
-        ) revert GeniusErrors.ArrayLengthsMismatch();
+        bytes32 receiver,
+        uint256 minAmountOut,
+        bytes32 tokenOut
+    ) external payable override onlyOrchestrator nonReentrant {
+        if (targets.length != data.length || data.length != values.length)
+            revert GeniusErrors.ArrayLengthsMismatch();
 
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
@@ -252,12 +256,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         VAULT.addLiquiditySwap(
             seed,
             owner,
+            receiver,
             address(STABLECOIN),
-            _depositAmount, 
+            tokenOut,
+            _depositAmount,
+            minAmountOut,
             destChainId,
             fillDeadline,
-            fee,
-            receiver
+            fee
         );
 
         _sweepERC20s(permitBatch, owner);
@@ -275,7 +281,9 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee,
-        bytes32 receiver
+        bytes32 receiver,
+        uint256 minAmountOut,
+        bytes32 tokenOut
     ) external payable override {
         IAllowanceTransfer.PermitDetails[]
             memory emptyPermitDetails = new IAllowanceTransfer.PermitDetails[](
@@ -312,12 +320,14 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         VAULT.addLiquiditySwap(
             seed,
             msg.sender,
+            receiver,
             address(STABLECOIN),
-            _depositAmount, 
+            tokenOut,
+            _depositAmount,
+            minAmountOut,
             destChainId,
             fillDeadline,
-            fee,
-            receiver
+            fee
         );
 
         if (msg.value > 0) _sweepNative(msg.sender);

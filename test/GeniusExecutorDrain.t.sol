@@ -53,7 +53,11 @@ contract GeniusExecutorDrain is Test {
         vm.deal(trader, 2 ether);
     }
 
-    function setupMultiSwapParams() internal view returns (address[] memory, bytes[] memory, uint256[] memory) {
+    function setupMultiSwapParams()
+        internal
+        view
+        returns (address[] memory, bytes[] memory, uint256[] memory)
+    {
         address[] memory targets = new address[](4);
         targets[0] = address(USDC);
         targets[1] = address(WETH);
@@ -61,10 +65,28 @@ contract GeniusExecutorDrain is Test {
         targets[3] = address(DEX_ROUTER);
 
         bytes[] memory data = new bytes[](4);
-        data[0] = abi.encodeWithSignature("approve(address,uint256)", address(DEX_ROUTER), 10 ether);
-        data[1] = abi.encodeWithSignature("approve(address,uint256)", address(DEX_ROUTER), 5 ether);
-        data[2] = abi.encodeWithSignature("swap(address,address,uint256)", address(USDC), address(WETH), 10 ether);
-        data[3] = abi.encodeWithSignature("swap(address,address,uint256)", address(WETH), address(USDC), 5 ether);
+        data[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(DEX_ROUTER),
+            10 ether
+        );
+        data[1] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(DEX_ROUTER),
+            5 ether
+        );
+        data[2] = abi.encodeWithSignature(
+            "swap(address,address,uint256)",
+            address(USDC),
+            address(WETH),
+            10 ether
+        );
+        data[3] = abi.encodeWithSignature(
+            "swap(address,address,uint256)",
+            address(WETH),
+            address(USDC),
+            5 ether
+        );
 
         uint256[] memory values = new uint256[](4);
         values[0] = 0;
@@ -81,10 +103,16 @@ contract GeniusExecutorDrain is Test {
         address[2] memory tokens,
         uint160[2] memory amounts
     ) internal returns (IAllowanceTransfer.PermitBatch memory, bytes memory) {
-        require(tokens.length == amounts.length, "Tokens and amounts length mismatch");
+        require(
+            tokens.length == amounts.length,
+            "Tokens and amounts length mismatch"
+        );
 
-        IAllowanceTransfer.PermitDetails[] memory permitDetails = new IAllowanceTransfer.PermitDetails[](tokens.length);
-        
+        IAllowanceTransfer.PermitDetails[]
+            memory permitDetails = new IAllowanceTransfer.PermitDetails[](
+                tokens.length
+            );
+
         for (uint i = 0; i < tokens.length; i++) {
             permitDetails[i] = IAllowanceTransfer.PermitDetails({
                 token: tokens[i],
@@ -96,11 +124,12 @@ contract GeniusExecutorDrain is Test {
 
         nonce++;
 
-        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer.PermitBatch({
-            details: permitDetails,
-            spender: spender,
-            sigDeadline: 1900000000
-        });
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer
+            .PermitBatch({
+                details: permitDetails,
+                spender: spender,
+                sigDeadline: 1900000000
+            });
 
         // Get the private key for the owner (assuming we have a mapping or way to get this in tests)
         uint256 ownerPrivateKey = getPrivateKey(owner);
@@ -156,15 +185,19 @@ contract GeniusExecutorDrain is Test {
 
         VAULT = GeniusVault(address(proxy));
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
-        
-        EXECUTOR = new GeniusExecutor(permit2Address, address(VAULT), OWNER, new address[](0));
+
+        EXECUTOR = new GeniusExecutor(
+            permit2Address,
+            address(VAULT),
+            OWNER,
+            new address[](0)
+        );
         EXECUTOR.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         VAULT.setExecutor(address(EXECUTOR));
         MALICIOUS = new MaliciousContract(address(EXECUTOR));
         DEX_ROUTER = new MockDEXRouter();
         vm.stopPrank();
-
 
         deal(address(USDC), trader, 100 ether);
         deal(address(WETH), trader, 100 ether);
@@ -195,7 +228,11 @@ contract GeniusExecutorDrain is Test {
         assertEq(success, true, "callback will not return false");
         vm.stopPrank();
 
-        assertEq(address(EXECUTOR).balance, initialBalance, "EXECUTOR's balance should not change");
+        assertEq(
+            address(EXECUTOR).balance,
+            initialBalance,
+            "EXECUTOR's balance should not change"
+        );
         assertEq(trader.balance, 2 ether, "Trader's balance should not change");
     }
 
@@ -246,15 +283,26 @@ contract GeniusExecutorDrain is Test {
         initial_values[0] = 0;
         initial_values[1] = 0;
 
-        
-
         vm.prank(trader);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, address(WETH)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidTarget.selector,
+                address(WETH)
+            )
+        );
         EXECUTOR.aggregate(initial_targets, initial_data, initial_values);
 
         // Check balances after successful swap
-        assertEq(USDC.balanceOf(address(EXECUTOR)), initialUSDCBalance, "USDC balance should not change");
-        assertEq(WETH.balanceOf(address(EXECUTOR)), initialWETHBalance, "WETH balance should not change");
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            initialUSDCBalance,
+            "USDC balance should not change"
+        );
+        assertEq(
+            WETH.balanceOf(address(EXECUTOR)),
+            initialWETHBalance,
+            "WETH balance should not change"
+        );
 
         // Reset balances for malicious test
         deal(address(USDC), address(EXECUTOR), initialUSDCBalance);
@@ -274,24 +322,65 @@ contract GeniusExecutorDrain is Test {
         values[0] = 1 ether;
 
         vm.prank(trader);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, address(MALICIOUS)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidTarget.selector,
+                address(MALICIOUS)
+            )
+        );
         EXECUTOR.aggregate(targets, data, values);
 
         // Check balances after failed malicious swap
-        assertEq(address(EXECUTOR).balance, initialBalance, "Native token balance should not change");
-        assertEq(USDC.balanceOf(address(EXECUTOR)), initialUSDCBalance, "USDC balance should not change");
-        assertEq(WETH.balanceOf(address(EXECUTOR)), initialWETHBalance, "WETH balance should not change");
-        
-        assertEq(address(MALICIOUS).balance, 0, "Malicious contract should not receive any ether");
-        assertEq(USDC.balanceOf(address(MALICIOUS)), 0, "Malicious contract should not receive any USDC");
-        assertEq(WETH.balanceOf(address(MALICIOUS)), 0, "Malicious contract should not receive any WETH");
-        
-        assertEq(trader.balance, initialTraderBalance, "Trader's ether balance should not change");
-        assertEq(USDC.balanceOf(trader), 100 ether, "Trader's USDC balance should not change");
-        assertEq(WETH.balanceOf(trader), 100 ether, "Trader's WETH balance should not change");
+        assertEq(
+            address(EXECUTOR).balance,
+            initialBalance,
+            "Native token balance should not change"
+        );
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            initialUSDCBalance,
+            "USDC balance should not change"
+        );
+        assertEq(
+            WETH.balanceOf(address(EXECUTOR)),
+            initialWETHBalance,
+            "WETH balance should not change"
+        );
+
+        assertEq(
+            address(MALICIOUS).balance,
+            0,
+            "Malicious contract should not receive any ether"
+        );
+        assertEq(
+            USDC.balanceOf(address(MALICIOUS)),
+            0,
+            "Malicious contract should not receive any USDC"
+        );
+        assertEq(
+            WETH.balanceOf(address(MALICIOUS)),
+            0,
+            "Malicious contract should not receive any WETH"
+        );
+
+        assertEq(
+            trader.balance,
+            initialTraderBalance,
+            "Trader's ether balance should not change"
+        );
+        assertEq(
+            USDC.balanceOf(trader),
+            100 ether,
+            "Trader's USDC balance should not change"
+        );
+        assertEq(
+            WETH.balanceOf(trader),
+            100 ether,
+            "Trader's WETH balance should not change"
+        );
     }
 
-///
+    ///
     function testAggregateWithPermit2MaliciousCallRevert() public {
         setupMaliciousTest();
 
@@ -299,16 +388,33 @@ contract GeniusExecutorDrain is Test {
         targets[0] = address(MALICIOUS);
 
         bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSignature("maliciousCall(address,address)", address(USDC), address(WETH));
+        data[0] = abi.encodeWithSignature(
+            "maliciousCall(address,address)",
+            address(USDC),
+            address(WETH)
+        );
 
         uint256[] memory values = new uint256[](1);
         values[0] = 0 ether;
 
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                trader,
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
         vm.startPrank(ORCHESTRATOR);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.ExternalCallFailed.selector, address(MALICIOUS), 0));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.ExternalCallFailed.selector,
+                address(MALICIOUS),
+                0
+            )
+        );
         EXECUTOR.aggregateWithPermit2(
             targets,
             data,
@@ -326,31 +432,56 @@ contract GeniusExecutorDrain is Test {
         targets[0] = address(MALICIOUS);
 
         bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSignature("maliciousCall(address,address)", address(USDC), address(WETH));
+        data[0] = abi.encodeWithSignature(
+            "maliciousCall(address,address)",
+            address(USDC),
+            address(WETH)
+        );
 
         uint256[] memory values = new uint256[](1);
         values[0] = 1 ether;
 
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                trader,
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
         vm.prank(trader);
-        try EXECUTOR.aggregateWithPermit2{value: 1 ether}(
-            targets,
-            data,
-            values,
-            permitBatch,
-            signature,
-            trader
-        ) {
+        try
+            EXECUTOR.aggregateWithPermit2{value: 1 ether}(
+                targets,
+                data,
+                values,
+                permitBatch,
+                signature,
+                trader
+            )
+        {
             assert(false); // This should not be reached
         } catch {
             // This is expected, now we check the balances
         }
 
-        assertEq(address(EXECUTOR).balance, 1 ether, "Native token balance should not change");
-        assertEq(USDC.balanceOf(address(EXECUTOR)), 100 ether, "USDC balance should not change");
-        assertEq(WETH.balanceOf(address(EXECUTOR)), 100 ether, "WETH balance should not change");
+        assertEq(
+            address(EXECUTOR).balance,
+            1 ether,
+            "Native token balance should not change"
+        );
+        assertEq(
+            USDC.balanceOf(address(EXECUTOR)),
+            100 ether,
+            "USDC balance should not change"
+        );
+        assertEq(
+            WETH.balanceOf(address(EXECUTOR)),
+            100 ether,
+            "WETH balance should not change"
+        );
     }
 
     function testMaliciousContractBalancesUnchanged() public {
@@ -360,31 +491,56 @@ contract GeniusExecutorDrain is Test {
         targets[0] = address(MALICIOUS);
 
         bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSignature("maliciousCall(address,address)", address(USDC), address(WETH));
+        data[0] = abi.encodeWithSignature(
+            "maliciousCall(address,address)",
+            address(USDC),
+            address(WETH)
+        );
 
         uint256[] memory values = new uint256[](1);
         values[0] = 1 ether;
 
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                trader,
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
         vm.prank(trader);
-        try EXECUTOR.aggregateWithPermit2{value: 1 ether}(
-            targets,
-            data,
-            values,
-            permitBatch,
-            signature,
-            trader
-        ) {
+        try
+            EXECUTOR.aggregateWithPermit2{value: 1 ether}(
+                targets,
+                data,
+                values,
+                permitBatch,
+                signature,
+                trader
+            )
+        {
             assert(false); // This should not be reached
         } catch {
             // This is expected, now we check the balances
         }
 
-        assertEq(address(MALICIOUS).balance, 0, "Malicious contract should not receive any ether");
-        assertEq(USDC.balanceOf(address(MALICIOUS)), 0, "Malicious contract should not receive any USDC");
-        assertEq(WETH.balanceOf(address(MALICIOUS)), 0, "Malicious contract should not receive any WETH");
+        assertEq(
+            address(MALICIOUS).balance,
+            0,
+            "Malicious contract should not receive any ether"
+        );
+        assertEq(
+            USDC.balanceOf(address(MALICIOUS)),
+            0,
+            "Malicious contract should not receive any USDC"
+        );
+        assertEq(
+            WETH.balanceOf(address(MALICIOUS)),
+            0,
+            "Malicious contract should not receive any WETH"
+        );
     }
 
     function testTraderBalancesUnchanged() public {
@@ -394,39 +550,63 @@ contract GeniusExecutorDrain is Test {
         targets[0] = address(MALICIOUS);
 
         bytes[] memory data = new bytes[](1);
-        data[0] = abi.encodeWithSignature("maliciousCall(address,address)", address(USDC), address(WETH));
+        data[0] = abi.encodeWithSignature(
+            "maliciousCall(address,address)",
+            address(USDC),
+            address(WETH)
+        );
 
         uint256[] memory values = new uint256[](1);
         values[0] = 2 ether;
 
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                trader,
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
         vm.prank(trader);
-        try EXECUTOR.aggregateWithPermit2{value: 1 ether}(
-            targets,
-            data,
-            values,
-            permitBatch,
-            signature,
-            trader
-        ) {
+        try
+            EXECUTOR.aggregateWithPermit2{value: 1 ether}(
+                targets,
+                data,
+                values,
+                permitBatch,
+                signature,
+                trader
+            )
+        {
             assert(false); // This should not be reached
         } catch {
             // This is expected, now we check the balances
         }
 
-        assertEq(trader.balance, 2 ether, "Trader's ether balance should not change");
-        assertEq(USDC.balanceOf(trader), 100 ether, "Trader's USDC balance should not change");
-        assertEq(WETH.balanceOf(trader), 100 ether, "Trader's WETH balance should not change");
+        assertEq(
+            trader.balance,
+            2 ether,
+            "Trader's ether balance should not change"
+        );
+        assertEq(
+            USDC.balanceOf(trader),
+            100 ether,
+            "Trader's USDC balance should not change"
+        );
+        assertEq(
+            WETH.balanceOf(trader),
+            100 ether,
+            "Trader's WETH balance should not change"
+        );
     }
-
 
     /**
      * @dev This function tests the successful execution of multiSwapAndDeposit.
      * It sets up the necessary parameters for the multiSwap, generates permit batch and signature,
      * records the initial balances, executes the multiSwapAndDeposit, and asserts the final balances.
-     * 
+     *
      * The function performs the following steps:
      * 1. Starts the prank by calling `startPrank` function with the `OWNER` address.
      * 2. Initializes the executor by calling `initialize` function with an array of router addresses.
@@ -438,20 +618,30 @@ contract GeniusExecutorDrain is Test {
      * 7. Executes the multiSwapAndDeposit by calling `multiSwapAndDeposit` function with the targets, data, values,
      *    permit batch, signature, and trader address.
      * 8. Asserts the final balances of the trader and the vault.
-     * 
+     *
      */
     function testSuccessfulMultiSwapAndDeposit() public {
         vm.startPrank(OWNER);
         EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
-
         // Setup targets, data, and values for the multiSwap
-        (address[] memory targets, bytes[] memory data, uint256[] memory values) = setupMultiSwapParams();
+        (
+            address[] memory targets,
+            bytes[] memory data,
+            uint256[] memory values
+        ) = setupMultiSwapParams();
 
         // Generate permit batch and signature
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                trader,
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
         uint256 initialVaultUSDCBalance = USDC.balanceOf(address(VAULT));
 
@@ -468,13 +658,27 @@ contract GeniusExecutorDrain is Test {
             42,
             uint32(block.timestamp + 200),
             1 ether,
-            receiver
+            receiver,
+            0,
+            bytes32(uint256(1))
         );
 
         // Assert final balances
-        assertEq(USDC.balanceOf(trader), 100 ether - 10 ether, "Trader USDC balance should decrease by 10 ether");
-        assertEq(WETH.balanceOf(trader), 100 ether - 5 ether, "Trader WETH balance should decrease by 5 ether");
-        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + 10 ether, "Vault should receive the deposited USDC");
+        assertEq(
+            USDC.balanceOf(trader),
+            100 ether - 10 ether,
+            "Trader USDC balance should decrease by 10 ether"
+        );
+        assertEq(
+            WETH.balanceOf(trader),
+            100 ether - 5 ether,
+            "Trader WETH balance should decrease by 5 ether"
+        );
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            initialVaultUSDCBalance + 10 ether,
+            "Vault should receive the deposited USDC"
+        );
     }
 
     /**
@@ -497,9 +701,20 @@ contract GeniusExecutorDrain is Test {
         EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
-        (address[] memory targets, bytes[] memory data,) = setupMultiSwapParams();
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            address[] memory targets,
+            bytes[] memory data,
+
+        ) = setupMultiSwapParams();
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                trader,
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
         vm.prank(ORCHESTRATOR);
         vm.expectRevert(GeniusErrors.ArrayLengthsMismatch.selector);
@@ -514,7 +729,9 @@ contract GeniusExecutorDrain is Test {
             destChainId,
             fillDeadline,
             1 ether,
-            receiver
+            receiver,
+            0,
+            bytes32(uint256(1))
         );
     }
 
@@ -544,16 +761,32 @@ contract GeniusExecutorDrain is Test {
         EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
-        (address[] memory targets, bytes[] memory data, uint256[] memory values) = setupMultiSwapParams();
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            address[] memory targets,
+            bytes[] memory data,
+            uint256[] memory values
+        ) = setupMultiSwapParams();
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                trader,
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
         address fakeRouter = makeAddr("fakeRouter");
         targets[2] = fakeRouter;
         targets[3] = fakeRouter;
 
         vm.prank(ORCHESTRATOR);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, fakeRouter));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidTarget.selector,
+                fakeRouter
+            )
+        );
         EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
             targets,
@@ -565,7 +798,9 @@ contract GeniusExecutorDrain is Test {
             42,
             uint32(block.timestamp + 200),
             1 ether,
-            receiver
+            receiver,
+            0,
+            bytes32(uint256(1))
         );
     }
 
@@ -594,8 +829,15 @@ contract GeniusExecutorDrain is Test {
         EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
         vm.stopPrank();
 
-        (IAllowanceTransfer.PermitBatch memory permitBatch, bytes memory signature) = 
-            generatePermitBatchAndSignature(trader, address(EXECUTOR), [address(USDC), address(WETH)], [uint160(10 ether), uint160(5 ether)]);
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory signature
+        ) = generatePermitBatchAndSignature(
+                trader,
+                address(EXECUTOR),
+                [address(USDC), address(WETH)],
+                [uint160(10 ether), uint160(5 ether)]
+            );
 
         address[] memory maliciousTargets = new address[](1);
         maliciousTargets[0] = address(MALICIOUS);
@@ -610,10 +852,15 @@ contract GeniusExecutorDrain is Test {
         uint256[] memory maliciousValues = new uint256[](1);
         maliciousValues[0] = 0 ether;
 
-        vm.deal(trader, 1 ether);  // Ensure trader has enough ETH for the call
+        vm.deal(trader, 1 ether); // Ensure trader has enough ETH for the call
 
         vm.prank(ORCHESTRATOR);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, address(MALICIOUS)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidTarget.selector,
+                address(MALICIOUS)
+            )
+        );
         EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
             maliciousTargets,
@@ -625,7 +872,9 @@ contract GeniusExecutorDrain is Test {
             42,
             uint32(block.timestamp + 200),
             1 ether,
-            receiver
+            receiver,
+            0,
+            bytes32(uint256(1))
         );
     }
 
@@ -660,16 +909,31 @@ contract GeniusExecutorDrain is Test {
             42,
             uint32(block.timestamp + 200),
             1 ether,
-            receiver
+            receiver,
+            0,
+            bytes32(uint256(1))
         );
 
         // Assert final balances
-        assertEq(address(this).balance, initialContractBalance - 100 ether, "Trader ETH balance should decrease by 1 ether");
-        assertEq(USDC.balanceOf(address(VAULT)), initialVaultUSDCBalance + MockDEXRouter(DEX_ROUTER).usdcAmountOut(), "Vault should receive the swapped USDC");
+        assertEq(
+            address(this).balance,
+            initialContractBalance - 100 ether,
+            "Trader ETH balance should decrease by 1 ether"
+        );
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            initialVaultUSDCBalance + MockDEXRouter(DEX_ROUTER).usdcAmountOut(),
+            "Vault should receive the swapped USDC"
+        );
 
         // 1. Invalid target
         address invalidTarget = address(0x1234);
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidTarget.selector, invalidTarget));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidTarget.selector,
+                invalidTarget
+            )
+        );
         vm.prank(trader);
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
             keccak256("order"),
@@ -679,7 +943,9 @@ contract GeniusExecutorDrain is Test {
             42,
             uint32(block.timestamp + 200),
             1 ether,
-            receiver
+            receiver,
+            0,
+            bytes32(uint256(1))
         );
 
         // 2. External call failed
@@ -689,7 +955,13 @@ contract GeniusExecutorDrain is Test {
             address(USDC),
             1 ether
         );
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.ExternalCallFailed.selector, address(DEX_ROUTER), 0));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.ExternalCallFailed.selector,
+                address(DEX_ROUTER),
+                0
+            )
+        );
         vm.prank(trader);
         EXECUTOR.nativeSwapAndDeposit{value: 1 ether}(
             keccak256("order"),
@@ -699,11 +971,18 @@ contract GeniusExecutorDrain is Test {
             42,
             uint32(block.timestamp + 200),
             1 ether,
-            receiver
+            receiver,
+            0,
+            bytes32(uint256(1))
         );
 
         // 3. Insufficient ETH sent
-        vm.expectRevert(abi.encodeWithSelector(GeniusErrors.InvalidNativeAmount.selector, 1 ether));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidNativeAmount.selector,
+                1 ether
+            )
+        );
         vm.prank(trader);
         EXECUTOR.nativeSwapAndDeposit{value: 0.5 ether}(
             keccak256("order"),
@@ -713,7 +992,9 @@ contract GeniusExecutorDrain is Test {
             42,
             uint32(block.timestamp + 200),
             1 ether,
-            receiver
+            receiver,
+            0,
+            bytes32(uint256(1))
         );
     }
 }

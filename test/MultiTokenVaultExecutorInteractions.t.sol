@@ -193,7 +193,9 @@ contract MultiTokenVaultExecutorInteractions is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(
@@ -302,7 +304,9 @@ contract MultiTokenVaultExecutorInteractions is Test {
             42,
             uint32(uint32(block.timestamp + 200)),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(
@@ -355,7 +359,9 @@ contract MultiTokenVaultExecutorInteractions is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(

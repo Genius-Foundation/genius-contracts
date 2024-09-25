@@ -49,7 +49,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
     IGeniusVault.Order public order =
@@ -62,7 +64,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
     function setUp() public {
@@ -174,12 +178,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
     }
 
@@ -189,12 +195,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
     }
 
@@ -206,12 +214,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
     }
 
@@ -233,7 +243,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         address[] memory targets = new address[](1);
@@ -310,7 +322,9 @@ contract GeniusVaultTest is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(
@@ -357,7 +371,9 @@ contract GeniusVaultTest is Test {
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
             fee: 1 ether,
-            receiver: RECEIVER
+            receiver: RECEIVER,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         address[] memory targets = new address[](1);
@@ -424,7 +440,9 @@ contract GeniusVaultTest is Test {
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
             fee: 1 ether,
-            receiver: RECEIVER
+            receiver: RECEIVER,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Empty arrays for targets, values, and calldatas
@@ -476,12 +494,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         assertEq(
@@ -691,12 +711,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             _fillDeadline,
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         IGeniusVault.Order memory _order_ = IGeniusVault.Order({
@@ -708,7 +730,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: _fillDeadline,
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         bytes32 orderHash = VAULT.orderHash(_order_);
@@ -733,7 +757,9 @@ contract GeniusVaultTest is Test {
             destChainId: uint16(block.chainid),
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         address[] memory targets = new address[](1);
@@ -768,12 +794,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         order = IGeniusVault.Order({
@@ -785,7 +813,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         vm.startPrank(ORCHESTRATOR);
@@ -806,12 +836,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 100),
-            5 ether,
-            RECEIVER
+            5 ether
         );
         vm.stopPrank();
 
@@ -824,7 +856,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 5 ether
+            fee: 5 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Advance time past the fillDeadline
@@ -892,12 +926,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 100),
-            5 ether,
-            RECEIVER
+            5 ether
         );
         vm.stopPrank();
 
@@ -910,7 +946,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 5 ether
+            fee: 5 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Advance time past the fillDeadline
@@ -969,12 +1007,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         vm.stopPrank();
 
@@ -987,7 +1027,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         address[] memory targets = new address[](2);
@@ -1035,12 +1077,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
+            0,
             0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
     }
 
@@ -1055,12 +1099,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(WETH),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
     }
 
@@ -1075,12 +1121,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             uint16(block.chainid),
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
     }
 
@@ -1092,12 +1140,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp - 1),
-            1 ether,
-            RECEIVER
+            1 ether
         );
     }
 
@@ -1114,7 +1164,9 @@ contract GeniusVaultTest is Test {
             destChainId: uint32(block.chainid),
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Advance time past the fillDeadline
@@ -1151,12 +1203,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         vm.startPrank(ORCHESTRATOR);
@@ -1173,12 +1227,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         order = IGeniusVault.Order({
@@ -1190,7 +1246,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         vm.startPrank(ORCHESTRATOR);
@@ -1209,12 +1267,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 100),
-            3 ether,
-            RECEIVER
+            3 ether
         );
         vm.stopPrank();
 
@@ -1227,7 +1287,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 3 ether
+            fee: 3 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         address[] memory targets = new address[](1);
@@ -1264,12 +1326,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 100),
-            3 ether,
-            RECEIVER
+            3 ether
         );
 
         order = IGeniusVault.Order({
@@ -1281,7 +1345,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: uint32(block.timestamp + 100),
             tokenIn: address(USDC),
-            fee: 3 ether
+            fee: 3 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Advance time past the fillDeadline
@@ -1330,12 +1396,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("invalidDeadlineOrder"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             invalidDeadline,
-            1 ether,
-            RECEIVER
+            1 ether
         );
         vm.stopPrank();
     }
@@ -1349,12 +1417,14 @@ contract GeniusVaultTest is Test {
         VAULT.addLiquiditySwap(
             keccak256("orderToRevert"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             validDeadline,
-            3 ether,
-            RECEIVER
+            3 ether
         );
         vm.stopPrank();
 
@@ -1368,7 +1438,9 @@ contract GeniusVaultTest is Test {
             destChainId: destChainId,
             fillDeadline: validDeadline,
             tokenIn: address(USDC),
-            fee: 3 ether
+            fee: 3 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         // Prepare revert parameters
