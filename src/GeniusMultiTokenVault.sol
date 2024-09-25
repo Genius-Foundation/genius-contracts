@@ -187,20 +187,29 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         _isAmountValid(order.amountIn - order.fee, availableAssets());
 
         orderStatus[_orderHash] = OrderStatus.Filled;
+        address receiver = bytes32ToAddress(order.receiver);
 
         if (targets.length == 0) {
-            _transferERC20(
-                order.tokenIn,
-                bytes32ToAddress(order.receiver),
-                order.amountIn - order.fee
-            );
+            _transferERC20(order.tokenIn, receiver, order.amountIn - order.fee);
         } else {
+            IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
+
+            uint256 preSwapBalance = tokenOut.balanceOf(receiver);
+
             _transferERC20(
                 order.tokenIn,
                 address(EXECUTOR),
                 order.amountIn - order.fee
             );
             EXECUTOR.aggregate(targets, data, values);
+
+            uint256 postSwapBalance = tokenOut.balanceOf(receiver);
+
+            if (postSwapBalance - preSwapBalance < order.minAmountOut)
+                revert GeniusErrors.AmountAndDeltaMismatch(
+                    order.minAmountOut,
+                    postSwapBalance - preSwapBalance
+                );
         }
 
         emit SwapWithdrawal(

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
@@ -85,20 +86,33 @@ contract GeniusVault is GeniusVaultCore {
         if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
 
         orderStatus[orderHash_] = OrderStatus.Filled;
+        address receiver = bytes32ToAddress(order.receiver);
 
         if (targets.length == 0) {
             _transferERC20(
                 address(STABLECOIN),
-                bytes32ToAddress(order.receiver),
+                receiver,
                 order.amountIn - order.fee
             );
         } else {
+            IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
+
+            uint256 preSwapBalance = tokenOut.balanceOf(receiver);
+
             _transferERC20(
                 address(STABLECOIN),
                 address(EXECUTOR),
                 order.amountIn - order.fee
             );
             EXECUTOR.aggregate(targets, data, values);
+
+            uint256 postSwapBalance = tokenOut.balanceOf(receiver);
+
+            if (postSwapBalance - preSwapBalance < order.minAmountOut)
+                revert GeniusErrors.AmountAndDeltaMismatch(
+                    order.minAmountOut,
+                    postSwapBalance - preSwapBalance
+                );
         }
 
         emit SwapWithdrawal(
