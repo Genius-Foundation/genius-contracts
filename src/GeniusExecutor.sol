@@ -95,6 +95,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
+        if (msg.sender != owner) {
+            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
+                revert GeniusErrors.IsNotOrchestrator();
+            }
+        }
+
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
 
@@ -137,12 +143,19 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 fillDeadline,
         uint256 fee,
         bytes32 receiver
-    ) external override onlyOrchestrator nonReentrant {
-        if (permitBatch.details.length != 1) revert GeniusErrors.InvalidPermitBatchLength();
+    ) external override nonReentrant {
+        if (permitBatch.details.length != 1)
+            revert GeniusErrors.InvalidPermitBatchLength();
 
         address[] memory targets = new address[](1);
         targets[0] = target;
         _checkTargets(targets, permitBatch.details, owner);
+
+        if (msg.sender != owner) {
+            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
+                revert GeniusErrors.IsNotOrchestrator();
+            }
+        }
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
@@ -199,14 +212,18 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         uint32 fillDeadline,
         uint256 fee,
         bytes32 receiver
-    ) external override payable onlyOrchestrator nonReentrant {
-        if (
-            targets.length != data.length ||
-            data.length != values.length
-        ) revert GeniusErrors.ArrayLengthsMismatch();
+    ) external payable override nonReentrant {
+        if (targets.length != data.length || data.length != values.length)
+            revert GeniusErrors.ArrayLengthsMismatch();
 
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
+
+        if (msg.sender != owner) {
+            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
+                revert GeniusErrors.IsNotOrchestrator();
+            }
+        }
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
