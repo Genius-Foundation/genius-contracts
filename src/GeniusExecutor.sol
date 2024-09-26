@@ -95,7 +95,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner
-    ) external payable override onlyOrchestrator nonReentrant {
+    ) external payable override nonReentrant {
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
@@ -152,7 +152,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
-    ) external override onlyOrchestrator nonReentrant {
+    ) external override nonReentrant {
         if (permitBatch.details.length != 1)
             revert GeniusErrors.InvalidPermitBatchLength();
 
