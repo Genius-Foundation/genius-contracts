@@ -206,9 +206,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             uint256 postSwapBalance = tokenOut.balanceOf(receiver);
 
             if (postSwapBalance - preSwapBalance < order.minAmountOut)
-                revert GeniusErrors.AmountAndDeltaMismatch(
-                    order.minAmountOut,
-                    postSwapBalance - preSwapBalance
+                revert GeniusErrors.InvalidAmountOut(
+                    postSwapBalance - preSwapBalance,
+                    order.minAmountOut
                 );
         }
 

@@ -111,28 +111,36 @@ contract GeniusVaultOrders is Test {
             fillDeadline: timestamp,
             tokenIn: address(USDC),
             fee: 1 ether,
-            minAmountOut: 50_000_000,
+            minAmountOut: 50_000_000 ether,
             tokenOut: VAULT.addressToBytes32(address(TOKEN1))
         });
 
         // Remove liquidity
         vm.startPrank(address(ORCHESTRATOR));
 
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
+        address[] memory targets = new address[](2);
+        bytes[] memory calldatas = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
 
-        // Target is stablecoin
-        targets[0] = address(DEX_ROUTER);
-        // Create calldata to transfer the stablecoin to this contract
+        // Executor authorizes the Router to spend USDC
+        targets[0] = address(USDC);
         calldatas[0] = abi.encodeWithSelector(
+            ERC20.approve.selector,
+            address(DEX_ROUTER),
+            order.amountIn - order.fee
+        );
+        values[0] = 0;
+
+        // Executor swaps USDC for TOKEN1
+        targets[1] = address(DEX_ROUTER);
+        calldatas[1] = abi.encodeWithSelector(
             DEX_ROUTER.swap.selector,
             address(USDC),
             address(TOKEN1),
-            order.amountIn - order.fee
+            order.amountIn - order.fee,
+            TRADER
         );
-        // Value is 0
-        values[0] = 0;
+        values[1] = 0;
 
         VAULT.removeLiquiditySwap(order, targets, values, calldatas);
         vm.stopPrank();
@@ -153,22 +161,81 @@ contract GeniusVaultOrders is Test {
         );
         assertEq(
             VAULT.unclaimedFees(),
-            1 ether,
-            "Total unclaimed fees should still be 0 ether"
+            0 ether,
+            "Total unclaimed fees should be 0 ether"
         );
         assertEq(
             VAULT.availableAssets(),
-            0 ether,
-            "Available Stablecoin balance should be 0"
+            1 ether,
+            "Available Stablecoin balance should be 1"
         );
         assertEq(
             VAULT.reservedAssets(),
             0 ether,
             "Reserved Stablecoin balance should be 0 ether"
         );
-        assertTrue(
-            TOKEN1.balanceOf(TRADER) > order.minAmountOut,
+        assertEq(
+            TOKEN1.balanceOf(TRADER),
+            order.minAmountOut,
             "Trader should receive the correct amount"
         );
+    }
+
+    function testRemoveLiquiditySwapShouldRevertIfAmountOutTooSmall() public {
+        vm.startPrank(address(EXECUTOR));
+        USDC.approve(address(VAULT), 1_000 ether);
+        uint32 timestamp = uint32(block.timestamp + 200);
+
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            trader: TRADER,
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order"), // This should be the correct order ID
+            srcChainId: sourceChainId, // Use the current chain ID
+            destChainId: targetChainId,
+            fillDeadline: timestamp,
+            tokenIn: address(USDC),
+            fee: 1 ether,
+            minAmountOut: 51_000_000 ether,
+            tokenOut: VAULT.addressToBytes32(address(TOKEN1))
+        });
+
+        // Remove liquidity
+        vm.startPrank(address(ORCHESTRATOR));
+
+        address[] memory targets = new address[](2);
+        bytes[] memory calldatas = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        // Executor authorizes the Router to spend USDC
+        targets[0] = address(USDC);
+        calldatas[0] = abi.encodeWithSelector(
+            ERC20.approve.selector,
+            address(DEX_ROUTER),
+            order.amountIn - order.fee
+        );
+        values[0] = 0;
+
+        // Executor swaps USDC for TOKEN1
+        targets[1] = address(DEX_ROUTER);
+        calldatas[1] = abi.encodeWithSelector(
+            DEX_ROUTER.swap.selector,
+            address(USDC),
+            address(TOKEN1),
+            order.amountIn - order.fee,
+            TRADER
+        );
+        values[1] = 0;
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidAmountOut.selector,
+                50_000_000 ether,
+                51_000_000 ether
+            )
+        );
+
+        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+        vm.stopPrank();
     }
 }
