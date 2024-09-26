@@ -402,7 +402,9 @@ contract GeniusExecutorTest is Test {
             destChainId,
             fillDeadline,
             1 ether,
-            encodedReceiver
+            encodedReceiver,
+            0,
+            bytes32(uint256(1))
         );
         vm.stopPrank();
 
@@ -462,7 +464,9 @@ contract GeniusExecutorTest is Test {
             destChainId,
             fillDeadline,
             1 ether,
-            encodedReceiver
+            encodedReceiver,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(
@@ -583,7 +587,9 @@ contract GeniusExecutorTest is Test {
             42,
             uint32(block.timestamp + 200),
             1 ether,
-            encodedReceiver
+            encodedReceiver,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(

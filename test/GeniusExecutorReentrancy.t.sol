@@ -201,7 +201,9 @@ contract GeniusExecutorReentrancy is Test {
             destChainId,
             fillDeadline,
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
     }
 

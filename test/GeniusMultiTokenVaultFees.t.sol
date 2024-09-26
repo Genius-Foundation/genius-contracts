@@ -27,8 +27,7 @@ contract GeniusMultiTokenVaultFees is Test {
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
-    bytes32 RECEIVER =
-        keccak256("Bh265EkhNxAQA4rS3ey2QT2yJkE8ZS6QqSvrZTMdm8p7");
+    bytes32 RECEIVER;
 
     ERC20 public USDC;
     ERC20 public WETH;
@@ -46,6 +45,7 @@ contract GeniusMultiTokenVaultFees is Test {
 
         OWNER = makeAddr("OWNER");
         TRADER = makeAddr("TRADER");
+        RECEIVER = bytes32(uint256(uint160(TRADER)));
         ORCHESTRATOR = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38; // The hardcoded tx.origin for forge
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
@@ -69,9 +69,7 @@ contract GeniusMultiTokenVaultFees is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            initialTokens,
-            initialBridges,
-            initialRouters
+            initialTokens
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -97,7 +95,6 @@ contract GeniusMultiTokenVaultFees is Test {
         VAULT.setExecutor(address(EXECUTOR));
 
         vm.startPrank(OWNER);
-        VAULT.manageRouter(address(DEX_ROUTER), true);
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
@@ -127,12 +124,14 @@ contract GeniusMultiTokenVaultFees is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         assertEq(
@@ -186,19 +185,23 @@ contract GeniusMultiTokenVaultFees is Test {
             destChainId: 42,
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         USDC.approve(address(VAULT), 1_000 ether);
         VAULT.addLiquiditySwap(
             keccak256("order"),
             order.trader,
+            order.receiver,
             order.tokenIn,
+            order.tokenOut,
             order.amountIn,
+            order.minAmountOut,
             order.destChainId,
             order.fillDeadline,
-            order.fee,
-            order.receiver
+            order.fee
         );
         vm.stopPrank();
 
@@ -227,7 +230,9 @@ contract GeniusMultiTokenVaultFees is Test {
             destChainId: uint16(block.chainid),
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 3 ether
+            fee: 3 ether,
+            minAmountOut: 0,
+            tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         // Create dummy targets, calldata, and values arrays to call removeLiquiditySwap
@@ -304,25 +309,29 @@ contract GeniusMultiTokenVaultFees is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         // Create an Order struct for removing liquidity
         IGeniusVault.Order memory order = IGeniusVault.Order({
             trader: TRADER,
             receiver: RECEIVER,
-            amountIn: 1_001 ether,
+            amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: address(USDC),
-            fee: 1 ether
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
         });
 
         address[] memory targets = new address[](1);
@@ -335,7 +344,7 @@ contract GeniusMultiTokenVaultFees is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            1001 ether
+            999 ether
         );
         // Value is 0
         values[0] = 0;
@@ -346,7 +355,7 @@ contract GeniusMultiTokenVaultFees is Test {
             abi.encodeWithSelector(
                 GeniusErrors.InsufficientLiquidity.selector,
                 0 ether,
-                1000 ether
+                999 ether
             )
         );
         VAULT.removeLiquiditySwap(order, targets, values, calldatas);
@@ -392,32 +401,38 @@ contract GeniusMultiTokenVaultFees is Test {
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDC),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(WETH),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
         VAULT.addLiquiditySwap(
             keccak256("order"),
             TRADER,
+            RECEIVER,
             address(USDT),
+            bytes32(uint256(1)),
             1_000 ether,
+            0,
             destChainId,
             uint32(block.timestamp + 200),
-            1 ether,
-            RECEIVER
+            1 ether
         );
 
         assertEq(
