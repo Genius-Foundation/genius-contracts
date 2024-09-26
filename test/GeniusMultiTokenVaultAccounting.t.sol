@@ -16,7 +16,6 @@ import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
-import {MockSwapTarget} from "./mocks/MockSwapTarget.sol";
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
 contract GeniusMultiTokenVaultAccounting is Test {
