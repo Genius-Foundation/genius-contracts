@@ -99,6 +99,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
+        if (msg.sender != owner) {
+            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
+                revert GeniusErrors.IsNotOrchestrator();
+            }
+        }
+
         _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
 
@@ -153,6 +159,12 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address[] memory targets = new address[](1);
         targets[0] = target;
         _checkTargets(targets, permitBatch.details, owner);
+
+        if (msg.sender != owner) {
+            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
+                revert GeniusErrors.IsNotOrchestrator();
+            }
+        }
 
         _permitAndBatchTransfer(permitBatch, signature, owner);
 
@@ -223,12 +235,18 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
-    ) external payable override onlyOrchestrator nonReentrant {
+    ) external payable override nonReentrant {
         if (targets.length != data.length || data.length != values.length)
             revert GeniusErrors.ArrayLengthsMismatch();
 
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
+
+        if (msg.sender != owner) {
+            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
+                revert GeniusErrors.IsNotOrchestrator();
+            }
+        }
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
