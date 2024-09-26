@@ -34,15 +34,17 @@ interface IGeniusVault {
      * @param tokenIn The address of the token to be swapped.
      */
     struct Order {
-        bytes32 seed;
-        uint256 amountIn;
-        address trader;
-        bytes32 receiver;
-        uint16 srcChainId;
-        uint32 destChainId;
-        uint32 fillDeadline;
-        address tokenIn;
-        uint256 fee;
+        bytes32 seed; // slot 0
+        uint256 amountIn; // slot 1
+        bytes32 receiver; // slot 2
+        address trader; // slot 3 bytes20
+        uint16 srcChainId; // slot 3 bytes22
+        uint32 destChainId; //slot 3 bytes26
+        uint32 fillDeadline; //slot 3 bytes30
+        address tokenIn; // slot 4 bytes20
+        uint256 fee; // slot 5
+        uint256 minAmountOut; // slot 6
+        bytes32 tokenOut; // slot 7
     }
 
     /**
@@ -144,6 +146,7 @@ interface IGeniusVault {
      * @param srcChainId The source chain ID.
      * @param destChainId The destination chain ID.
      * @param fillDeadline The deadline for filling the order.
+     * @param fee the fees paid for the order
      */
     event OrderReverted(
         bytes32 indexed seed,
@@ -272,12 +275,14 @@ interface IGeniusVault {
     function addLiquiditySwap(
         bytes32 seed,
         address trader,
+        bytes32 receiver,
         address tokenIn,
+        bytes32 tokenOut,
         uint256 amountIn,
+        uint256 minAmountOut,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee,
-        bytes32 receiver
+        uint256 fee
     ) external payable;
 
     /**
@@ -310,13 +315,6 @@ interface IGeniusVault {
      * @param threshold The new rebalance threshold to be set.
      */
     function setRebalanceThreshold(uint256 threshold) external;
-
-    /**
-     * @notice Authorizes or unauthorizes a bridge target.
-     * @param bridge The address of the bridge target to be managed.
-     * @param authorize True to authorize the bridge, false to unauthorize it.
-     */
-    function manageBridge(address bridge, bool authorize) external;
 
     /**
      * @notice Sets the order revert buffer.
@@ -370,6 +368,18 @@ interface IGeniusVault {
      * @return The rebalance threshold as a percentage.
      */
     function rebalanceThreshold() external view returns (uint256);
+
+    /**
+     * Extract an address from a right-padded bytes32 address
+     * @param _input bytes32 containing a right-padded bytes20 address
+     */
+    function bytes32ToAddress(bytes32 _input) external pure returns (address);
+
+    /**
+     * Convert an address to a right-padded bytes32 address
+     * @param _input address to convert
+     */
+    function addressToBytes32(address _input) external pure returns (bytes32);
 
     /**
      * @notice Returns the address of the stablecoin used in the vault.

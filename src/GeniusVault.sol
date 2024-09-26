@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
@@ -51,26 +52,12 @@ contract GeniusVault is GeniusVaultCore {
         uint256[] calldata values,
         bytes[] memory data
     ) external payable virtual override onlyOrchestrator whenNotPaused {
-        _checkBridgeTargets(targets);
-
-        uint256 preTransferAssets = stablecoinBalance();
-        uint256 _neededLiquidity = minLiquidity();
-
-        _isAmountValid(
-            amountIn,
-            _availableAssets(preTransferAssets, _neededLiquidity)
-        );
+        _isAmountValid(amountIn, availableAssets());
         _checkNative(_sum(values));
 
-        _batchExecution(targets, data, values);
+        _transferERC20(address(STABLECOIN), address(EXECUTOR), amountIn);
 
-        uint256 _stableDelta = preTransferAssets - stablecoinBalance();
-
-        if (_stableDelta != amountIn)
-            revert GeniusErrors.AmountInAndDeltaMismatch(
-                amountIn,
-                _stableDelta
-            );
+        EXECUTOR.aggregate(targets, data, values);
 
         emit RemovedLiquidity(amountIn, dstChainId);
     }
@@ -94,32 +81,39 @@ contract GeniusVault is GeniusVaultCore {
         if (order.srcChainId == _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
-        uint256 _totalAssets = stablecoinBalance();
-        uint256 _neededLiquidity = minLiquidity();
-        uint256 _expectedDelta = order.amountIn - order.fee;
-
-        _isAmountValid(
-            _expectedDelta,
-            _availableAssets(_totalAssets, _neededLiquidity)
-        );
+        _isAmountValid(order.amountIn - order.fee, availableAssets());
 
         if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
 
         orderStatus[orderHash_] = OrderStatus.Filled;
+        address receiver = bytes32ToAddress(order.receiver);
 
-        uint256 _preStableBalance = stablecoinBalance();
-
-        _transferERC20(address(STABLECOIN), address(EXECUTOR), _expectedDelta);
-        EXECUTOR.aggregate(targets, data, values);
-
-        uint256 _postStableBalance = stablecoinBalance();
-        uint256 _stableDelta = _preStableBalance - _postStableBalance;
-
-        if (_stableDelta > _expectedDelta)
-            revert GeniusErrors.AmountInAndDeltaMismatch(
-                _expectedDelta,
-                _stableDelta
+        if (targets.length == 0) {
+            _transferERC20(
+                address(STABLECOIN),
+                receiver,
+                order.amountIn - order.fee
             );
+        } else {
+            IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
+
+            uint256 preSwapBalance = tokenOut.balanceOf(receiver);
+
+            _transferERC20(
+                address(STABLECOIN),
+                address(EXECUTOR),
+                order.amountIn - order.fee
+            );
+            EXECUTOR.aggregate(targets, data, values);
+
+            uint256 postSwapBalance = tokenOut.balanceOf(receiver);
+
+            if (postSwapBalance - preSwapBalance < order.minAmountOut)
+                revert GeniusErrors.InvalidAmountOut(
+                    postSwapBalance - preSwapBalance,
+                    order.minAmountOut
+                );
+        }
 
         emit SwapWithdrawal(
             order.seed,
@@ -139,17 +133,20 @@ contract GeniusVault is GeniusVaultCore {
     function addLiquiditySwap(
         bytes32 seed,
         address trader,
+        bytes32 receiver,
         address tokenIn,
+        bytes32 tokenOut,
         uint256 amountIn,
+        uint256 minAmountOut,
         uint32 destChainId,
         uint32 fillDeadline,
-        uint256 fee,
-        bytes32 receiver
+        uint256 fee
     ) external payable virtual override onlyExecutor whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (tokenIn != address(STABLECOIN))
             revert GeniusErrors.InvalidToken(tokenIn);
+        if (tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
         if (destChainId == _currentChainId())
             revert GeniusErrors.InvalidDestChainId(destChainId);
         if (
@@ -166,15 +163,14 @@ contract GeniusVault is GeniusVaultCore {
             destChainId: destChainId,
             fillDeadline: fillDeadline,
             tokenIn: tokenIn,
-            fee: fee
+            fee: fee,
+            minAmountOut: minAmountOut,
+            tokenOut: tokenOut
         });
 
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
-
-        // Pre transfer check
-        uint256 _preTotalAssets = stablecoinBalance();
 
         _transferERC20From(
             address(STABLECOIN),
@@ -182,15 +178,6 @@ contract GeniusVault is GeniusVaultCore {
             address(this),
             order.amountIn
         );
-
-        // Check that the transfer was successful
-        uint256 _postTotalAssets = stablecoinBalance();
-
-        if (_postTotalAssets != _preTotalAssets + order.amountIn)
-            revert GeniusErrors.TransferFailed(
-                address(STABLECOIN),
-                order.amountIn
-            );
 
         reservedAssets += order.amountIn;
         orderStatus[orderHash_] = OrderStatus.Created;
@@ -287,19 +274,16 @@ contract GeniusVault is GeniusVaultCore {
 
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
-        uint256 _preStableBalance = stablecoinBalance();
-
-        _transferERC20(address(STABLECOIN), address(EXECUTOR), _totalRefund);
-        EXECUTOR.aggregate(targets, data, values);
-
-        uint256 _postStableBalance = stablecoinBalance();
-        uint256 _stableDelta = _preStableBalance - _postStableBalance;
-
-        if (_stableDelta > _totalRefund)
-            revert GeniusErrors.AmountInAndDeltaMismatch(
-                _totalRefund,
-                _stableDelta
+        if (targets.length == 0) {
+            _transferERC20(address(STABLECOIN), order.trader, _totalRefund);
+        } else {
+            _transferERC20(
+                address(STABLECOIN),
+                address(EXECUTOR),
+                _totalRefund
             );
+            EXECUTOR.aggregate(targets, data, values);
+        }
 
         reservedAssets -= order.amountIn;
         unclaimedFees += _protocolFee;
@@ -319,7 +303,7 @@ contract GeniusVault is GeniusVaultCore {
 
     function minLiquidity() public view override returns (uint256) {
         uint256 reduction = totalStakedAssets > 0
-            ? (totalStakedAssets * rebalanceThreshold) / 100
+            ? (totalStakedAssets * rebalanceThreshold) / 10_000
             : 0;
         uint256 minBalance = totalStakedAssets > reduction
             ? totalStakedAssets - reduction

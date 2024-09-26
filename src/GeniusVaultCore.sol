@@ -103,7 +103,7 @@ abstract contract GeniusVaultCore is
         __Pausable_init();
 
         STABLECOIN = IERC20(stablecoin);
-        rebalanceThreshold = 75;
+        rebalanceThreshold = 7_500; // 75%
         crosschainFee = 30;
         orderRevertBuffer = 60;
         maxOrderTime = 300;
@@ -191,7 +191,8 @@ abstract contract GeniusVaultCore is
     function setRebalanceThreshold(
         uint256 _rebalanceThreshold
     ) external override onlyAdmin {
-        if (_rebalanceThreshold > 100) revert GeniusErrors.InvalidThreshold();
+        _validatePercentage(_rebalanceThreshold);
+
         rebalanceThreshold = _rebalanceThreshold;
         emit RebalanceThresholdChanged(_rebalanceThreshold);
     }
@@ -208,32 +209,13 @@ abstract contract GeniusVaultCore is
     /**
      * @dev See {IGeniusVault-setCrosschainFee}.
      */
-    function setCrosschainFee(uint256 fee) external override onlyAdmin {
-        crosschainFee = fee;
-        emit CrosschainFeeChanged(fee);
-    }
-
-    // ╔═══════════════════════════════════════════════════════════╗
-    // ║                    BRIDGE MANAGEMENT                      ║
-    // ╚═══════════════════════════════════════════════════════════╝
-
-    /**
-     * @dev See {IGeniusMultiTokenVault-manageBridge}.
-     */
-    function manageBridge(
-        address bridge,
-        bool authorize
+    function setCrosschainFee(
+        uint256 _crosschaiFee
     ) external override onlyAdmin {
-        if (authorize) {
-            if (supportedBridges[bridge] == 1)
-                revert GeniusErrors.InvalidTarget(bridge);
-            supportedBridges[bridge] = 1;
-        } else {
-            if (supportedBridges[bridge] == 0)
-                revert GeniusErrors.InvalidTarget(bridge);
-            supportedBridges[bridge] = 0;
-        }
-        emit BridgeAuthorized(bridge, authorize);
+        _validatePercentage(_crosschaiFee);
+
+        crosschainFee = _crosschaiFee;
+        emit CrosschainFeeChanged(_crosschaiFee);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -286,6 +268,30 @@ abstract contract GeniusVaultCore is
         virtual
         returns (uint256, uint256, uint256);
 
+    /**
+     * @dev See {IGeniusVault-bytes32ToAddress}.
+     */
+    function bytes32ToAddress(
+        bytes32 _input
+    ) public pure override returns (address) {
+        require(
+            uint96(uint256(_input) >> 160) == 0,
+            "First 12 bytes must be zero"
+        );
+        address extractedAddress = address(uint160(uint256(_input)));
+        require(extractedAddress != address(0), "Invalid zero address");
+        return extractedAddress;
+    }
+
+    /**
+     * @dev See {IGeniusVault-addressToBytes32}.
+     */
+    function addressToBytes32(
+        address _input
+    ) public pure override returns (bytes32) {
+        return bytes32(uint256(uint160(_input)));
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
@@ -297,24 +303,6 @@ abstract contract GeniusVaultCore is
     function _checkNative(uint256 amount) internal {
         if (msg.value != amount)
             revert GeniusErrors.InvalidNativeAmount(amount);
-    }
-
-    /**
-     * @dev Internal function to check if the given bridge targets are supported.
-     * @param bridgeTargets The array of bridge target addresses to check.
-     */
-    function _checkBridgeTargets(address[] memory bridgeTargets) internal view {
-        for (uint256 i; i < bridgeTargets.length; ) {
-            if (supportedBridges[bridgeTargets[i]] == 0) {
-                if (bridgeTargets[i] != address(STABLECOIN)) {
-                    revert GeniusErrors.InvalidTarget(bridgeTargets[i]);
-                }
-            }
-
-            unchecked {
-                i++;
-            }
-        }
     }
 
     /**
@@ -397,6 +385,10 @@ abstract contract GeniusVaultCore is
         return (amountIn - _protocolFee, _protocolFee);
     }
 
+    function _validatePercentage(uint256 percentage) internal pure {
+        if (percentage > 10_000) revert GeniusErrors.InvalidPercentage();
+    }
+
     /**
      * @dev Internal function to safeTransfer ERC20 tokens.
      * @param token The address of the token to transfer.
@@ -425,28 +417,6 @@ abstract contract GeniusVaultCore is
         uint256 amount
     ) internal {
         IERC20(token).safeTransferFrom(from, to, amount);
-    }
-
-    /**
-     * @dev Internal function to batch execute external calls.
-     * @param targets The array of target addresses to call.
-     * @param data The array of data to pass to the target addresses.
-     * @param values The array of values to send to the target addresses.
-     */
-    function _batchExecution(
-        address[] memory targets,
-        bytes[] memory data,
-        uint256[] memory values
-    ) internal {
-        for (uint i = 0; i < targets.length; ) {
-            (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            if (!_success)
-                revert GeniusErrors.ExternalCallFailed(targets[i], i);
-
-            unchecked {
-                i++;
-            }
-        }
     }
 
     /**

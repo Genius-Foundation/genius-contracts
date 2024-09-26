@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IAllowanceTransfer } from "permit2/interfaces/IAllowanceTransfer.sol";
-import { IGeniusVault } from "./IGeniusVault.sol";
-import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {IGeniusVault} from "./IGeniusVault.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /**
  * @title IGeniusExecutor
  * @author looter
- * 
+ *
  * @notice Interface for efficient aggregation of multiple calls
  *         in a single transaction. This interface allows for the aggregation
  *         of multiple token transfers and permits utilizing the Permit2 contract,
@@ -96,7 +96,9 @@ interface IGeniusExecutor {
         uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee,
-        bytes32 receiver
+        bytes32 receiver,
+        uint256 minAmountOut,
+        bytes32 tokenOut
     ) external;
 
     /**
@@ -122,7 +124,9 @@ interface IGeniusExecutor {
         uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee,
-        bytes32 receiver
+        bytes32 receiver,
+        uint256 minAmountOut,
+        bytes32 tokenOut
     ) external payable;
 
     /**
@@ -142,7 +146,9 @@ interface IGeniusExecutor {
         uint32 destChainId,
         uint32 fillDeadline,
         uint256 feeAmount,
-        bytes32 receiver
+        bytes32 receiver,
+        uint256 minAmountOut,
+        bytes32 tokenOut
     ) external payable;
 
     /**

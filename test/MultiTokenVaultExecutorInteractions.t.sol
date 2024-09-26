@@ -106,9 +106,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            supportedTokens,
-            bridges,
-            routers
+            supportedTokens
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -195,7 +193,9 @@ contract MultiTokenVaultExecutorInteractions is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(
@@ -304,7 +304,9 @@ contract MultiTokenVaultExecutorInteractions is Test {
             42,
             uint32(uint32(block.timestamp + 200)),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(
@@ -357,7 +359,9 @@ contract MultiTokenVaultExecutorInteractions is Test {
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
-            RECEIVER
+            RECEIVER,
+            0,
+            bytes32(uint256(1))
         );
 
         assertEq(
