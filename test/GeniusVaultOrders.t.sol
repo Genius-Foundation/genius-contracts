@@ -134,7 +134,7 @@ contract GeniusVaultOrders is Test {
         // Executor swaps USDC for TOKEN1
         targets[1] = address(DEX_ROUTER);
         calldatas[1] = abi.encodeWithSelector(
-            DEX_ROUTER.swap.selector,
+            DEX_ROUTER.swapTo.selector,
             address(USDC),
             address(TOKEN1),
             order.amountIn - order.fee,
@@ -219,7 +219,7 @@ contract GeniusVaultOrders is Test {
         // Executor swaps USDC for TOKEN1
         targets[1] = address(DEX_ROUTER);
         calldatas[1] = abi.encodeWithSelector(
-            DEX_ROUTER.swap.selector,
+            DEX_ROUTER.swapTo.selector,
             address(USDC),
             address(TOKEN1),
             order.amountIn - order.fee,

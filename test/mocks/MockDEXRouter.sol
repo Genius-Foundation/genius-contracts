@@ -53,7 +53,7 @@ contract MockDEXRouter {
         console.log("USDC amount out: ", _usdcAmount);
     }
 
-    function swap(
+    function swapTo(
         address tokenIn,
         address tokenOut,
         uint256 amountIn,
@@ -81,6 +81,34 @@ contract MockDEXRouter {
             to,
             IERC20(tokenOut).balanceOf(address(this)) / 2
         );
+
+        return amountOut;
+    }
+
+    function swap(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn
+    ) external payable returns (uint256 amountOut) {
+        require(tokenIn != tokenOut, "Cannot swap same token");
+
+        // Handle native token (ETH) as input
+        if (tokenIn == address(0)) {
+            require(msg.value == amountIn, "Incorrect ETH amount sent");
+        } else {
+            // For ERC20 input, we don't actually need to transfer tokens
+            // We just check if the caller has approved enough tokens
+            require(
+                IERC20(tokenIn).allowance(msg.sender, address(this)) >=
+                    amountIn,
+                "Insufficient allowance"
+            );
+        }
+
+        // Mint or transfer output tokens
+        address mockToken = _getOrCreateMockToken(tokenOut);
+        MockERC20(mockToken).mint(msg.sender, MINT_AMOUNT);
+        amountOut = MINT_AMOUNT;
 
         return amountOut;
     }
