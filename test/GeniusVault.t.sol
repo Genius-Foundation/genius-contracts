@@ -1319,67 +1319,6 @@ contract GeniusVaultTest is Test {
         vm.stopPrank();
     }
 
-    function testRevertOrderAsNonExecutor() public {
-        vm.startPrank(address(EXECUTOR));
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(
-            keccak256("order"),
-            TRADER,
-            RECEIVER,
-            address(USDC),
-            bytes32(uint256(1)),
-            1_000 ether,
-            0,
-            destChainId,
-            uint32(block.timestamp + 100),
-            3 ether
-        );
-
-        order = IGeniusVault.Order({
-            seed: keccak256("order"),
-            amountIn: 1_000 ether,
-            trader: TRADER,
-            receiver: RECEIVER,
-            srcChainId: uint16(block.chainid),
-            destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 100),
-            tokenIn: address(USDC),
-            fee: 3 ether,
-            minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
-        });
-
-        // Advance time past the fillDeadline
-        vm.warp(block.timestamp + 200);
-
-        vm.stopPrank();
-        vm.startPrank(TRADER);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.IsNotOrchestrator.selector)
-        );
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
-
-        // Target is stablecoin
-        targets[0] = address(USDC);
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
-            USDC.transfer.selector,
-            address(this),
-            997 ether
-        );
-        // Value is 0
-        values[0] = 0;
-
-        // Advance time past the fillDeadline
-        vm.warp(block.timestamp + 200);
-
-        VAULT.revertOrder(order, targets, values, calldatas);
-    }
-
     function testCannotAddOrderWithDeadlineAboveMaxOrderTime() public {
         uint32 currentTimestamp = uint32(block.timestamp);
         uint32 invalidDeadline = currentTimestamp +

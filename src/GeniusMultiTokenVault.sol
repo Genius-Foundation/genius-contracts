@@ -110,7 +110,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
-    ) external payable override onlyExecutor whenNotPaused {
+    ) external payable override whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (supportedTokens[tokenIn] == false)
@@ -315,7 +315,14 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
-    ) external nonReentrant onlyOrchestrator whenNotPaused {
+    ) external nonReentrant whenNotPaused {
+        if (
+            !hasRole(ORCHESTRATOR_ROLE, msg.sender) &&
+            msg.sender != order.trader
+        ) {
+            revert GeniusErrors.InvalidTrader();
+        }
+
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Created)
             revert GeniusErrors.InvalidOrderStatus();
