@@ -59,13 +59,7 @@ abstract contract GeniusVaultCore is
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
     // ╚═══════════════════════════════════════════════════════════╝
-
-    modifier onlyExecutor() {
-        if (msg.sender != address(EXECUTOR))
-            revert GeniusErrors.IsNotExecutor();
-        _;
-    }
-
+    
     modifier onlyAdmin() {
         if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
             revert GeniusErrors.IsNotAdmin();

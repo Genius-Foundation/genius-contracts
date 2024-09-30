@@ -141,7 +141,7 @@ contract GeniusVault is GeniusVaultCore {
         uint32 destChainId,
         uint32 fillDeadline,
         uint256 fee
-    ) external payable virtual override onlyExecutor whenNotPaused {
+    ) external payable virtual override whenNotPaused {
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
         if (amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (tokenIn != address(STABLECOIN))
@@ -256,7 +256,14 @@ contract GeniusVault is GeniusVaultCore {
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
-    ) external nonReentrant onlyOrchestrator whenNotPaused {
+    ) external nonReentrant whenNotPaused {
+        if (
+            !hasRole(ORCHESTRATOR_ROLE, msg.sender) &&
+            msg.sender != order.trader
+        ) {
+            revert GeniusErrors.InvalidTrader();
+        }
+
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Created)
             revert GeniusErrors.InvalidOrderStatus();

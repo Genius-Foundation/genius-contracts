@@ -409,6 +409,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address target,
         bool isAllowed
     ) public override onlyAdmin {
+        if (target == address(0)) revert GeniusErrors.InvalidTarget(target);
+        if (target == address(VAULT)) revert GeniusErrors.InvalidTarget(target);
         allowedTargets[target] = isAllowed ? 1 : 0;
         emit AllowedTarget(target, isAllowed);
     }
