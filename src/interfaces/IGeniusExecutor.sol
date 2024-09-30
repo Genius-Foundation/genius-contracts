@@ -74,30 +74,6 @@ interface IGeniusExecutor {
     ) external payable;
 
     /**
-     * @notice Deposits transferred stablecoin into the GeniusVault.
-     * @param seed The unique identifier for the swap and deposit.
-     * @param permitBatch The permit information for batch transfer.
-     * @param signature The signature for the permit.
-     * @param owner The address of the trader to deposit for.
-     * @param destChainId The destination chain ID for the liquidity.
-     * @param fillDeadline The deadline for filling the liquidity request.
-     * @dev This method will set `sender` to the `msg.sender` temporarily
-     *      for the span of its execution. This method does not support reentrancy.
-     */
-    function addLiquiditySwap(
-        bytes32 seed,
-        IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
-        address owner,
-        uint32 destChainId,
-        uint32 fillDeadline,
-        uint256 fee,
-        bytes32 receiver,
-        uint256 minAmountOut,
-        bytes32 tokenOut
-    ) external;
-
-    /**
      * @notice Executes a token swap and deposits the result into the GeniusVault.
      * @param seed The unique identifier for the swap and deposit.
      * @param target The address of the swap router to call.

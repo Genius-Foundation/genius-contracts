@@ -132,66 +132,6 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         if (msg.value > 0) _sweepNative(msg.sender);
     }
 
-    /**
-     * @dev See {IGeniusExecutor-addLiquiditySwap}.
-     */
-    function addLiquiditySwap(
-        bytes32 seed,
-        IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
-        address owner,
-        uint32 destChainId,
-        uint32 fillDeadline,
-        uint256 fee,
-        bytes32 receiver,
-        uint256 minAmountOut,
-        bytes32 tokenOut
-    ) external override nonReentrant {
-        if (permitBatch.details.length != 1)
-            revert GeniusErrors.InvalidPermitBatchLength();
-
-        if (msg.sender != owner) {
-            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
-                revert GeniusErrors.IsNotOrchestrator();
-            }
-        }
-
-        uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
-
-        _permitAndBatchTransfer(permitBatch, signature, owner);
-
-        uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
-        uint256 _depositAmount = _postStableValue > _initStableValue
-            ? _postStableValue - _initStableValue
-            : 0;
-
-        if (_depositAmount == 0)
-            revert GeniusErrors.UnexpectedBalanceChange(
-                address(STABLECOIN),
-                _initStableValue,
-                _postStableValue
-            );
-
-        if (!STABLECOIN.approve(address(VAULT), _depositAmount))
-            revert GeniusErrors.ApprovalFailure(
-                address(STABLECOIN),
-                _depositAmount
-            );
-
-        VAULT.addLiquiditySwap(
-            seed,
-            owner,
-            receiver,
-            address(STABLECOIN),
-            tokenOut,
-            _depositAmount,
-            minAmountOut,
-            destChainId,
-            fillDeadline,
-            fee
-        );
-    }
-
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                MULTICHAIN SWAP FUNCTIONS                  ║
     // ╚═══════════════════════════════════════════════════════════╝
