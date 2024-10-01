@@ -57,7 +57,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         for (uint256 i = 0; i < length; ) {
             address router = routers[i];
             if (router == address(0)) revert GeniusErrors.InvalidRouter(router);
-            setAllowedTarget(router, true);
+            _setAllowedTarget(router, true);
 
             unchecked {
                 ++i;
@@ -469,6 +469,10 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address target,
         bool isAllowed
     ) public override onlyAdmin {
+        _setAllowedTarget(target, isAllowed);
+    }
+
+    function _setAllowedTarget(address target, bool isAllowed) internal {
         if (target == address(0)) revert GeniusErrors.InvalidTarget(target);
         if (target == address(VAULT)) revert GeniusErrors.InvalidTarget(target);
         allowedTargets[target] = isAllowed ? 1 : 0;
