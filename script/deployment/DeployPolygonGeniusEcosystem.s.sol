@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {DeployGeniusEcosystemCore} from "./DeployGeniusEcosystemCore.s.sol";
 
+// COMMAND: forge script script/deployment/DeployPolygonGeniusEcosystem.s.sol --rpc-url $POLYGON_RPC_URL --broadcast --via-ir
 contract DeployPolygonGeniusEcosystem is DeployGeniusEcosystemCore {
     address public constant stableAddress = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
     address public constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -16,6 +17,11 @@ contract DeployPolygonGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        _run(stableAddress, permit2Address, owner, orchestrators);
+        address[] memory routers = new address[](3);
+        routers[0] = 0x4E3288c9ca110bCC82bf38F09A7b425c095d92Bf; // Odos
+        routers[1] = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5; // Kyberswap
+        routers[2] = 0xa7FD99748cE527eAdC0bDAc60cba8a4eF4090f7c; // OKX
+
+        _run(stableAddress, permit2Address, owner, orchestrators, routers);
     }
 }

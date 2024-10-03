@@ -25,7 +25,8 @@ contract DeployGeniusEcosystemCore is Script {
         address _stableAddress,
         address _permit2Address,
         address _owner,
-        address[] memory orchestrators
+        address[] memory orchestrators,
+        address[] memory routers
     ) internal {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
@@ -47,7 +48,7 @@ contract DeployGeniusEcosystemCore is Script {
             _permit2Address,
             address(geniusVault),
             _owner,
-            new address[](0)
+           routers
         );
 
         // Initialize the contracts
