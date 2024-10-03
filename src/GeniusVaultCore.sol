@@ -46,8 +46,8 @@ abstract contract GeniusVaultCore is
     // ║                         VARIABLES                         ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    uint32 public maxOrderTime; // In seconds
-    uint32 public orderRevertBuffer; // In seconds
+    uint256 public maxOrderTime; // In seconds
+    uint256 public orderRevertBuffer; // In seconds
 
     uint256 public crosschainFee; // The fee charged for cross-chain swaps
     uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
@@ -164,7 +164,7 @@ abstract contract GeniusVaultCore is
     /**
      * @dev See {IGeniusVault-setMaxOrderTime}.
      */
-    function setMaxOrderTime(uint32 _maxOrderTime) external override onlyAdmin {
+    function setMaxOrderTime(uint256 _maxOrderTime) external override onlyAdmin {
         maxOrderTime = _maxOrderTime;
         emit MaxOrderTimeChanged(_maxOrderTime);
     }
@@ -173,7 +173,7 @@ abstract contract GeniusVaultCore is
      * @dev See {IGeniusVault-setOrderRevertBuffer}.
      */
     function setOrderRevertBuffer(
-        uint32 _orderRevertBuffer
+        uint256 _orderRevertBuffer
     ) external override onlyAdmin {
         orderRevertBuffer = _orderRevertBuffer;
         emit OrderRevertBufferChanged(_orderRevertBuffer);

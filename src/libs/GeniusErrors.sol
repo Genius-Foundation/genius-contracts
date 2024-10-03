@@ -211,6 +211,11 @@ library GeniusErrors {
     error InvalidToken(address token);
 
     /**
+     * @dev Thrown when a token bytes32 is invalid.
+     */
+    error InvalidTokenIn();
+
+    /**
      * @dev Thrown when attempting to set a threshold balance that would exceed the minimum STABLECOIN balance needed.
      * @param threshBal The threshold balance being attempted to set.
      * @param attemptedThreshBal The balance that would be exceeded if the threshold is set.
