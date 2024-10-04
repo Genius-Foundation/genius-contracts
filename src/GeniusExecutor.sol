@@ -140,8 +140,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner,
-        uint32 destChainId,
-        uint32 fillDeadline,
+        uint256 destChainId,
+        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -178,18 +178,21 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
                 _depositAmount
             );
 
-        VAULT.addLiquiditySwap(
-            seed,
-            owner,
-            receiver,
-            address(STABLECOIN),
-            tokenOut,
-            _depositAmount,
-            minAmountOut,
-            destChainId,
-            fillDeadline,
-            fee
-        );
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: seed,
+            trader: VAULT.addressToBytes32(owner),
+            receiver: receiver,
+            tokenIn: VAULT.addressToBytes32(address(STABLECOIN)),
+            tokenOut: tokenOut,
+            amountIn: _depositAmount,
+            minAmountOut: minAmountOut,
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            srcChainId: block.chainid,
+            fee: fee
+        });
+
+        VAULT.addLiquiditySwap(order);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -206,8 +209,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner,
-        uint32 destChainId,
-        uint32 fillDeadline,
+        uint256 destChainId,
+        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -262,19 +265,21 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
                 _depositAmount
             );
 
-        VAULT.addLiquiditySwap(
-            seed,
-            owner,
-            receiver,
-            address(STABLECOIN),
-            tokenOut,
-            _depositAmount,
-            minAmountOut,
-            destChainId,
-            fillDeadline,
-            fee
-        );
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: seed,
+            trader: VAULT.addressToBytes32(owner),
+            receiver: receiver,
+            tokenIn: VAULT.addressToBytes32(address(STABLECOIN)),
+            tokenOut: tokenOut,
+            amountIn: _depositAmount,
+            minAmountOut: minAmountOut,
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            srcChainId: block.chainid,
+            fee: fee
+        });
 
+        VAULT.addLiquiditySwap(order);
         _sweepERC20s(permitBatch, owner);
     }
 
@@ -289,8 +294,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata signature,
         address owner,
-        uint32 destChainId,
-        uint32 fillDeadline,
+        uint256 destChainId,
+        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -331,18 +336,21 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
                 _depositAmount
             );
 
-        VAULT.addLiquiditySwap(
-            seed,
-            owner,
-            receiver,
-            address(STABLECOIN),
-            tokenOut,
-            _depositAmount,
-            minAmountOut,
-            destChainId,
-            fillDeadline,
-            fee
-        );
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: seed,
+            trader: VAULT.addressToBytes32(owner),
+            receiver: receiver,
+            tokenIn: VAULT.addressToBytes32(address(STABLECOIN)),
+            tokenOut: tokenOut,
+            amountIn: _depositAmount,
+            minAmountOut: minAmountOut,
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            srcChainId: block.chainid,
+            fee: fee
+        });
+
+        VAULT.addLiquiditySwap(order);
 
         _sweepERC20s(permitBatch, owner);
         if (msg.value > 0) _sweepNative(msg.sender);
@@ -356,8 +364,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address target,
         bytes calldata data,
         uint256 value,
-        uint32 destChainId,
-        uint32 fillDeadline,
+        uint256 destChainId,
+        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -395,18 +403,21 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
                 _depositAmount
             );
 
-        VAULT.addLiquiditySwap(
-            seed,
-            msg.sender,
-            receiver,
-            address(STABLECOIN),
-            tokenOut,
-            _depositAmount,
-            minAmountOut,
-            destChainId,
-            fillDeadline,
-            fee
-        );
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: seed,
+            trader: VAULT.addressToBytes32(msg.sender),
+            receiver: receiver,
+            tokenIn: VAULT.addressToBytes32(address(STABLECOIN)),
+            tokenOut: tokenOut,
+            amountIn: _depositAmount,
+            minAmountOut: minAmountOut,
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            srcChainId: block.chainid,
+            fee: fee
+        });
+
+        VAULT.addLiquiditySwap(order);
 
         if (msg.value > 0) _sweepNative(msg.sender);
     }

@@ -120,19 +120,23 @@ contract GeniusMultiTokenVaultFees is Test {
 
     function testAddLiquidity() public {
         vm.startPrank(address(EXECUTOR));
+
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1000 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            srcChainId: block.chainid,
+            destChainId: 42,
+            fillDeadline: uint32(block.timestamp + 200),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            receiver: RECEIVER,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(
-            keccak256("order"),
-            TRADER,
-            RECEIVER,
-            address(USDC),
-            bytes32(uint256(1)),
-            1_000 ether,
-            0,
-            destChainId,
-            uint32(block.timestamp + 200),
-            1 ether
-        );
+        VAULT.addLiquiditySwap(order);
 
         assertEq(
             USDC.balanceOf(address(VAULT)),
@@ -177,32 +181,21 @@ contract GeniusMultiTokenVaultFees is Test {
 
         // Create an Order struct for removing liquidity
         IGeniusVault.Order memory order = IGeniusVault.Order({
-            trader: TRADER,
+            trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: uint16(block.chainid), // Use the current chain ID
             destChainId: 42,
             fillDeadline: uint32(block.timestamp + 200),
-            tokenIn: address(USDC),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(
-            keccak256("order"),
-            order.trader,
-            order.receiver,
-            order.tokenIn,
-            order.tokenOut,
-            order.amountIn,
-            order.minAmountOut,
-            order.destChainId,
-            order.fillDeadline,
-            order.fee
-        );
+        VAULT.addLiquiditySwap(order);
         vm.stopPrank();
 
         assertEq(
@@ -222,14 +215,14 @@ contract GeniusMultiTokenVaultFees is Test {
         vm.stopPrank();
 
         order = IGeniusVault.Order({
-            trader: TRADER,
+            trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 42, // Use the current chain ID
             destChainId: uint16(block.chainid),
             fillDeadline: uint32(block.timestamp + 200),
-            tokenIn: address(USDC),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 3 ether,
             minAmountOut: 0,
             tokenOut: VAULT.addressToBytes32(address(USDC))
@@ -305,34 +298,25 @@ contract GeniusMultiTokenVaultFees is Test {
 
     function testRemoveTooMuchLiquidity() public {
         vm.startPrank(address(EXECUTOR));
-        USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.addLiquiditySwap(
-            keccak256("order"),
-            TRADER,
-            RECEIVER,
-            address(USDC),
-            bytes32(uint256(1)),
-            1_000 ether,
-            0,
-            destChainId,
-            uint32(block.timestamp + 200),
-            1 ether
-        );
 
-        // Create an Order struct for removing liquidity
         IGeniusVault.Order memory order = IGeniusVault.Order({
-            trader: TRADER,
+            trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
             fillDeadline: uint32(block.timestamp + 200),
-            tokenIn: address(USDC),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
             tokenOut: bytes32(uint256(1))
         });
+
+        USDC.approve(address(VAULT), 1_000 ether);
+        VAULT.addLiquiditySwap(order);
+
+        // Create an Order struct for removing liquidity
 
         address[] memory targets = new address[](1);
         bytes[] memory calldatas = new bytes[](1);
@@ -398,42 +382,49 @@ contract GeniusMultiTokenVaultFees is Test {
         WETH.approve(address(VAULT), 10000 ether);
         USDT.approve(address(VAULT), 10000 ether);
 
-        VAULT.addLiquiditySwap(
-            keccak256("order"),
-            TRADER,
-            RECEIVER,
-            address(USDC),
-            bytes32(uint256(1)),
-            1_000 ether,
-            0,
-            destChainId,
-            uint32(block.timestamp + 200),
-            1 ether
-        );
-        VAULT.addLiquiditySwap(
-            keccak256("order"),
-            TRADER,
-            RECEIVER,
-            address(WETH),
-            bytes32(uint256(1)),
-            1_000 ether,
-            0,
-            destChainId,
-            uint32(block.timestamp + 200),
-            1 ether
-        );
-        VAULT.addLiquiditySwap(
-            keccak256("order"),
-            TRADER,
-            RECEIVER,
-            address(USDT),
-            bytes32(uint256(1)),
-            1_000 ether,
-            0,
-            destChainId,
-            uint32(block.timestamp + 200),
-            1 ether
-        );
+        IGeniusVault.Order memory orderUsdc = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order"),
+            srcChainId: block.chainid, // Use the current chain ID
+            destChainId: destChainId,
+            fillDeadline: uint32(block.timestamp + 200),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+        IGeniusVault.Order memory orderUsdt = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order"),
+            srcChainId: block.chainid, // Use the current chain ID
+            destChainId: destChainId,
+            fillDeadline: uint32(block.timestamp + 200),
+            tokenIn: VAULT.addressToBytes32(address(USDT)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+        IGeniusVault.Order memory orderWeth = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order"),
+            srcChainId: block.chainid,
+            destChainId: destChainId,
+            fillDeadline: uint32(block.timestamp + 200),
+            tokenIn: VAULT.addressToBytes32(address(WETH)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        VAULT.addLiquiditySwap(orderUsdc);
+        VAULT.addLiquiditySwap(orderUsdt);
+        VAULT.addLiquiditySwap(orderWeth);
 
         assertEq(
             USDC.balanceOf(address(VAULT)),

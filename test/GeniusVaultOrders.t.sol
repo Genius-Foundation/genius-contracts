@@ -102,14 +102,14 @@ contract GeniusVaultOrders is Test {
         uint32 timestamp = uint32(block.timestamp + 200);
 
         IGeniusVault.Order memory order = IGeniusVault.Order({
-            trader: TRADER,
+            trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: sourceChainId, // Use the current chain ID
             destChainId: targetChainId,
             fillDeadline: timestamp,
-            tokenIn: address(USDC),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 50_000_000 ether,
             tokenOut: VAULT.addressToBytes32(address(TOKEN1))
@@ -187,14 +187,14 @@ contract GeniusVaultOrders is Test {
         uint32 timestamp = uint32(block.timestamp + 200);
 
         IGeniusVault.Order memory order = IGeniusVault.Order({
-            trader: TRADER,
+            trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: sourceChainId, // Use the current chain ID
             destChainId: targetChainId,
             fillDeadline: timestamp,
-            tokenIn: address(USDC),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 51_000_000 ether,
             tokenOut: VAULT.addressToBytes32(address(TOKEN1))
