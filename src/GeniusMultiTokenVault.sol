@@ -78,7 +78,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      */
     function removeBridgeLiquidity(
         uint256 amountIn,
-        uint32 dstChainId,
+        uint256 dstChainId,
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata data
@@ -100,57 +100,43 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      * @dev See {IGeniusMultiTokenPool-addLiquiditySwap}.
      */
     function addLiquiditySwap(
-        bytes32 seed,
-        address trader,
-        bytes32 receiver,
-        address tokenIn,
-        bytes32 tokenOut,
-        uint256 amountIn,
-        uint256 minAmountOut,
-        uint32 destChainId,
-        uint32 fillDeadline,
-        uint256 fee
+        Order memory order
     ) external payable override whenNotPaused {
+        address tokenIn = bytes32ToAddress(order.tokenIn);
+        address trader = bytes32ToAddress(order.trader);
         if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (amountIn == 0) revert GeniusErrors.InvalidAmount();
+        if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (supportedTokens[tokenIn] == false)
             revert GeniusErrors.InvalidToken(tokenIn);
-        if (destChainId == _currentChainId())
-            revert GeniusErrors.InvalidDestChainId(destChainId);
+        if (order.destChainId == _currentChainId())
+            revert GeniusErrors.InvalidDestChainId(order.destChainId);
         if (
-            fillDeadline <= _currentTimeStamp() ||
-            fillDeadline > _currentTimeStamp() + maxOrderTime
+            order.fillDeadline <= _currentTimeStamp() ||
+            order.fillDeadline > _currentTimeStamp() + maxOrderTime
         ) revert GeniusErrors.InvalidDeadline();
-        if (tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
-
-        Order memory order = Order({
-            trader: trader,
-            receiver: receiver,
-            amountIn: amountIn,
-            seed: seed,
-            srcChainId: uint16(_currentChainId()),
-            destChainId: destChainId,
-            fillDeadline: fillDeadline,
-            tokenIn: tokenIn,
-            fee: fee,
-            minAmountOut: minAmountOut,
-            tokenOut: tokenOut
-        });
+        if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
 
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId())
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         if (tokenIn == NATIVE) {
-            if (msg.value != amountIn) revert GeniusErrors.InvalidAmount();
+            if (msg.value != order.amountIn)
+                revert GeniusErrors.InvalidAmount();
         } else {
-            if (!supportedTokens[tokenIn])
-                revert GeniusErrors.InvalidToken(tokenIn);
-            _transferERC20From(tokenIn, msg.sender, address(this), amountIn);
+            if (!supportedTokens[tokenIn]) revert GeniusErrors.InvalidTokenIn();
+            _transferERC20From(
+                tokenIn,
+                msg.sender,
+                address(this),
+                order.amountIn
+            );
         }
 
         orderStatus[_orderHash] = OrderStatus.Created;
-        supportedTokenReserves[tokenIn] += amountIn;
+        supportedTokenReserves[tokenIn] += order.amountIn;
 
         emit SwapDeposit(
             order.seed,
@@ -173,6 +159,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256[] calldata values,
         bytes[] memory data
     ) external override nonReentrant onlyOrchestrator whenNotPaused {
+        address tokenIn = bytes32ToAddress(order.tokenIn);
+        address receiver = bytes32ToAddress(order.receiver);
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Nonexistant)
             revert GeniusErrors.OrderAlreadyFilled(_orderHash);
@@ -182,22 +170,21 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             revert GeniusErrors.DeadlinePassed(order.fillDeadline);
         if (order.srcChainId == _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-        if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
 
         _isAmountValid(order.amountIn - order.fee, availableAssets());
 
         orderStatus[_orderHash] = OrderStatus.Filled;
-        address receiver = bytes32ToAddress(order.receiver);
 
         if (targets.length == 0) {
-            _transferERC20(order.tokenIn, receiver, order.amountIn - order.fee);
+            _transferERC20(tokenIn, receiver, order.amountIn - order.fee);
         } else {
             IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
 
             uint256 preSwapBalance = tokenOut.balanceOf(receiver);
 
             _transferERC20(
-                order.tokenIn,
+                tokenIn,
                 address(EXECUTOR),
                 order.amountIn - order.fee
             );
@@ -282,6 +269,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     function setOrderAsFilled(
         Order memory order
     ) external override(IGeniusVault) onlyOrchestrator whenNotPaused {
+        address tokenIn = bytes32ToAddress(order.tokenIn);
         bytes32 _orderHash = orderHash(order);
 
         if (orderStatus[_orderHash] != OrderStatus.Created)
@@ -291,8 +279,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         orderStatus[_orderHash] = OrderStatus.Filled;
 
-        supportedTokenFees[order.tokenIn] += order.fee;
-        supportedTokenReserves[order.tokenIn] -= order.amountIn;
+        supportedTokenFees[tokenIn] += order.fee;
+        supportedTokenReserves[tokenIn] -= order.amountIn;
 
         emit OrderFilled(
             order.seed,
@@ -316,10 +304,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256[] calldata values,
         bytes[] memory data
     ) external nonReentrant whenNotPaused {
-        if (
-            !hasRole(ORCHESTRATOR_ROLE, msg.sender) &&
-            msg.sender != order.trader
-        ) {
+        address tokenIn = bytes32ToAddress(order.tokenIn);
+        address trader = bytes32ToAddress(order.trader);
+        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender) && msg.sender != trader) {
             revert GeniusErrors.InvalidTrader();
         }
 
@@ -339,11 +326,11 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         );
 
         orderStatus[_orderHash] = OrderStatus.Reverted;
-        supportedTokenFees[order.tokenIn] += _protocolFee;
-        supportedTokenReserves[order.tokenIn] -= order.amountIn;
+        supportedTokenFees[tokenIn] += _protocolFee;
+        supportedTokenReserves[tokenIn] -= order.amountIn;
 
         if (targets.length == 0) {
-            _transferERC20(address(STABLECOIN), order.trader, _totalRefund);
+            _transferERC20(address(STABLECOIN), trader, _totalRefund);
         } else {
             _transferERC20(
                 address(STABLECOIN),

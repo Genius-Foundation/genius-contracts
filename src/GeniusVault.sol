@@ -47,7 +47,7 @@ contract GeniusVault is GeniusVaultCore {
      */
     function removeBridgeLiquidity(
         uint256 amountIn,
-        uint32 dstChainId,
+        uint256 dstChainId,
         address[] memory targets,
         uint256[] calldata values,
         bytes[] memory data
@@ -83,7 +83,7 @@ contract GeniusVault is GeniusVaultCore {
 
         _isAmountValid(order.amountIn - order.fee, availableAssets());
 
-        if (order.trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
 
         orderStatus[orderHash_] = OrderStatus.Filled;
         address receiver = bytes32ToAddress(order.receiver);
@@ -119,7 +119,7 @@ contract GeniusVault is GeniusVaultCore {
             order.seed,
             order.trader,
             order.receiver,
-            address(STABLECOIN),
+            addressToBytes32(address(STABLECOIN)),
             order.amountIn,
             order.srcChainId,
             order.destChainId,
@@ -131,42 +131,21 @@ contract GeniusVault is GeniusVaultCore {
      * @dev See {IGeniusVault-addLiquiditySwap}.
      */
     function addLiquiditySwap(
-        bytes32 seed,
-        address trader,
-        bytes32 receiver,
-        address tokenIn,
-        bytes32 tokenOut,
-        uint256 amountIn,
-        uint256 minAmountOut,
-        uint32 destChainId,
-        uint32 fillDeadline,
-        uint256 fee
+        Order memory order
     ) external payable virtual override whenNotPaused {
-        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
-        if (amountIn == 0) revert GeniusErrors.InvalidAmount();
-        if (tokenIn != address(STABLECOIN))
-            revert GeniusErrors.InvalidToken(tokenIn);
-        if (tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
-        if (destChainId == _currentChainId())
-            revert GeniusErrors.InvalidDestChainId(destChainId);
+        if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
+        if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
+        if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
+            revert GeniusErrors.InvalidTokenIn();
+        if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
+        if (order.destChainId == _currentChainId())
+            revert GeniusErrors.InvalidDestChainId(order.destChainId);
         if (
-            fillDeadline <= _currentTimeStamp() ||
-            fillDeadline > _currentTimeStamp() + maxOrderTime
+            order.fillDeadline <= _currentTimeStamp() ||
+            order.fillDeadline > _currentTimeStamp() + maxOrderTime
         ) revert GeniusErrors.InvalidDeadline();
-
-        Order memory order = Order({
-            trader: trader,
-            receiver: receiver,
-            amountIn: amountIn,
-            seed: seed,
-            srcChainId: uint16(_currentChainId()),
-            destChainId: destChainId,
-            fillDeadline: fillDeadline,
-            tokenIn: tokenIn,
-            fee: fee,
-            minAmountOut: minAmountOut,
-            tokenOut: tokenOut
-        });
+        if (order.srcChainId != _currentChainId())
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
@@ -259,7 +238,7 @@ contract GeniusVault is GeniusVaultCore {
     ) external nonReentrant whenNotPaused {
         if (
             !hasRole(ORCHESTRATOR_ROLE, msg.sender) &&
-            msg.sender != order.trader
+            msg.sender != bytes32ToAddress(order.trader)
         ) {
             revert GeniusErrors.InvalidTrader();
         }
@@ -282,7 +261,11 @@ contract GeniusVault is GeniusVaultCore {
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
         if (targets.length == 0) {
-            _transferERC20(address(STABLECOIN), order.trader, _totalRefund);
+            _transferERC20(
+                address(STABLECOIN),
+                bytes32ToAddress(order.trader),
+                _totalRefund
+            );
         } else {
             _transferERC20(
                 address(STABLECOIN),
