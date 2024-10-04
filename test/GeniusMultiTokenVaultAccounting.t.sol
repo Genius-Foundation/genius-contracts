@@ -912,7 +912,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
             srcChainId: block.chainid,
             destChainId: 42,
             fillDeadline: uint32(block.timestamp + 200),
-            tokenIn: VAULT.addressToBytes32(address(TOKEN1)),
+            tokenIn: VAULT.addressToBytes32(address(TOKEN2)),
             fee: 1 ether,
             receiver: RECEIVER,
             minAmountOut: 0,

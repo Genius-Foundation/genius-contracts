@@ -306,10 +306,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     ) external nonReentrant whenNotPaused {
         address tokenIn = bytes32ToAddress(order.tokenIn);
         address trader = bytes32ToAddress(order.trader);
-        if (
-            !hasRole(ORCHESTRATOR_ROLE, msg.sender) &&
-            msg.sender != trader
-        ) {
+        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender) && msg.sender != trader) {
             revert GeniusErrors.InvalidTrader();
         }
 

@@ -59,7 +59,7 @@ abstract contract GeniusVaultCore is
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
     // ╚═══════════════════════════════════════════════════════════╝
-    
+
     modifier onlyAdmin() {
         if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
             revert GeniusErrors.IsNotAdmin();
@@ -164,7 +164,9 @@ abstract contract GeniusVaultCore is
     /**
      * @dev See {IGeniusVault-setMaxOrderTime}.
      */
-    function setMaxOrderTime(uint256 _maxOrderTime) external override onlyAdmin {
+    function setMaxOrderTime(
+        uint256 _maxOrderTime
+    ) external override onlyAdmin {
         maxOrderTime = _maxOrderTime;
         emit MaxOrderTimeChanged(_maxOrderTime);
     }
@@ -272,9 +274,7 @@ abstract contract GeniusVaultCore is
             uint96(uint256(_input) >> 160) == 0,
             "First 12 bytes must be zero"
         );
-        address extractedAddress = address(uint160(uint256(_input)));
-        require(extractedAddress != address(0), "Invalid zero address");
-        return extractedAddress;
+        return address(uint160(uint256(_input)));
     }
 
     /**
