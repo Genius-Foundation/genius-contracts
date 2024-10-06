@@ -539,7 +539,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(address(EXECUTOR), tokens, amounts);
 
         // Create the calldata for the tokenSwapAndDeposit function
@@ -549,20 +549,42 @@ contract GeniusMultiTokenVaultAccounting is Test {
             address(USDC)
         );
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                address(DEX_ROUTER),
+                calldataSwap,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                destChainId,
+                uint32(block.timestamp + 200),
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         // Execute the tokenSwapAndDeposit function
         EXECUTOR.tokenSwapAndDeposit(
             keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         assertEq(
@@ -701,7 +723,7 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(address(EXECUTOR), tokens, amounts);
 
         // Create the calldata for the tokenSwapAndDeposit function
@@ -711,20 +733,42 @@ contract GeniusMultiTokenVaultAccounting is Test {
             address(USDC)
         );
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                address(DEX_ROUTER),
+                calldataSwap,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                destChainId,
+                uint32(block.timestamp + 200),
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         // Execute the tokenSwapAndDeposit function
         EXECUTOR.tokenSwapAndDeposit(
             keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         vm.stopPrank();
@@ -1155,23 +1199,44 @@ contract GeniusMultiTokenVaultAccounting is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(address(EXECUTOR), tokens, amounts);
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                address(DEX_ROUTER),
+                calldataSwap,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                42,
+                uint32(block.timestamp + 200),
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
         vm.startPrank(ORCHESTRATOR);
         EXECUTOR.tokenSwapAndDeposit(
             keccak256("order"),
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             42,
             uint32(block.timestamp + 200),
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         // Assertions
@@ -1597,5 +1662,18 @@ contract GeniusMultiTokenVaultAccounting is Test {
         );
         VAULT.revertOrder(order, targets, values, calldatas);
         vm.stopPrank();
+    }
+
+    function _hashToSignature(
+        bytes32 hashedValues
+    ) internal view returns (bytes memory) {
+        bytes32 ethSignedMessageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", hashedValues)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            ethSignedMessageHash
+        );
+        return abi.encodePacked(r, s, v);
     }
 }

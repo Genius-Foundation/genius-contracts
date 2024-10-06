@@ -56,8 +56,9 @@ interface IGeniusExecutor {
         bytes[] calldata data,
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
-        address owner
+        bytes calldata permitSignature,
+        address owner,
+        bytes calldata signature
     ) external payable;
 
     /**
@@ -87,14 +88,15 @@ interface IGeniusExecutor {
     function addLiquiditySwap(
         bytes32 seed,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
+        bytes calldata permitSignature,
         address owner,
         uint256 destChainId,
         uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
-        bytes32 tokenOut
+        bytes32 tokenOut,
+        bytes calldata signature
     ) external;
 
     /**
@@ -115,14 +117,15 @@ interface IGeniusExecutor {
         address target,
         bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
+        bytes calldata permitSignature,
         address owner,
         uint256 destChainId,
         uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
-        bytes32 tokenOut
+        bytes32 tokenOut,
+        bytes calldata signature
     ) external;
 
     /**
@@ -143,14 +146,15 @@ interface IGeniusExecutor {
         bytes[] calldata data,
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
+        bytes calldata permitSignature,
         address owner,
         uint256 destChainId,
         uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
-        bytes32 tokenOut
+        bytes32 tokenOut,
+        bytes calldata signature
     ) external payable;
 
     /**

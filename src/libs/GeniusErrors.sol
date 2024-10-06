@@ -239,4 +239,6 @@ library GeniusErrors {
     error InvalidPercentage();
 
     error NoStablecoinBalanceIncrease();
+
+    error InvalidSignature();
 }

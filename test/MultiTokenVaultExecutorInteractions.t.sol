@@ -175,11 +175,32 @@ contract MultiTokenVaultExecutorInteractions is Test {
                 sigDeadline: 1900000000
             });
 
-        bytes memory signature = SIG_UTILS.getPermitBatchSignature(
+        bytes memory permitSignature = SIG_UTILS.getPermitBatchSignature(
             permitBatch,
             P_KEY,
             DOMAIN_SEPERATOR
         );
+
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                address(ROUTER),
+                swapCalldata,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                destChainId,
+                uint32(block.timestamp + 200),
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
 
         // Perform the swap and deposit via GeniusExecutor
         vm.prank(ORCHESTRATOR);
@@ -188,14 +209,15 @@ contract MultiTokenVaultExecutorInteractions is Test {
             address(ROUTER),
             swapCalldata,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         assertEq(
@@ -250,7 +272,7 @@ contract MultiTokenVaultExecutorInteractions is Test {
                 sigDeadline: 1900000000
             });
 
-        bytes memory signature = SIG_UTILS.getPermitBatchSignature(
+        bytes memory permitSignature = SIG_UTILS.getPermitBatchSignature(
             permitBatch,
             P_KEY,
             DOMAIN_SEPERATOR
@@ -291,6 +313,28 @@ contract MultiTokenVaultExecutorInteractions is Test {
         TOKEN2.approve(address(ROUTER), AMOUNT);
         vm.stopPrank();
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                42,
+                uint32(uint32(block.timestamp + 200)),
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         // Perform the swap and deposit via GeniusExecutor
         vm.startPrank(ORCHESTRATOR);
         EXECUTOR.multiSwapAndDeposit(
@@ -299,14 +343,15 @@ contract MultiTokenVaultExecutorInteractions is Test {
             data,
             values,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             42,
             uint32(uint32(block.timestamp + 200)),
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         assertEq(
@@ -555,5 +600,15 @@ contract MultiTokenVaultExecutorInteractions is Test {
             991 ether,
             "TRADER should have 991 USDC"
         );
+    }
+
+    function _hashToSignature(
+        bytes32 hashedValues
+    ) internal view returns (bytes memory) {
+        bytes32 ethSignedMessageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", hashedValues)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(P_KEY, ethSignedMessageHash);
+        return abi.encodePacked(r, s, v);
     }
 }

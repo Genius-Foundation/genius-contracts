@@ -181,12 +181,34 @@ contract GeniusExecutorReentrancy is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 address(EXECUTOR),
                 [address(USDC), address(WETH)],
                 [uint160(10 ether), uint160(5 ether)]
             );
+
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                trader,
+                destChainId,
+                fillDeadline,
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
 
         vm.prank(trader);
         vm.expectRevert();
@@ -196,14 +218,15 @@ contract GeniusExecutorReentrancy is Test {
             data,
             values,
             permitBatch,
-            signature,
+            permitSignature,
             trader,
             destChainId,
             fillDeadline,
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
     }
 
@@ -246,13 +269,27 @@ contract GeniusExecutorReentrancy is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 address(EXECUTOR),
                 [address(USDC), address(WETH)],
                 [uint160(10 ether), uint160(5 ether)]
             );
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                trader,
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
         vm.startPrank(ORCHESTRATOR);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -261,13 +298,15 @@ contract GeniusExecutorReentrancy is Test {
                 3
             )
         );
+
         EXECUTOR.aggregateWithPermit2(
             targets,
             data,
             values,
             permitBatch,
-            signature,
-            trader
+            permitSignature,
+            trader,
+            signature
         );
     }
 
@@ -330,7 +369,7 @@ contract GeniusExecutorReentrancy is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 address(EXECUTOR),
                 [address(USDC), address(MALICIOUS_TOKEN)],
@@ -339,6 +378,21 @@ contract GeniusExecutorReentrancy is Test {
 
         uint256 initialExecutorBalance = address(EXECUTOR).balance;
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                trader,
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         vm.startPrank(ORCHESTRATOR);
         vm.expectRevert("TRANSFER_FROM_FAILED");
         EXECUTOR.aggregateWithPermit2(
@@ -346,8 +400,9 @@ contract GeniusExecutorReentrancy is Test {
             data,
             values,
             permitBatch,
-            signature,
-            trader
+            permitSignature,
+            trader,
+            signature
         );
 
         // Check that the EXECUTOR's ether balance hasn't changed
@@ -363,5 +418,18 @@ contract GeniusExecutorReentrancy is Test {
             0,
             "Attacker should not receive any ether"
         );
+    }
+
+    function _hashToSignature(
+        bytes32 hashedValues
+    ) internal view returns (bytes memory) {
+        bytes32 ethSignedMessageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", hashedValues)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            ethSignedMessageHash
+        );
+        return abi.encodePacked(r, s, v);
     }
 }

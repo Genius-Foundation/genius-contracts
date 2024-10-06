@@ -380,7 +380,6 @@ contract GeniusExecutorDrain is Test {
         );
     }
 
-    ///
     function testAggregateWithPermit2MaliciousCallRevert() public {
         setupMaliciousTest();
 
@@ -399,7 +398,7 @@ contract GeniusExecutorDrain is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 trader,
                 address(EXECUTOR),
@@ -408,6 +407,19 @@ contract GeniusExecutorDrain is Test {
             );
 
         vm.startPrank(ORCHESTRATOR);
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                trader,
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+        bytes memory signature = _hashToSignature(hashedParams);
         vm.expectRevert(
             abi.encodeWithSelector(
                 GeniusErrors.ExternalCallFailed.selector,
@@ -415,13 +427,15 @@ contract GeniusExecutorDrain is Test {
                 0
             )
         );
+
         EXECUTOR.aggregateWithPermit2(
             targets,
             data,
             values,
             permitBatch,
-            signature,
-            trader
+            permitSignature,
+            trader,
+            signature
         );
     }
 
@@ -443,13 +457,28 @@ contract GeniusExecutorDrain is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 trader,
                 address(EXECUTOR),
                 [address(USDC), address(WETH)],
                 [uint160(10 ether), uint160(5 ether)]
             );
+
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                trader,
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
 
         vm.prank(trader);
         try
@@ -458,8 +487,9 @@ contract GeniusExecutorDrain is Test {
                 data,
                 values,
                 permitBatch,
-                signature,
-                trader
+                permitSignature,
+                trader,
+                signature
             )
         {
             assert(false); // This should not be reached
@@ -502,13 +532,28 @@ contract GeniusExecutorDrain is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 trader,
                 address(EXECUTOR),
                 [address(USDC), address(WETH)],
                 [uint160(10 ether), uint160(5 ether)]
             );
+
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                trader,
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
 
         vm.prank(trader);
         try
@@ -517,8 +562,9 @@ contract GeniusExecutorDrain is Test {
                 data,
                 values,
                 permitBatch,
-                signature,
-                trader
+                permitSignature,
+                trader,
+                signature
             )
         {
             assert(false); // This should not be reached
@@ -561,13 +607,28 @@ contract GeniusExecutorDrain is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 trader,
                 address(EXECUTOR),
                 [address(USDC), address(WETH)],
                 [uint160(10 ether), uint160(5 ether)]
             );
+
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                trader,
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
 
         vm.prank(trader);
         try
@@ -576,8 +637,9 @@ contract GeniusExecutorDrain is Test {
                 data,
                 values,
                 permitBatch,
-                signature,
-                trader
+                permitSignature,
+                trader,
+                signature
             )
         {
             assert(false); // This should not be reached
@@ -635,7 +697,7 @@ contract GeniusExecutorDrain is Test {
         // Generate permit batch and signature
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 trader,
                 address(EXECUTOR),
@@ -645,6 +707,28 @@ contract GeniusExecutorDrain is Test {
 
         uint256 initialVaultUSDCBalance = USDC.balanceOf(address(VAULT));
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                trader,
+                42,
+                uint32(block.timestamp + 200),
+                1 ether,
+                receiver,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         // Execute multiSwapAndDeposit
         vm.prank(ORCHESTRATOR);
         EXECUTOR.multiSwapAndDeposit(
@@ -653,14 +737,15 @@ contract GeniusExecutorDrain is Test {
             data,
             values,
             permitBatch,
-            signature,
+            permitSignature,
             trader,
             42,
             uint32(block.timestamp + 200),
             1 ether,
             receiver,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         // Assert final balances
@@ -708,13 +793,35 @@ contract GeniusExecutorDrain is Test {
         ) = setupMultiSwapParams();
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 trader,
                 address(EXECUTOR),
                 [address(USDC), address(WETH)],
                 [uint160(10 ether), uint160(5 ether)]
             );
+
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                targets,
+                data,
+                new uint256[](1), // Mismatched length
+                permitBatch,
+                permitSignature,
+                trader,
+                destChainId,
+                fillDeadline,
+                1 ether,
+                receiver,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
 
         vm.prank(ORCHESTRATOR);
         vm.expectRevert(GeniusErrors.ArrayLengthsMismatch.selector);
@@ -731,7 +838,8 @@ contract GeniusExecutorDrain is Test {
             1 ether,
             receiver,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
     }
 
@@ -768,7 +876,7 @@ contract GeniusExecutorDrain is Test {
         ) = setupMultiSwapParams();
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 trader,
                 address(EXECUTOR),
@@ -779,6 +887,28 @@ contract GeniusExecutorDrain is Test {
         address fakeRouter = makeAddr("fakeRouter");
         targets[2] = fakeRouter;
         targets[3] = fakeRouter;
+
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                trader,
+                42,
+                uint32(block.timestamp + 200),
+                1 ether,
+                receiver,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
 
         vm.prank(ORCHESTRATOR);
         vm.expectRevert(
@@ -793,14 +923,15 @@ contract GeniusExecutorDrain is Test {
             data,
             values,
             permitBatch,
-            signature,
+            permitSignature,
             trader,
             42,
             uint32(block.timestamp + 200),
             1 ether,
             receiver,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
     }
 
@@ -831,7 +962,7 @@ contract GeniusExecutorDrain is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(
                 trader,
                 address(EXECUTOR),
@@ -854,6 +985,28 @@ contract GeniusExecutorDrain is Test {
 
         vm.deal(trader, 1 ether); // Ensure trader has enough ETH for the call
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                maliciousTargets,
+                maliciousData,
+                maliciousValues,
+                permitBatch,
+                permitSignature,
+                trader,
+                42,
+                uint32(block.timestamp + 200),
+                1 ether,
+                receiver,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(trader),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         vm.prank(ORCHESTRATOR);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -874,7 +1027,8 @@ contract GeniusExecutorDrain is Test {
             1 ether,
             receiver,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
     }
 
@@ -996,5 +1150,18 @@ contract GeniusExecutorDrain is Test {
             0,
             bytes32(uint256(1))
         );
+    }
+
+    function _hashToSignature(
+        bytes32 hashedValues
+    ) internal view returns (bytes memory) {
+        bytes32 ethSignedMessageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", hashedValues)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            ethSignedMessageHash
+        );
+        return abi.encodePacked(r, s, v);
     }
 }

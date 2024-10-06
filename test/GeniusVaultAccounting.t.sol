@@ -351,7 +351,7 @@ contract GeniusVaultAccounting is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(address(EXECUTOR), tokens, amounts);
 
         // Create the calldata for the tokenSwapAndDeposit function
@@ -361,6 +361,27 @@ contract GeniusVaultAccounting is Test {
             address(USDC)
         );
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                address(DEX_ROUTER),
+                calldataSwap,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                destChainId,
+                uint32(block.timestamp + 200),
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         // Execute the tokenSwapAndDeposit function
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
@@ -368,14 +389,15 @@ contract GeniusVaultAccounting is Test {
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         vm.stopPrank();
@@ -447,7 +469,7 @@ contract GeniusVaultAccounting is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(address(EXECUTOR), tokens, amounts);
 
         // Create the calldata for the tokenSwapAndDeposit function
@@ -457,6 +479,27 @@ contract GeniusVaultAccounting is Test {
             address(USDC)
         );
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                address(DEX_ROUTER),
+                calldataSwap,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                destChainId,
+                uint32(block.timestamp + 200),
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         // Execute the tokenSwapAndDeposit function
         // deal(address(testToken), address(EXECUTOR), depositAmount);
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
@@ -465,14 +508,15 @@ contract GeniusVaultAccounting is Test {
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         vm.stopPrank();
@@ -571,7 +615,7 @@ contract GeniusVaultAccounting is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(address(EXECUTOR), tokens, amounts);
 
         // Create the calldata for the tokenSwapAndDeposit function
@@ -581,6 +625,27 @@ contract GeniusVaultAccounting is Test {
             address(USDC)
         );
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                address(DEX_ROUTER),
+                calldataSwap,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                destChainId,
+                uint32(block.timestamp + 200),
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         // Execute the tokenSwapAndDeposit function
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
@@ -588,14 +653,15 @@ contract GeniusVaultAccounting is Test {
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         vm.stopPrank();
@@ -723,7 +789,7 @@ contract GeniusVaultAccounting is Test {
 
         (
             IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory signature
+            bytes memory permitSignature
         ) = generatePermitBatchAndSignature(address(EXECUTOR), tokens, amounts);
 
         // Create the calldata for the tokenSwapAndDeposit function
@@ -733,6 +799,27 @@ contract GeniusVaultAccounting is Test {
             address(USDC)
         );
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                address(DEX_ROUTER),
+                calldataSwap,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                destChainId,
+                uint32(block.timestamp + 200),
+                1 ether,
+                RECEIVER,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         // Execute the tokenSwapAndDeposit function
         deal(address(USDC), address(DEX_ROUTER), depositAmount);
         EXECUTOR.tokenSwapAndDeposit(
@@ -740,14 +827,15 @@ contract GeniusVaultAccounting is Test {
             address(DEX_ROUTER),
             calldataSwap,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             destChainId,
             uint32(block.timestamp + 200),
             1 ether,
             RECEIVER,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         vm.stopPrank();
@@ -814,5 +902,18 @@ contract GeniusVaultAccounting is Test {
             40 ether,
             "Available assets mismatch"
         );
+    }
+
+    function _hashToSignature(
+        bytes32 hashedValues
+    ) internal view returns (bytes memory) {
+        bytes32 ethSignedMessageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", hashedValues)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            ethSignedMessageHash
+        );
+        return abi.encodePacked(r, s, v);
     }
 }

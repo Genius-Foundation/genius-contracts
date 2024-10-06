@@ -6,6 +6,8 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
@@ -20,6 +22,8 @@ import {IGeniusExecutor} from "./interfaces/IGeniusExecutor.sol";
  */
 contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     using SafeERC20 for IERC20;
+    using ECDSA for bytes32;
+    using MessageHashUtils for bytes32;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        IMMUTABLES                         ║
@@ -36,6 +40,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     // ╚═══════════════════════════════════════════════════════════╝
 
     mapping(address => uint256) private allowedTargets;
+    mapping(address => uint256) public nonces;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
@@ -81,6 +86,10 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _;
     }
 
+    function getNonce(address owner) external view returns (uint256) {
+        return nonces[owner];
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                AGGREGATED SWAP FUNCTIONS                  ║
     // ╚═══════════════════════════════════════════════════════════╝
@@ -93,24 +102,36 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes[] calldata data,
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
-        address owner
+        bytes calldata permitSignature,
+        address owner,
+        bytes calldata signature
     ) external payable override nonReentrant {
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
-        if (msg.sender != owner) {
-            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
-                revert GeniusErrors.IsNotOrchestrator();
-            }
-        }
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                owner,
+                nonces[owner],
+                address(this)
+            )
+        );
 
-        _permitAndBatchTransfer(permitBatch, signature, owner);
+        _verifySignature(messageHash, signature, owner);
+
+        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
         _batchExecution(targets, data, values);
 
         _sweepERC20s(permitBatch, owner);
 
-        if (msg.value > 0) _sweepNative(msg.sender);
+        if (msg.value > 0) _sweepNative(owner);
+
+        nonces[owner]++;
     }
 
     /**
@@ -138,27 +159,41 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
     function addLiquiditySwap(
         bytes32 seed,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
+        bytes calldata permitSignature,
         address owner,
         uint256 destChainId,
         uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
-        bytes32 tokenOut
+        bytes32 tokenOut,
+        bytes calldata signature
     ) external override nonReentrant {
         if (permitBatch.details.length != 1)
             revert GeniusErrors.InvalidPermitBatchLength();
 
-        if (msg.sender != owner) {
-            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
-                revert GeniusErrors.IsNotOrchestrator();
-            }
-        }
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                seed,
+                permitBatch,
+                permitSignature,
+                owner,
+                destChainId,
+                fillDeadline,
+                fee,
+                receiver,
+                minAmountOut,
+                tokenOut,
+                nonces[owner],
+                address(this)
+            )
+        );
+
+        _verifySignature(messageHash, signature, owner);
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
-        _permitAndBatchTransfer(permitBatch, signature, owner);
+        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
         uint256 _depositAmount = _postStableValue > _initStableValue
@@ -193,6 +228,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         });
 
         VAULT.addLiquiditySwap(order);
+
+        nonces[owner]++;
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -207,14 +244,15 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         address target,
         bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
+        bytes calldata permitSignature,
         address owner,
         uint256 destChainId,
         uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
-        bytes32 tokenOut
+        bytes32 tokenOut,
+        bytes calldata signature
     ) external override nonReentrant {
         if (permitBatch.details.length != 1)
             revert GeniusErrors.InvalidPermitBatchLength();
@@ -223,13 +261,28 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         targets[0] = target;
         _checkTargets(targets, permitBatch.details, owner);
 
-        if (msg.sender != owner) {
-            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
-                revert GeniusErrors.IsNotOrchestrator();
-            }
-        }
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                seed,
+                target,
+                data,
+                permitBatch,
+                permitSignature,
+                owner,
+                destChainId,
+                fillDeadline,
+                fee,
+                receiver,
+                minAmountOut,
+                tokenOut,
+                nonces[owner],
+                address(this)
+            )
+        );
 
-        _permitAndBatchTransfer(permitBatch, signature, owner);
+        _verifySignature(messageHash, signature, owner);
+
+        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
 
         if (
             !IERC20(permitBatch.details[0].token).approve(
@@ -281,6 +334,8 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
 
         VAULT.addLiquiditySwap(order);
         _sweepERC20s(permitBatch, owner);
+
+        nonces[owner]++;
     }
 
     /**
@@ -292,14 +347,15 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         bytes[] calldata data,
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata signature,
+        bytes calldata permitSignature,
         address owner,
         uint256 destChainId,
         uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
-        bytes32 tokenOut
+        bytes32 tokenOut,
+        bytes calldata signature
     ) external payable override nonReentrant {
         if (targets.length != data.length || data.length != values.length)
             revert GeniusErrors.ArrayLengthsMismatch();
@@ -307,15 +363,31 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         _checkNative(_sum(values));
         _checkTargets(targets, permitBatch.details, owner);
 
-        if (msg.sender != owner) {
-            if (!hasRole(ORCHESTRATOR_ROLE, msg.sender)) {
-                revert GeniusErrors.IsNotOrchestrator();
-            }
-        }
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                seed,
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                owner,
+                destChainId,
+                fillDeadline,
+                fee,
+                receiver,
+                minAmountOut,
+                tokenOut,
+                nonces[owner],
+                address(this)
+            )
+        );
+
+        _verifySignature(messageHash, signature, owner);
 
         uint256 _initStableValue = STABLECOIN.balanceOf(address(this));
 
-        _permitAndBatchTransfer(permitBatch, signature, owner);
+        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
         _batchExecution(targets, data, values);
 
         uint256 _postStableValue = STABLECOIN.balanceOf(address(this));
@@ -353,7 +425,9 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
         VAULT.addLiquiditySwap(order);
 
         _sweepERC20s(permitBatch, owner);
-        if (msg.value > 0) _sweepNative(msg.sender);
+        if (msg.value > 0) _sweepNative(owner);
+
+        nonces[owner]++;
     }
 
     /**
@@ -528,7 +602,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             if (
                 allowedTargets[target] == 0 &&
                 target != owner &&
-                target != address(STABLECOIN) 
+                target != address(STABLECOIN)
             ) {
                 if (tokenDetailsLength == 0) {
                     revert GeniusErrors.InvalidTarget(target);
@@ -553,6 +627,18 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             unchecked {
                 ++i;
             }
+        }
+    }
+
+    function _verifySignature(
+        bytes32 messageHash,
+        bytes memory signature,
+        address signer
+    ) internal pure {
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        address recoveredSigner = ethSignedMessageHash.recover(signature);
+        if (recoveredSigner != signer) {
+            revert GeniusErrors.InvalidSignature();
         }
     }
 

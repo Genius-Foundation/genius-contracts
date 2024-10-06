@@ -304,6 +304,21 @@ contract GeniusExecutorTest is Test {
             DOMAIN_SEPERATOR
         );
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         vm.startPrank(ORCHESTRATOR);
         EXECUTOR.aggregateWithPermit2(
             targets,
@@ -311,7 +326,8 @@ contract GeniusExecutorTest is Test {
             values,
             permitBatch,
             permitSignature,
-            TRADER
+            TRADER,
+            signature
         );
 
         assertEq(
@@ -384,11 +400,32 @@ contract GeniusExecutorTest is Test {
                 sigDeadline: 1900000000
             });
 
-        bytes memory signature = sigUtils.getPermitBatchSignature(
+        bytes memory permitSignature = sigUtils.getPermitBatchSignature(
             permitBatch,
             PRIVATE_KEY,
             DOMAIN_SEPERATOR
         );
+
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                address(ROUTER), // Targeting the LBRouter for the swap
+                swapCalldata,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                destChainId,
+                fillDeadline,
+                1 ether,
+                encodedReceiver,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
 
         // Perform the swap and deposit via GeniusExecutor
         vm.startPrank(ORCHESTRATOR);
@@ -397,14 +434,15 @@ contract GeniusExecutorTest is Test {
             address(ROUTER), // Targeting the LBRouter for the swap
             swapCalldata,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             destChainId,
             fillDeadline,
             1 ether,
             encodedReceiver,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
         vm.stopPrank();
 
@@ -564,7 +602,7 @@ contract GeniusExecutorTest is Test {
                 sigDeadline: 1900000000
             });
 
-        bytes memory signature = sigUtils.getPermitBatchSignature(
+        bytes memory permitSignature = sigUtils.getPermitBatchSignature(
             permitBatch,
             PRIVATE_KEY,
             DOMAIN_SEPERATOR
@@ -575,6 +613,28 @@ contract GeniusExecutorTest is Test {
 
         uint256 traderBalance = USDC.balanceOf(TRADER);
 
+        bytes32 hashedParams = keccak256(
+            abi.encode(
+                keccak256("order"),
+                targets,
+                data,
+                values,
+                permitBatch,
+                permitSignature,
+                TRADER,
+                42,
+                uint32(block.timestamp + 200),
+                1 ether,
+                encodedReceiver,
+                0,
+                bytes32(uint256(1)),
+                EXECUTOR.getNonce(address(TRADER)),
+                address(EXECUTOR)
+            )
+        );
+
+        bytes memory signature = _hashToSignature(hashedParams);
+
         vm.prank(ORCHESTRATOR);
         EXECUTOR.multiSwapAndDeposit(
             keccak256("order"),
@@ -582,14 +642,15 @@ contract GeniusExecutorTest is Test {
             data,
             values,
             permitBatch,
-            signature,
+            permitSignature,
             TRADER,
             42,
             uint32(block.timestamp + 200),
             1 ether,
             encodedReceiver,
             0,
-            bytes32(uint256(1))
+            bytes32(uint256(1)),
+            signature
         );
 
         assertEq(
@@ -798,5 +859,18 @@ contract GeniusExecutorTest is Test {
             91 ether,
             "Trader should have received withdrawn USDC"
         );
+    }
+
+    function _hashToSignature(
+        bytes32 hashedValues
+    ) internal view returns (bytes memory) {
+        bytes32 ethSignedMessageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", hashedValues)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            PRIVATE_KEY,
+            ethSignedMessageHash
+        );
+        return abi.encodePacked(r, s, v);
     }
 }
