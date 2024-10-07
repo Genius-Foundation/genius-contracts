@@ -10,7 +10,6 @@ contract UpgradeGeniusExecutorCore is Script {
     function _run(
         address _geniusVault,
         address _permit2,
-        address _stablecoin,
         address[] memory authorizedTargets
     ) internal {
         // Load deployment addresses from environment variables
@@ -21,7 +20,7 @@ contract UpgradeGeniusExecutorCore is Script {
         GeniusExecutor newExecutor = new GeniusExecutor(
             _permit2,
             _geniusVault,
-            _stablecoin,
+            0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909,
             authorizedTargets
         );
         console.log("New GeniusExecutor deployed at:", address(newExecutor));

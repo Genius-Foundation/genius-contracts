@@ -29,7 +29,7 @@ contract AddBSCTargets is Script {
         orchestrators[8] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[9] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        GeniusExecutor geniusExecutor = GeniusExecutor(payable(0x39A32f31726950C550441EAe5bc290A6581FDEe3));
+        GeniusExecutor geniusExecutor = GeniusExecutor(payable(0x123F3DFb58c0AA5ba59CfA35B113522252Ee465A));
 
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);

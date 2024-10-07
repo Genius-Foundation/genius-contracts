@@ -8,8 +8,6 @@ contract UpgradeBaseGeniusExecutor is UpgradeGeniusExecutorCore {
         0x5B246B77A398E50d1647D85A6cfD2D6B8B57485f;
     address public constant PERMIT2 =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    address public constant STABLECOIN =
-        0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA;
 
     function run() external {
         address[] memory authorizedTargets = new address[](3);
@@ -17,6 +15,6 @@ contract UpgradeBaseGeniusExecutor is UpgradeGeniusExecutorCore {
         authorizedTargets[1] = 0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251;
         authorizedTargets[2] = 0x19cEeAd7105607Cd444F5ad10dd51356436095a1;
 
-        _run(GENIUS_VAULT, PERMIT2, STABLECOIN, authorizedTargets);
+        _run(GENIUS_VAULT, PERMIT2, authorizedTargets);
     }
 }

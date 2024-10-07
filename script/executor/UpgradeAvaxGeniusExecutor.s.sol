@@ -8,14 +8,12 @@ contract UpgradeAvaxGeniusExecutor is UpgradeGeniusExecutorCore {
         0x57Ba1239D1f7299ad6DF935597e4e69e2E555232;
     address public constant PERMIT2 =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    address public constant STABLECOIN =
-        0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
 
     function run() external {
         address[] memory authorizedTargets = new address[](3);
         authorizedTargets[0] = 0xeF4fB24aD0916217251F553c0596F8Edc630EB66;
         authorizedTargets[1] = 0x663DC15D3C1aC63ff12E45Ab68FeA3F0a883C251;
         authorizedTargets[2] = 0x88de50B233052e4Fb783d4F6db78Cc34fEa3e9FC;
-        _run(GENIUS_VAULT, PERMIT2, STABLECOIN, authorizedTargets);
+        _run(GENIUS_VAULT, PERMIT2, authorizedTargets);
     }
 }
