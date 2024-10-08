@@ -89,8 +89,8 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         );
 
         _verifySignature(messageHash, signature, owner);
+        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
 
-        _permitAndBatchTransfer(permitBatch, signature, owner);
         _batchExecution(targets, data, values);
 
         uint256 feeTokenBalance = IERC20(feeToken).balanceOf(address(this));
@@ -101,7 +101,18 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
                 feeAmount,
                 feeToken
             );
-        else {}
+        else {
+            IERC20(feeToken).safeTransfer(feeRecipient, feeTokenBalance);
+        }
+
+        emit TransactionsSponsored(
+            msg.sender,
+            owner,
+            feeToken,
+            feeAmount,
+            nonces[owner],
+            targets.length
+        );
 
         _sweepNative();
         nonces[owner]++;

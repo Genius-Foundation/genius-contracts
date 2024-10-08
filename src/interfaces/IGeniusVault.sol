@@ -86,7 +86,7 @@ interface IGeniusVault {
      * @param destChainId The destination chain ID.
      * @param fillDeadline The deadline for filling the order.
      */
-    event SwapDeposit(
+    event OrderCreated(
         bytes32 indexed seed,
         bytes32 indexed trader,
         bytes32 tokenIn,
@@ -107,7 +107,7 @@ interface IGeniusVault {
      * @param destChainId The destination chain ID.
      * @param fillDeadline The deadline for filling the order.
      */
-    event SwapWithdrawal(
+    event OrderFilled(
         bytes32 indexed seed,
         bytes32 indexed trader,
         bytes32 receiver,
@@ -196,12 +196,6 @@ interface IGeniusVault {
     event RebalanceThresholdChanged(uint256 newThreshold);
 
     /**
-     * @notice Emitted when the executor address is changed.
-     * @param newExecutor The address of the new executor.
-     */
-    event ExecutorChanged(address newExecutor);
-
-    /**
      * @notice Emitted when the cross-chain fee is changed.
      * @param newFee The new cross-chain fee.
      */
@@ -262,17 +256,22 @@ interface IGeniusVault {
      * of the source chain in a cross-chain order flow.
      * @param order The Order struct containing the order details.
      */
-    function addLiquiditySwap(Order memory order) external payable;
+    function createOrder(Order memory order) external payable;
 
     /**
      * @notice Removes liquidity from the GeniusVault contract
      * of the destination chain in a cross-chain order flow.
      * @param order The Order struct containing the order details.
      */
-    function removeLiquiditySwap(
+    function fillOrder(
         Order memory order,
         address[] memory targets,
-        uint256[] calldata values,
+        bytes[] memory data
+    ) external;
+
+    function revertOrder(
+        Order calldata order,
+        address[] memory targets,
         bytes[] memory data
     ) external;
 
@@ -306,18 +305,6 @@ interface IGeniusVault {
      * @param _maxOrderTime The new max order time.
      */
     function setMaxOrderTime(uint256 _maxOrderTime) external;
-
-    /**
-     * @notice Sets the cross-chain fee for the GeniusVault contract.
-     * @param fee The new cross-chain fee to be set.
-     */
-    function setCrosschainFee(uint256 fee) external;
-
-    /**
-     * @notice Sets the executor address for the GeniusVault contract.
-     * @param executor_ The address of the executor to be set.
-     */
-    function setExecutor(address executor_) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.
