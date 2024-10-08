@@ -86,7 +86,13 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         );
 
         _verifySignature(messageHash, signature, owner);
-        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
+        _permitAndBatchTransfer(
+            permitBatch,
+            permitSignature,
+            owner,
+            feeToken,
+            feeAmount
+        );
 
         MULTICALL.aggregateWithValues(targets, data, values);
 
@@ -170,7 +176,9 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
     function _permitAndBatchTransfer(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
-        address owner
+        address owner,
+        address feeToken,
+        uint256 feeAmount
     ) private {
         if (permitBatch.spender != address(this))
             revert GeniusErrors.InvalidSpender();
@@ -182,15 +190,25 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
                 permitBatch.details.length
             );
         for (uint i; i < permitBatch.details.length; i++) {
+            address toAddress = permitBatch.details[i].token == feeToken
+                ? address(this)
+                : address(MULTICALL);
+
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
-                to: address(MULTICALL),
+                to: toAddress,
                 amount: permitBatch.details[i].amount,
                 token: permitBatch.details[i].token
             });
         }
 
         PERMIT2.transferFrom(transferDetails);
+
+        uint256 feeTokenBalance = IERC20(feeToken).balanceOf(address(this));
+        IERC20(feeToken).safeTransfer(
+            address(MULTICALL),
+            feeTokenBalance - feeAmount
+        );
     }
 
     function _verifySignature(
