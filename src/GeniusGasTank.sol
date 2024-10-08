@@ -10,6 +10,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {IGeniusGasTank} from "./interfaces/IGeniusGasTank.sol";
+import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
 
 /**
  * @title GeniusGasTank
@@ -24,6 +25,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     IAllowanceTransfer public immutable PERMIT2;
+    IGeniusMulticall public immutable MULTICALL;
 
     address payable private feeRecipient;
     mapping(address => bool) private allowedTargets;
@@ -34,12 +36,14 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         address _admin,
         address payable _feeRecipient,
         address _permit2,
+        address _multicall,
         address[] memory _allowedTargets
     ) {
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
         _setFeeRecipient(_feeRecipient);
         PERMIT2 = IAllowanceTransfer(_permit2);
+        MULTICALL = IGeniusMulticall(_multicall);
 
         for (uint256 i = 0; i < _allowedTargets.length; i++)
             _setAllowedTarget(_allowedTargets[i], true);
@@ -63,18 +67,12 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
+        address owner,
         address feeToken,
         uint256 feeAmount,
         bytes calldata signature
     ) external payable override {
-        if (targets.length == 0) revert GeniusErrors.EmptyArray();
-        if (targets.length != data.length || data.length != values.length)
-            revert GeniusErrors.ArrayLengthsMismatch();
-        if (msg.value != _sum(values))
-            revert GeniusErrors.InvalidNativeAmount();
         _checkTargets(targets, permitBatch.details);
-
-        address owner = msg.sender;
 
         bytes32 messageHash = keccak256(
             abi.encode(
@@ -82,7 +80,6 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
                 data,
                 values,
                 permitBatch,
-                permitSignature,
                 nonces[owner],
                 address(this)
             )
@@ -91,7 +88,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         _verifySignature(messageHash, signature, owner);
         _permitAndBatchTransfer(permitBatch, permitSignature, owner);
 
-        _batchExecution(targets, data, values);
+        MULTICALL.aggregateWithValues(targets, data, values);
 
         uint256 feeTokenBalance = IERC20(feeToken).balanceOf(address(this));
 
@@ -149,18 +146,6 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         emit AllowedTarget(target, isAllowed);
     }
 
-    /**
-     * @dev Sums the amounts in an array.
-     * @param amounts The array of amounts to be summed.
-     */
-    function _sum(
-        uint256[] calldata amounts
-    ) internal pure returns (uint256 total) {
-        for (uint i; i < amounts.length; i++) {
-            total += amounts[i];
-        }
-    }
-
     function _checkTargets(
         address[] memory targets,
         IAllowanceTransfer.PermitDetails[] memory tokenDetails
@@ -187,9 +172,9 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         bytes calldata permitSignature,
         address owner
     ) private {
-        if (permitBatch.spender != address(this)) {
+        if (permitBatch.spender != address(this))
             revert GeniusErrors.InvalidSpender();
-        }
+
         PERMIT2.permit(owner, permitBatch, permitSignature);
 
         IAllowanceTransfer.AllowanceTransferDetails[]
@@ -199,31 +184,13 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         for (uint i; i < permitBatch.details.length; i++) {
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
-                to: address(this),
+                to: address(MULTICALL),
                 amount: permitBatch.details[i].amount,
                 token: permitBatch.details[i].token
             });
         }
 
         PERMIT2.transferFrom(transferDetails);
-    }
-
-    /**
-     * @dev Executes a batch of calls.
-     * @param targets The addresses of the targets to be called.
-     * @param data The calldata to be used when executing the calls.
-     * @param values The values to be sent with the calls.
-     */
-    function _batchExecution(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values
-    ) private {
-        for (uint i; i < targets.length; i++) {
-            (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            if (!_success)
-                revert GeniusErrors.ExternalCallFailed(targets[i], i);
-        }
     }
 
     function _verifySignature(

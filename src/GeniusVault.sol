@@ -45,7 +45,6 @@ contract GeniusVault is GeniusVaultCore {
         bytes[] memory data
     ) external payable virtual override onlyOrchestrator whenNotPaused {
         _isAmountValid(amountIn, availableAssets());
-        _checkNative(_sum(values));
 
         _transferERC20(address(STABLECOIN), address(MULTICALL), amountIn);
 

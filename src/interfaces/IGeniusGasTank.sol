@@ -25,6 +25,7 @@ interface IGeniusGasTank {
         uint256[] calldata values,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
+        address owner,
         address feeToken,
         uint256 feeAmount,
         bytes calldata signature

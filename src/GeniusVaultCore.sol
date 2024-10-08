@@ -291,15 +291,6 @@ abstract contract GeniusVaultCore is
     }
 
     /**
-     * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
-     * @param amount The expected amount of native currency.
-     */
-    function _checkNative(uint256 amount) internal {
-        if (msg.value != amount)
-            revert GeniusErrors.InvalidNativeAmount();
-    }
-
-    /**
      * @dev Internal function to find the available assets for a given amount.
      * @param _totalAssets The total assets available after the operation.
      * @param _neededLiquidity The amount of assets needed for the operation.
@@ -343,22 +334,6 @@ abstract contract GeniusVaultCore is
             totalStakedAssets += amount;
         } else {
             totalStakedAssets -= amount;
-        }
-    }
-
-    /**
-     * @dev Internal function to sum token amounts.
-     * @param amounts The array of token amounts to sum.
-     */
-    function _sum(
-        uint256[] calldata amounts
-    ) internal pure returns (uint256 total) {
-        for (uint i = 0; i < amounts.length; ) {
-            total += amounts[i];
-
-            unchecked {
-                i++;
-            }
         }
     }
 

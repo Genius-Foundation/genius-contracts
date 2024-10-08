@@ -8,6 +8,7 @@ import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusRouter} from "./interfaces/IGeniusRouter.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
 
 /**
  * @title GeniusRouter
@@ -26,14 +27,16 @@ contract GeniusRouter is IGeniusRouter {
     IERC20 public immutable override STABLECOIN;
     IGeniusVault public immutable VAULT;
     IAllowanceTransfer public immutable PERMIT2;
+    IGeniusMulticall public immutable MULTICALL;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    constructor(address permit2, address vault) {
+    constructor(address permit2, address vault, address multicall) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IGeniusVault(vault);
+        MULTICALL = IGeniusMulticall(multicall);
 
         STABLECOIN = VAULT.STABLECOIN();
         STABLECOIN.approve(address(VAULT), type(uint256).max);
@@ -57,21 +60,18 @@ contract GeniusRouter is IGeniusRouter {
         uint256 minAmountOut,
         bytes32 tokenOut
     ) external payable override {
-        if (targets.length != data.length || data.length != values.length)
-            revert GeniusErrors.ArrayLengthsMismatch();
+        if (tokensIn.length == 0) revert GeniusErrors.EmptyArray();
         if (tokensIn.length != amountsIn.length)
             revert GeniusErrors.ArrayLengthsMismatch();
-        if (msg.value != _sum(values))
-            revert GeniusErrors.InvalidNativeAmount();
 
         for (uint256 i = 0; i < tokensIn.length; i++)
             IERC20(tokensIn[i]).safeTransferFrom(
                 msg.sender,
-                address(this),
+                address(MULTICALL),
                 amountsIn[i]
             );
 
-        _batchExecution(targets, data, values);
+        MULTICALL.aggregateWithValues(targets, data, values);
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
@@ -102,7 +102,6 @@ contract GeniusRouter is IGeniusRouter {
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values,
-        address owner,
         uint256 destChainId,
         uint256 fillDeadline,
         uint256 fee,
@@ -110,15 +109,11 @@ contract GeniusRouter is IGeniusRouter {
         uint256 minAmountOut,
         bytes32 tokenOut
     ) external payable override {
-        if (targets.length != data.length || data.length != values.length)
-            revert GeniusErrors.ArrayLengthsMismatch();
-
-        if (msg.value != _sum(values))
-            revert GeniusErrors.InvalidNativeAmount();
+        address owner = msg.sender;
 
         _permitAndBatchTransfer(permitBatch, permitSignature, owner);
 
-        _batchExecution(targets, data, values);
+        MULTICALL.aggregateWithValues(targets, data, values);
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
@@ -139,14 +134,25 @@ contract GeniusRouter is IGeniusRouter {
         VAULT.createOrder(order);
     }
 
+    function aggregateWithPermit2(
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values,
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata permitSignature
+    ) external payable override {
+        _permitAndBatchTransfer(permitBatch, permitSignature, msg.sender);
+        MULTICALL.aggregateWithValues(targets, data, values);
+    }
+
     function _permitAndBatchTransfer(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address owner
     ) private {
-        if (permitBatch.spender != address(this)) {
+        if (permitBatch.spender != address(this))
             revert GeniusErrors.InvalidSpender();
-        }
+
         PERMIT2.permit(owner, permitBatch, permitSignature);
 
         IAllowanceTransfer.AllowanceTransferDetails[]
@@ -156,37 +162,13 @@ contract GeniusRouter is IGeniusRouter {
         for (uint i; i < permitBatch.details.length; i++) {
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
-                to: address(this),
+                to: address(MULTICALL),
                 amount: permitBatch.details[i].amount,
                 token: permitBatch.details[i].token
             });
         }
 
         PERMIT2.transferFrom(transferDetails);
-    }
-
-    function _batchExecution(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values
-    ) private {
-        for (uint i; i < targets.length; i++) {
-            (bool _success, ) = targets[i].call{value: values[i]}(data[i]);
-            if (!_success)
-                revert GeniusErrors.ExternalCallFailed(targets[i], i);
-        }
-    }
-
-    /**
-     * @dev Sums the amounts in an array.
-     * @param amounts The array of amounts to be summed.
-     */
-    function _sum(
-        uint256[] calldata amounts
-    ) internal pure returns (uint256 total) {
-        for (uint i; i < amounts.length; i++) {
-            total += amounts[i];
-        }
     }
 
     /**
