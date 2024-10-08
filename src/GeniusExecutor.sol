@@ -648,7 +648,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
      */
     function _checkNative(uint256 amount) internal {
         if (msg.value != amount)
-            revert GeniusErrors.InvalidNativeAmount(amount);
+            revert GeniusErrors.InvalidNativeAmount();
     }
 
     /**

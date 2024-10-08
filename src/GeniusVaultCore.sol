@@ -296,7 +296,7 @@ abstract contract GeniusVaultCore is
      */
     function _checkNative(uint256 amount) internal {
         if (msg.value != amount)
-            revert GeniusErrors.InvalidNativeAmount(amount);
+            revert GeniusErrors.InvalidNativeAmount();
     }
 
     /**

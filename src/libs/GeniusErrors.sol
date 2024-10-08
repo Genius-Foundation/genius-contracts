@@ -65,6 +65,11 @@ library GeniusErrors {
     error ArrayLengthsMismatch();
 
     /**
+     * @dev Error thrown when the array is empty.
+     */
+    error EmptyArray();
+
+    /**
      * @dev Error thrown when the permit batch length is invalid.
      */
     error InvalidPermitBatchLength();
@@ -76,7 +81,7 @@ library GeniusErrors {
     /**
      * @dev Error thrown thrown when the msg.value is not sufficient.
      */
-    error InvalidNativeAmount(uint256 amount);
+    error InvalidNativeAmount();
 
     /**
      * @dev Error thrown when the target of a generic call is invalid.
