@@ -10,7 +10,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {GeniusExecutor} from "../src/GeniusExecutor.sol";
+import {GeniusMulticall} from "../src/GeniusMulticall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
@@ -34,7 +34,7 @@ contract GeniusVaultFees is Test {
 
     GeniusVault public VAULT;
 
-    GeniusExecutor public EXECUTOR;
+    GeniusMulticall public MULTICALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -49,6 +49,7 @@ contract GeniusVaultFees is Test {
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
+        MULTICALL = new GeniusMulticall();
 
         vm.startPrank(OWNER, OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -56,18 +57,16 @@ contract GeniusVaultFees is Test {
         bytes memory data = abi.encodeWithSelector(
             GeniusVault.initialize.selector,
             address(USDC),
-            OWNER
+            OWNER,
+            address(MULTICALL),
+            7_500,
+            30,
+            300
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
-        EXECUTOR = new GeniusExecutor(
-            PERMIT2,
-            address(VAULT),
-            OWNER,
-            new address[](0)
-        );
         DEX_ROUTER = new MockDEXRouter();
 
         vm.stopPrank();
@@ -79,33 +78,18 @@ contract GeniusVaultFees is Test {
         );
 
         vm.startPrank(OWNER);
-        VAULT.setExecutor(address(EXECUTOR));
-
-        vm.startPrank(OWNER);
-        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
-        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
-        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), address(this));
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 
         deal(address(USDC), TRADER, 1_000 ether);
         deal(address(USDC), ORCHESTRATOR, 1_000 ether);
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
-    }
-
-    function testSetFee() public {
-        assertEq(VAULT.crosschainFee(), 30, "Fee should be 30 bps");
-
-        vm.startPrank(OWNER);
-        VAULT.setCrosschainFee(10);
-
-        assertEq(VAULT.crosschainFee(), 10, "Fee should be 10 bps");
+        deal(address(USDC), address(ORCHESTRATOR), 1_000 ether);
     }
 
     function testAddLiquidity() public {
-        vm.startPrank(address(EXECUTOR));
+        vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
 
         IGeniusVault.Order memory order = IGeniusVault.Order({
@@ -122,7 +106,7 @@ contract GeniusVaultFees is Test {
             tokenOut: bytes32(uint256(1))
         });
 
-        VAULT.addLiquiditySwap(order);
+        VAULT.createOrder(order);
 
         assertEq(
             USDC.balanceOf(address(VAULT)),
@@ -130,7 +114,7 @@ contract GeniusVaultFees is Test {
             "GeniusVault balance should be 1,000 ether"
         );
         assertEq(
-            USDC.balanceOf(address(EXECUTOR)),
+            USDC.balanceOf(address(ORCHESTRATOR)),
             0,
             "Executor balance should be 0"
         );
@@ -163,7 +147,7 @@ contract GeniusVaultFees is Test {
     }
 
     function testAddLiquidityAndRemoveLiquidity() public {
-        vm.startPrank(address(EXECUTOR));
+        vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
         uint32 timestamp = uint32(block.timestamp + 200);
 
@@ -181,7 +165,7 @@ contract GeniusVaultFees is Test {
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
-        VAULT.addLiquiditySwap(orderToFill);
+        VAULT.createOrder(orderToFill);
 
         // Create an Order struct for removing liquidity
         IGeniusVault.Order memory order = IGeniusVault.Order({
@@ -210,7 +194,6 @@ contract GeniusVaultFees is Test {
 
         address[] memory targets = new address[](1);
         bytes[] memory calldatas = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
 
         // Target is stablecoin
         targets[0] = address(USDC);
@@ -220,16 +203,14 @@ contract GeniusVaultFees is Test {
             address(this),
             998 ether
         );
-        // Value is 0
-        values[0] = 0;
 
-        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+        VAULT.fillOrder(order, targets, calldatas);
 
         VAULT.setOrderAsFilled(orderToFill);
         bytes32 hash = VAULT.orderHash(orderToFill);
         assertEq(uint(VAULT.orderStatus(hash)), 2, "Order should be filled");
 
-        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+        VAULT.fillOrder(order, targets, calldatas);
         vm.stopPrank();
 
         // Add assertions to check the state after removing liquidity
@@ -239,7 +220,7 @@ contract GeniusVaultFees is Test {
             "GeniusVault balance should be 1 ether (only fees left)"
         );
         assertEq(
-            USDC.balanceOf(address(EXECUTOR)),
+            USDC.balanceOf(address(ORCHESTRATOR)),
             0 ether,
             "Executor balance should be 0 ether"
         );
@@ -271,7 +252,7 @@ contract GeniusVaultFees is Test {
     }
 
     function testAddLiquidityAndRemoveLiquidityWithoutExternalCall() public {
-        vm.startPrank(address(EXECUTOR));
+        vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
         uint32 timestamp = uint32(block.timestamp + 200);
 
@@ -289,7 +270,7 @@ contract GeniusVaultFees is Test {
             tokenOut: bytes32(uint256(1))
         });
 
-        VAULT.addLiquiditySwap(orderToFill);
+        VAULT.createOrder(orderToFill);
 
         // Create an Order struct for removing liquidity
         IGeniusVault.Order memory order = IGeniusVault.Order({
@@ -318,15 +299,14 @@ contract GeniusVaultFees is Test {
 
         address[] memory targets = new address[](0);
         bytes[] memory calldatas = new bytes[](0);
-        uint256[] memory values = new uint256[](0);
 
-        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+        VAULT.fillOrder(order, targets, calldatas);
 
         VAULT.setOrderAsFilled(orderToFill);
         bytes32 hash = VAULT.orderHash(orderToFill);
         assertEq(uint(VAULT.orderStatus(hash)), 2, "Order should be filled");
 
-        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+        VAULT.fillOrder(order, targets, calldatas);
         vm.stopPrank();
 
         // Add assertions to check the state after removing liquidity
@@ -336,7 +316,7 @@ contract GeniusVaultFees is Test {
             "GeniusVault balance should be 1 ether (only fees left)"
         );
         assertEq(
-            USDC.balanceOf(address(EXECUTOR)),
+            USDC.balanceOf(address(ORCHESTRATOR)),
             0 ether,
             "Executor balance should be 0 ether"
         );
@@ -368,7 +348,7 @@ contract GeniusVaultFees is Test {
     }
 
     function testRemoveTooMuchLiquidity() public {
-        vm.startPrank(address(EXECUTOR));
+        vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
 
         uint32 timestamp = uint32(block.timestamp + 200);
@@ -386,7 +366,7 @@ contract GeniusVaultFees is Test {
             tokenOut: bytes32(uint256(1))
         });
 
-        VAULT.addLiquiditySwap(orderToFill);
+        VAULT.createOrder(orderToFill);
         vm.stopPrank();
 
         // Set the order as filled
@@ -418,7 +398,6 @@ contract GeniusVaultFees is Test {
 
         address[] memory targets = new address[](1);
         bytes[] memory calldatas = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
 
         // Target is stablecoin
         targets[0] = address(USDC);
@@ -428,10 +407,8 @@ contract GeniusVaultFees is Test {
             address(this),
             1000 ether
         );
-        // Value is 0
-        values[0] = 0;
 
-        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+        VAULT.fillOrder(order, targets, calldatas);
 
         // Add assertions to check the state after removing liquidity
         assertEq(
@@ -440,7 +417,7 @@ contract GeniusVaultFees is Test {
             "GeniusVault balance should be 1,000 ether"
         );
         assertEq(
-            USDC.balanceOf(address(EXECUTOR)),
+            USDC.balanceOf(address(ORCHESTRATOR)),
             0,
             "Executor balance should be 0"
         );

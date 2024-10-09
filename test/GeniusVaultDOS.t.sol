@@ -10,7 +10,7 @@ import {MockERC20} from "./mocks/MockERC20.sol";
 
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
-import {GeniusExecutor} from "../src/GeniusExecutor.sol";
+import {GeniusMulticall} from "../src/GeniusMulticall.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
 contract GeniusVaultDOSTest is Test {
@@ -32,7 +32,7 @@ contract GeniusVaultDOSTest is Test {
     ERC20 public USDC;
     GeniusVault public VAULT;
     GeniusMultiTokenVault public MULTIVAULT;
-    GeniusExecutor public EXECUTOR;
+    GeniusMulticall public MULTICALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -67,13 +67,19 @@ contract GeniusVaultDOSTest is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
 
+        MULTICALL = new GeniusMulticall();
+
         vm.startPrank(OWNER);
         GeniusVault implementation = new GeniusVault();
 
         bytes memory data = abi.encodeWithSelector(
             GeniusVault.initialize.selector,
             address(USDC),
-            OWNER
+            OWNER,
+            address(MULTICALL),
+            7_500,
+            30,
+            300
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -85,9 +91,11 @@ contract GeniusVaultDOSTest is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            supportedTokens,
-            bridges,
-            routers
+            address(MULTICALL),
+            7_500,
+            30,
+            300,
+            supportedTokens
         );
 
         ERC1967Proxy proxyMulti = new ERC1967Proxy(
@@ -96,15 +104,7 @@ contract GeniusVaultDOSTest is Test {
         );
 
         MULTIVAULT = GeniusMultiTokenVault(address(proxyMulti));
-        EXECUTOR = new GeniusExecutor(
-            PERMIT2,
-            address(VAULT),
-            OWNER,
-            new address[](0)
-        );
 
-        VAULT.setExecutor(address(EXECUTOR));
-        MULTIVAULT.setExecutor(address(EXECUTOR));
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 

@@ -5,8 +5,10 @@ import {DeployGeniusEcosystemCore} from "./DeployGeniusEcosystemCore.s.sol";
 
 // COMMAND: forge script script/deployment/DeployBSCGeniusEcosystem.s.sol --rpc-url $BSC_RPC_URL --broadcast --via-ir
 contract DeployBSCGeniusEcosystem is DeployGeniusEcosystemCore {
-    address public constant stableAddress = 0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56;
-    address public constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address public constant stableAddress =
+        0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56;
+    address public constant permit2Address =
+        0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
 
     function run() external {
@@ -17,11 +19,6 @@ contract DeployBSCGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        address[] memory routers = new address[](3);
-        routers[0] = 0x89b8AA89FDd0507a99d334CBe3C808fAFC7d850E; // Odos
-        routers[1] = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5; // Kyberswap
-        routers[2] = 0xa7FD99748cE527eAdC0bDAc60cba8a4eF4090f7c; // OKX
-
-        _run(stableAddress, permit2Address, owner, orchestrators, routers);
+        _run(stableAddress, owner, orchestrators);
     }
 }

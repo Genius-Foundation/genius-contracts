@@ -10,7 +10,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {GeniusExecutor} from "../src/GeniusExecutor.sol";
+import {GeniusMulticall} from "../src/GeniusMulticall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -33,7 +33,7 @@ contract GeniusVaultOrders is Test {
 
     GeniusVault public VAULT;
 
-    GeniusExecutor public EXECUTOR;
+    GeniusMulticall public MULTICALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -49,24 +49,25 @@ contract GeniusVaultOrders is Test {
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         TOKEN1 = new MockERC20("Token1", "TK1", 18);
 
+        MULTICALL = new GeniusMulticall();
+
         vm.startPrank(OWNER, OWNER);
         GeniusVault implementation = new GeniusVault();
 
         bytes memory data = abi.encodeWithSelector(
             GeniusVault.initialize.selector,
             address(USDC),
-            OWNER
+            OWNER,
+            address(MULTICALL),
+            7_500,
+            30,
+            300
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
-        EXECUTOR = new GeniusExecutor(
-            PERMIT2,
-            address(VAULT),
-            OWNER,
-            new address[](0)
-        );
+
         DEX_ROUTER = new MockDEXRouter();
 
         vm.stopPrank();
@@ -78,26 +79,19 @@ contract GeniusVaultOrders is Test {
         );
 
         vm.startPrank(OWNER);
-        VAULT.setExecutor(address(EXECUTOR));
-
-        vm.startPrank(OWNER);
-        EXECUTOR.setAllowedTarget(address(DEX_ROUTER), true);
-
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
-        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
-        EXECUTOR.grantRole(EXECUTOR.ORCHESTRATOR_ROLE(), address(this));
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 
         deal(address(USDC), TRADER, 1_000 ether);
         deal(address(USDC), ORCHESTRATOR, 1_000 ether);
-        deal(address(USDC), address(EXECUTOR), 1_000 ether);
+        deal(address(USDC), address(ORCHESTRATOR), 1_000 ether);
         deal(address(TOKEN1), address(DEX_ROUTER), 100_000_000 ether);
         deal(address(USDC), address(VAULT), 1_000 ether);
     }
 
     function testRemoveLiquiditySwap() public {
-        vm.startPrank(address(EXECUTOR));
+        vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
         uint32 timestamp = uint32(block.timestamp + 200);
 
@@ -120,7 +114,6 @@ contract GeniusVaultOrders is Test {
 
         address[] memory targets = new address[](2);
         bytes[] memory calldatas = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
 
         // Executor authorizes the Router to spend USDC
         targets[0] = address(USDC);
@@ -129,7 +122,6 @@ contract GeniusVaultOrders is Test {
             address(DEX_ROUTER),
             order.amountIn - order.fee
         );
-        values[0] = 0;
 
         // Executor swaps USDC for TOKEN1
         targets[1] = address(DEX_ROUTER);
@@ -140,9 +132,8 @@ contract GeniusVaultOrders is Test {
             order.amountIn - order.fee,
             TRADER
         );
-        values[1] = 0;
 
-        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+        VAULT.fillOrder(order, targets, calldatas);
         vm.stopPrank();
 
         bytes32 hash = VAULT.orderHash(order);
@@ -182,7 +173,7 @@ contract GeniusVaultOrders is Test {
     }
 
     function testRemoveLiquiditySwapShouldRevertIfAmountOutTooSmall() public {
-        vm.startPrank(address(EXECUTOR));
+        vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
         uint32 timestamp = uint32(block.timestamp + 200);
 
@@ -235,7 +226,7 @@ contract GeniusVaultOrders is Test {
             )
         );
 
-        VAULT.removeLiquiditySwap(order, targets, values, calldatas);
+        VAULT.fillOrder(order, targets, calldatas);
         vm.stopPrank();
     }
 }

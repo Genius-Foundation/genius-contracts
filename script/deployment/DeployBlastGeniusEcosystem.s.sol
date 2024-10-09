@@ -16,11 +16,6 @@ contract DeployBlastGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        address[] memory routers = new address[](3);
-        routers[0] = 0x19cEeAd7105607Cd444F5ad10dd51356436095a1; // Odos
-        routers[1] = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5; // Kyberswap
-        routers[2] = 0xa7FD99748cE527eAdC0bDAc60cba8a4eF4090f7c; // OKX
-
-        _run(stableAddress, permit2Address, owner, orchestrators, routers);
+        _run(stableAddress, owner, orchestrators);
     }
 }

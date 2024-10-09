@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Script, console} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {GeniusExecutor} from "../../src/GeniusExecutor.sol";
+import {GeniusMulticall} from "../../src/GeniusMulticall.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
 import {GeniusActions} from "../../src/GeniusActions.sol";
 
@@ -19,40 +19,34 @@ contract DeployGeniusEcosystemCore is Script {
     bytes32 constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
     GeniusVault public geniusVault;
-    GeniusExecutor public geniusExecutor;
+    GeniusMulticall public geniusMulticall;
 
     function _run(
         address _stableAddress,
-        address _permit2Address,
         address _owner,
-        address[] memory orchestrators,
-        address[] memory routers
+        address[] memory orchestrators
     ) internal {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         // geniusActions = new GeniusActions(admin);
+
+        geniusMulticall = new GeniusMulticall();
 
         GeniusVault implementation = new GeniusVault();
 
         bytes memory data = abi.encodeWithSelector(
             GeniusVault.initialize.selector,
             _stableAddress,
-            _owner
+            _owner,
+            address(geniusMulticall),
+            7_500,
+            30,
+            300
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         geniusVault = GeniusVault(address(proxy));
-
-        geniusExecutor = new GeniusExecutor(
-            _permit2Address,
-            address(geniusVault),
-            _owner,
-           routers
-        );
-
-        // Initialize the contracts
-        geniusVault.setExecutor(address(geniusExecutor));
 
         // Add orchestrators
         for (uint256 i = 0; i < orchestrators.length; i++) {
@@ -60,6 +54,6 @@ contract DeployGeniusEcosystemCore is Script {
         }
 
         console.log("GeniusVault deployed at: ", address(geniusVault));
-        console.log("GeniusExecutor deployed at: ", address(geniusExecutor));
+        console.log("GeniusMulticall deployed at: ", address(geniusMulticall));
     }
 }
