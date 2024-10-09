@@ -35,4 +35,14 @@ interface IGeniusGasTank {
     function setFeeRecipient(address payable _feeRecipient) external;
 
     function setAllowedTarget(address target, bool isAllowed) external;
+
+    /**
+     * @notice Pauses the contract and locks all functionality in case of an emergency.
+     */
+    function pause() external;
+
+    /**
+     * @notice Allows the owner to emergency unlock the contract.
+     */
+    function unpause() external;
 }

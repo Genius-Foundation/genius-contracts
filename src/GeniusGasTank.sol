@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -18,7 +19,7 @@ import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
  *
  * @notice
  */
-contract GeniusGasTank is IGeniusGasTank, AccessControl {
+contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
     using SafeERC20 for IERC20;
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
@@ -73,7 +74,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         uint256 feeAmount,
         uint256 deadline,
         bytes calldata signature
-    ) external payable override {
+    ) external payable override whenNotPaused {
         if (deadline < block.timestamp)
             revert GeniusErrors.DeadlinePassed(deadline);
         _checkTargets(targets, permitBatch.details);
@@ -99,7 +100,6 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
             feeAmount
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
-        ++nonces[owner];
 
         MULTICALL.aggregateWithValues(targets, data, values);
 
@@ -108,7 +108,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
             owner,
             feeToken,
             feeAmount,
-            nonces[owner],
+            nonces[owner]++,
             targets.length
         );
     }
@@ -130,6 +130,20 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         bool isAllowed
     ) external override onlyAdmin {
         _setAllowedTarget(target, isAllowed);
+    }
+
+    /**
+     * @dev See {IGeniusGasTank-pause}.
+     */
+    function pause() external override onlyPauser {
+        _pause();
+    }
+
+    /**
+     * @dev See {IGeniusGasTank-unpause}.
+     */
+    function unpause() external override onlyAdmin {
+        _unpause();
     }
 
     function _setFeeRecipient(address payable _feeRecipient) internal {
