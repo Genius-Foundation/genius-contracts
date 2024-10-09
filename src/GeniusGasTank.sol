@@ -45,7 +45,8 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         PERMIT2 = IAllowanceTransfer(_permit2);
         MULTICALL = IGeniusMulticall(_multicall);
 
-        for (uint256 i = 0; i < _allowedTargets.length; i++)
+        uint256 allowedTargetsLength = _allowedTargets.length;
+        for (uint256 i = 0; i < allowedTargetsLength; ++i)
             _setAllowedTarget(_allowedTargets[i], true);
     }
 
@@ -70,8 +71,11 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         address owner,
         address feeToken,
         uint256 feeAmount,
+        uint256 deadline,
         bytes calldata signature
     ) external payable override {
+        if (deadline < block.timestamp)
+            revert GeniusErrors.DeadlinePassed(deadline);
         _checkTargets(targets, permitBatch.details);
 
         bytes32 messageHash = keccak256(
@@ -81,6 +85,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
                 values,
                 permitBatch,
                 nonces[owner],
+                deadline,
                 address(this)
             )
         );
@@ -93,20 +98,10 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
             feeToken,
             feeAmount
         );
+        IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
+        ++nonces[owner];
 
         MULTICALL.aggregateWithValues(targets, data, values);
-
-        uint256 feeTokenBalance = IERC20(feeToken).balanceOf(address(this));
-
-        if (feeTokenBalance < feeAmount)
-            revert GeniusErrors.InsufficientFees(
-                feeTokenBalance,
-                feeAmount,
-                feeToken
-            );
-        else {
-            IERC20(feeToken).safeTransfer(feeRecipient, feeTokenBalance);
-        }
 
         emit TransactionsSponsored(
             msg.sender,
@@ -116,9 +111,6 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
             nonces[owner],
             targets.length
         );
-
-        _sweepNative();
-        nonces[owner]++;
     }
 
     /**
@@ -156,12 +148,14 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         address[] memory targets,
         IAllowanceTransfer.PermitDetails[] memory tokenDetails
     ) internal view {
-        for (uint256 i = 0; i < targets.length; i++) {
+        uint256 targetsLength = targets.length;
+        uint256 tokenDetailsLength = tokenDetails.length;
+        for (uint256 i = 0; i < targetsLength; ++i) {
             address target = targets[i];
             if (!allowedTargets[target]) {
                 bool isToken = false;
 
-                for (uint256 j; j < tokenDetails.length; j++) {
+                for (uint256 j; j < tokenDetailsLength; ++j) {
                     if (target == tokenDetails[j].token) {
                         isToken = true;
                         break;
@@ -185,11 +179,12 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
 
         PERMIT2.permit(owner, permitBatch, permitSignature);
 
+        uint256 detailsLength = permitBatch.details.length;
         IAllowanceTransfer.AllowanceTransferDetails[]
             memory transferDetails = new IAllowanceTransfer.AllowanceTransferDetails[](
-                permitBatch.details.length
+                detailsLength
             );
-        for (uint i; i < permitBatch.details.length; i++) {
+        for (uint i; i < detailsLength; ++i) {
             address toAddress = permitBatch.details[i].token == feeToken
                 ? address(this)
                 : address(MULTICALL);
@@ -221,11 +216,5 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl {
         if (recoveredSigner != signer) {
             revert GeniusErrors.InvalidSignature();
         }
-    }
-
-    function _sweepNative() internal {
-        uint256 nativeBalanceLeft = address(this).balance;
-        if (nativeBalanceLeft > 0)
-            feeRecipient.call{value: nativeBalanceLeft}("");
     }
 }

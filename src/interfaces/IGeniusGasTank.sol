@@ -28,6 +28,7 @@ interface IGeniusGasTank {
         address owner,
         address feeToken,
         uint256 feeAmount,
+        uint256 deadline,
         bytes calldata signature
     ) external payable;
 
