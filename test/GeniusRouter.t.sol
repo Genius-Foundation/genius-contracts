@@ -1,0 +1,175 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.4;
+
+import {Test, console} from "forge-std/Test.sol";
+import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
+import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
+import {PermitSignature} from "./utils/SigUtils.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IEIP712} from "permit2/interfaces/IEIP712.sol";
+import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import {GeniusRouter} from "../src/GeniusRouter.sol";
+import {GeniusVault} from "../src/GeniusVault.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
+
+contract GeniusRouterTest is Test {
+    uint256 constant BASE_USER_WETH_BALANCE = 100 ether;
+    uint256 constant BASE_USER_DAI_BALANCE = 100 ether;
+    uint256 constant BASE_ROUTER_USDC_BALANCE = 100 ether;
+    uint256 constant destChainId = 1;
+
+    bytes32 public DOMAIN_SEPERATOR;
+
+    uint256 avalanche;
+    string private rpc = vm.envString("AVALANCHE_RPC_URL");
+
+    IEIP712 public PERMIT2;
+    PermitSignature public sigUtils;
+
+    GeniusMulticall public MULTICALL;
+    GeniusRouter public GENIUS_ROUTER;
+    GeniusVault public GENIUS_VAULT;
+
+    ERC20 public USDC;
+    ERC20 public WETH;
+    ERC20 public DAI;
+
+    MockDEXRouter DEX_ROUTER;
+    address ADMIN = makeAddr("ADMIN");
+    address SENDER = makeAddr("SENDER");
+    address FEE_RECIPIENT = makeAddr("FEE_RECIPIENT");
+
+    address USER;
+    uint256 USER_PK;
+
+    bytes32 RECEIVER;
+    bytes32 TOKEN_OUT;
+    bytes32 TOKEN_IN;
+
+    function setUp() public {
+        avalanche = vm.createFork(rpc);
+
+        vm.selectFork(avalanche);
+        assertEq(vm.activeFork(), avalanche);
+
+        (USER, USER_PK) = makeAddrAndKey("user");
+
+        DEX_ROUTER = new MockDEXRouter();
+        PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+        DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
+
+        MULTICALL = new GeniusMulticall();
+        USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
+        WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
+        DAI = ERC20(0xd586E7F844cEa2F87f50152665BCbc2C279D8d70);
+        sigUtils = new PermitSignature();
+
+        vm.startPrank(ADMIN, ADMIN);
+
+        GeniusVault implementation = new GeniusVault();
+
+        bytes memory data = abi.encodeWithSelector(
+            GeniusVault.initialize.selector,
+            address(USDC),
+            ADMIN,
+            address(MULTICALL),
+            7_500,
+            30,
+            300
+        );
+
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
+
+        GENIUS_VAULT = GeniusVault(address(proxy));
+        GENIUS_ROUTER = new GeniusRouter(
+            address(PERMIT2),
+            address(GENIUS_VAULT),
+            address(MULTICALL)
+        );
+
+        RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
+        TOKEN_OUT = GENIUS_VAULT.addressToBytes32(address(USDC));
+        TOKEN_IN = TOKEN_OUT;
+
+        deal(address(USDC), address(DEX_ROUTER), BASE_ROUTER_USDC_BALANCE);
+        deal(address(DAI), USER, BASE_USER_DAI_BALANCE);
+        deal(address(WETH), USER, BASE_USER_WETH_BALANCE);
+
+        vm.startPrank(USER);
+        USDC.approve(address(PERMIT2), type(uint256).max);
+        DAI.approve(address(PERMIT2), type(uint256).max);
+        vm.stopPrank();
+    }
+
+    function testSwapAndCreateOrder() public {
+        address[] memory tokensIn = new address[](1);
+        uint256[] memory amountsIn = new uint256[](1);
+
+        tokensIn[0] = address(DAI);
+        amountsIn[0] = BASE_USER_DAI_BALANCE;
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        targets[0] = address(DAI);
+        data[0] = abi.encodeWithSelector(
+            DAI.approve.selector,
+            address(DEX_ROUTER),
+            BASE_USER_DAI_BALANCE
+        );
+        targets[1] = address(DEX_ROUTER);
+        data[1] = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(DAI),
+            address(USDC),
+            BASE_USER_DAI_BALANCE,
+            address(GENIUS_ROUTER)
+        );
+        values[0] = 0;
+        values[1] = 0;
+
+        uint256 fee = 1 ether;
+        uint256 minAmountOut = 49 ether;
+
+        vm.startPrank(USER);
+
+        DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
+
+        vm.expectEmit(address(GENIUS_VAULT));
+        emit IGeniusVault.OrderCreated(
+            bytes32(uint256(1)),
+            RECEIVER,
+            TOKEN_IN,
+            BASE_ROUTER_USDC_BALANCE / 2,
+            block.chainid,
+            destChainId,
+            block.timestamp + 200,
+            fee
+        );
+
+        GENIUS_ROUTER.swapAndCreateOrder(
+            bytes32(uint256(1)),
+            tokensIn,
+            amountsIn,
+            targets,
+            data,
+            values,
+            USER,
+            destChainId,
+            block.timestamp + 200,
+            fee,
+            RECEIVER,
+            minAmountOut,
+            TOKEN_OUT
+        );
+
+        assertEq(
+            USDC.balanceOf(address(GENIUS_VAULT)),
+            BASE_ROUTER_USDC_BALANCE / 2
+        );
+    }
+}
