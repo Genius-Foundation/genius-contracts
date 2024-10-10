@@ -30,7 +30,7 @@ contract AddArbitrumTargets is Script {
         orchestrators[9] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
         GeniusExecutor geniusExecutor = GeniusExecutor(
-            payable(0x4009ffFF5F4570773F34553e92f6919F9906eC4e)
+            payable(0x106BC0cB28E5DB0d2EA7784342c67281D6Dc9444)
         );
 
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");

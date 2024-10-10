@@ -528,7 +528,7 @@ contract GeniusExecutor is IGeniusExecutor, ReentrancyGuard, AccessControl {
             if (
                 allowedTargets[target] == 0 &&
                 target != owner &&
-                target != address(STABLECOIN) 
+                target != address(STABLECOIN)
             ) {
                 if (tokenDetailsLength == 0) {
                     revert GeniusErrors.InvalidTarget(target);
