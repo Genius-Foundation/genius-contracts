@@ -123,7 +123,7 @@ contract GeniusVault is GeniusVaultCore {
     function createOrder(
         Order memory order
     ) external payable virtual override whenNotPaused {
-        if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
+        if (order.trader == bytes32(0) || order.receiver == bytes32(0)) revert GeniusErrors.NonAddress0();
         if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
             revert GeniusErrors.InvalidTokenIn();

@@ -113,8 +113,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         Order memory order
     ) external payable override whenNotPaused {
         address tokenIn = bytes32ToAddress(order.tokenIn);
-        address trader = bytes32ToAddress(order.trader);
-        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (order.trader == bytes32(0) || order.receiver == bytes32(0))
+            revert GeniusErrors.NonAddress0();
         if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (supportedTokens[tokenIn] == false)
             revert GeniusErrors.InvalidToken(tokenIn);
