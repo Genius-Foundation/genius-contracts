@@ -8,7 +8,7 @@ import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
@@ -28,32 +28,25 @@ abstract contract GeniusVaultCore is
     ERC20Upgradeable,
     AccessControlUpgradeable,
     PausableUpgradeable,
-    ReentrancyGuard
+    ReentrancyGuardUpgradeable
 {
     using SafeERC20 for IERC20;
 
-    // ╔═══════════════════════════════════════════════════════════╗
-    // ║                        IMMUTABLES                         ║
-    // ╚═══════════════════════════════════════════════════════════╝
+    // Immutable state variables (not actually immutable due to upgradeability)
+    IERC20 public STABLECOIN;
+    IGeniusMulticall public MULTICALL;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
-    IERC20 public STABLECOIN;
-    IGeniusMulticall public MULTICALL;
+    // Mutable state variables
+    uint256 public maxOrderTime;
+    uint256 public orderRevertBuffer;
+    uint256 public totalStakedAssets;
+    uint256 public rebalanceThreshold;
 
-    // ╔═══════════════════════════════════════════════════════════╗
-    // ║                         VARIABLES                         ║
-    // ╚═══════════════════════════════════════════════════════════╝
-
-    uint256 public maxOrderTime; // In seconds
-    uint256 public orderRevertBuffer; // In seconds
-
-    uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
-    uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
-
-    mapping(address bridge => uint256 isSupported) public supportedBridges; // Mapping of bridge address to support status
-    mapping(bytes32 => OrderStatus) public orderStatus; // Mapping of order hash to order status
+    mapping(address => uint256) public supportedBridges;
+    mapping(bytes32 => OrderStatus) public orderStatus;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
@@ -267,23 +260,17 @@ abstract contract GeniusVaultCore is
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    function _setMaxOrderTime(
-        uint256 _maxOrderTime
-    ) internal {
+    function _setMaxOrderTime(uint256 _maxOrderTime) internal {
         maxOrderTime = _maxOrderTime;
         emit MaxOrderTimeChanged(_maxOrderTime);
     }
 
-    function _setOrderRevertBuffer(
-        uint256 _orderRevertBuffer
-    ) internal {
+    function _setOrderRevertBuffer(uint256 _orderRevertBuffer) internal {
         orderRevertBuffer = _orderRevertBuffer;
         emit OrderRevertBufferChanged(_orderRevertBuffer);
     }
 
-    function _setRebalanceThreshold(
-        uint256 _rebalanceThreshold
-    ) internal {
+    function _setRebalanceThreshold(uint256 _rebalanceThreshold) internal {
         _validatePercentage(_rebalanceThreshold);
 
         rebalanceThreshold = _rebalanceThreshold;
@@ -392,4 +379,7 @@ abstract contract GeniusVaultCore is
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyAdmin {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }
