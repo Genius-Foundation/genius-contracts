@@ -172,4 +172,107 @@ contract GeniusRouterTest is Test {
             BASE_ROUTER_USDC_BALANCE / 2
         );
     }
+
+    function testSwapAndCreateOrderPermit2() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(DAI),
+                amount: uint160(BASE_USER_DAI_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        targets[0] = address(DAI);
+        data[0] = abi.encodeWithSelector(
+            DAI.approve.selector,
+            address(DEX_ROUTER),
+            BASE_USER_DAI_BALANCE
+        );
+        targets[1] = address(DEX_ROUTER);
+        data[1] = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(DAI),
+            address(USDC),
+            BASE_USER_DAI_BALANCE,
+            address(GENIUS_ROUTER)
+        );
+        values[0] = 0;
+        values[1] = 0;
+
+        uint256 fee = 1 ether;
+        uint256 minAmountOut = 49 ether;
+
+        vm.startPrank(USER);
+
+        DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
+
+        vm.expectEmit(address(GENIUS_VAULT));
+        emit IGeniusVault.OrderCreated(
+            bytes32(uint256(1)),
+            RECEIVER,
+            TOKEN_IN,
+            BASE_ROUTER_USDC_BALANCE / 2,
+            block.chainid,
+            destChainId,
+            block.timestamp + 200,
+            fee
+        );
+
+        GENIUS_ROUTER.swapAndCreateOrderPermit2(
+            bytes32(uint256(1)),
+            permitBatch,
+            permitSignature,
+            targets,
+            data,
+            values,
+            destChainId,
+            block.timestamp + 200,
+            fee,
+            RECEIVER,
+            minAmountOut,
+            TOKEN_OUT
+        );
+
+        assertEq(
+            USDC.balanceOf(address(GENIUS_VAULT)),
+            BASE_ROUTER_USDC_BALANCE / 2
+        );
+    }
+
+    function _generatePermitBatchSignature(
+        IAllowanceTransfer.PermitDetails[] memory details
+    )
+        internal
+        view
+        returns (IAllowanceTransfer.PermitBatch memory, bytes memory)
+    {
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer
+            .PermitBatch({
+                details: details,
+                spender: address(GENIUS_ROUTER),
+                sigDeadline: 1900000000
+            });
+
+        bytes memory permitSignature = sigUtils.getPermitBatchSignature(
+            permitBatch,
+            USER_PK,
+            DOMAIN_SEPERATOR
+        );
+
+        return (permitBatch, permitSignature);
+    }
 }
