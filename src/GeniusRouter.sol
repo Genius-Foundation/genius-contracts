@@ -42,6 +42,66 @@ contract GeniusRouter is IGeniusRouter {
         STABLECOIN.approve(address(VAULT), type(uint256).max);
     }
 
+    function swapAndCreateOrderDynamicDeadline(
+        bytes32 seed,
+        address[] calldata tokensIn,
+        uint256[] calldata amountsIn,
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values,
+        address owner,
+        uint256 destChainId,
+        uint256 fee,
+        bytes32 receiver,
+        uint256 minAmountOut,
+        bytes32 tokenOut
+    ) external payable override {
+        swapAndCreateOrder(
+            seed,
+            tokensIn,
+            amountsIn,
+            targets,
+            data,
+            values,
+            owner,
+            destChainId,
+            block.timestamp + VAULT.maxOrderTime(),
+            fee,
+            receiver,
+            minAmountOut,
+            tokenOut
+        );
+    }
+
+    function swapAndCreateOrderPermit2DynamicDeadline(
+        bytes32 seed,
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata permitSignature,
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values,
+        uint256 destChainId,
+        uint256 fee,
+        bytes32 receiver,
+        uint256 minAmountOut,
+        bytes32 tokenOut
+    ) external payable override {
+        swapAndCreateOrderPermit2(
+            seed,
+            permitBatch,
+            permitSignature,
+            targets,
+            data,
+            values,
+            destChainId,
+            block.timestamp + VAULT.maxOrderTime(),
+            fee,
+            receiver,
+            minAmountOut,
+            tokenOut
+        );
+    }
+
     /**
      * @dev See {IGeniusRouter-swapAndCreateOrder}.
      */
@@ -59,7 +119,7 @@ contract GeniusRouter is IGeniusRouter {
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
-    ) external payable override {
+    ) public payable override {
         if (tokensIn.length == 0) revert GeniusErrors.EmptyArray();
         if (tokensIn.length != amountsIn.length)
             revert GeniusErrors.ArrayLengthsMismatch();
@@ -108,7 +168,7 @@ contract GeniusRouter is IGeniusRouter {
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
-    ) external payable override {
+    ) public payable override {
         address owner = msg.sender;
 
         _permitAndBatchTransfer(permitBatch, permitSignature, owner);

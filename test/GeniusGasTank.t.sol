@@ -131,7 +131,7 @@ contract GeniusGasTankTest is Test {
 
         vm.startPrank(SENDER);
 
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -217,7 +217,7 @@ contract GeniusGasTankTest is Test {
 
         vm.startPrank(SENDER);
 
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -315,7 +315,7 @@ contract GeniusGasTankTest is Test {
             )
         );
         // Call sponsorSwap
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -384,7 +384,7 @@ contract GeniusGasTankTest is Test {
 
         vm.startPrank(SENDER);
 
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -466,7 +466,7 @@ contract GeniusGasTankTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector)
         );
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -538,7 +538,7 @@ contract GeniusGasTankTest is Test {
                 expiredDeadline
             )
         );
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -597,7 +597,7 @@ contract GeniusGasTankTest is Test {
                 unauthorizedTarget
             )
         );
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -681,7 +681,7 @@ contract GeniusGasTankTest is Test {
 
         vm.startPrank(USER);
 
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -761,7 +761,7 @@ contract GeniusGasTankTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(Pausable.EnforcedPause.selector)
         );
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -778,7 +778,7 @@ contract GeniusGasTankTest is Test {
         GAS_TANK.unpause();
 
         vm.prank(USER);
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -856,7 +856,7 @@ contract GeniusGasTankTest is Test {
         );
 
         vm.prank(USER);
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -933,7 +933,7 @@ contract GeniusGasTankTest is Test {
         );
 
         vm.prank(USER);
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -1008,7 +1008,7 @@ contract GeniusGasTankTest is Test {
         );
 
         vm.prank(USER);
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -1080,7 +1080,7 @@ contract GeniusGasTankTest is Test {
 
         vm.startPrank(SENDER);
 
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,
@@ -1097,7 +1097,7 @@ contract GeniusGasTankTest is Test {
 
         // Try to replay the same transaction
         vm.expectRevert(GeniusErrors.InvalidSignature.selector);
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,

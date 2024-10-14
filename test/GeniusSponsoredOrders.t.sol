@@ -225,7 +225,7 @@ contract GeniusSponsoredOrdersTest is Test {
         );
 
         vm.expectEmit(address(GAS_TANK));
-        emit IGeniusGasTank.TransactionsSponsored(
+        emit IGeniusGasTank.OrderedTransactionsSponsored(
             SENDER,
             USER,
             address(DAI),
@@ -234,7 +234,7 @@ contract GeniusSponsoredOrdersTest is Test {
             2
         );
 
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             gasTankTargets,
             gasTankData,
             gasTankValues,

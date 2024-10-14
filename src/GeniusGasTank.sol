@@ -32,6 +32,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
     mapping(address => bool) private allowedTargets;
 
     mapping(address => uint256) public nonces;
+    mapping(bytes32 => bool) public seeds;
 
     constructor(
         address _admin,
@@ -63,7 +64,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         _;
     }
 
-    function sponsorTransactions(
+    function sponsorOrderedTransactions(
         address[] calldata targets,
         bytes[] calldata data,
         uint256[] calldata values,
@@ -103,12 +104,65 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
 
         MULTICALL.aggregateWithValues(targets, data, values);
 
-        emit TransactionsSponsored(
+        emit OrderedTransactionsSponsored(
             msg.sender,
             owner,
             feeToken,
             feeAmount,
             nonces[owner]++,
+            targets.length
+        );
+    }
+
+    function sponsorUnorderedTransactions(
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values,
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata permitSignature,
+        address owner,
+        address feeToken,
+        uint256 feeAmount,
+        uint256 deadline,
+        bytes32 seed,
+        bytes calldata signature
+    ) external payable override whenNotPaused {
+        if (deadline < block.timestamp)
+            revert GeniusErrors.DeadlinePassed(deadline);
+        _checkTargets(targets, permitBatch.details);
+        if (seeds[seed]) revert GeniusErrors.InvalidSeed();
+
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                seed,
+                deadline,
+                address(this)
+            )
+        );
+
+        seeds[seed] = true;
+        _verifySignature(messageHash, signature, owner);
+        _permitAndBatchTransfer(
+            permitBatch,
+            permitSignature,
+            owner,
+            feeToken,
+            feeAmount
+        );
+        IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
+
+        MULTICALL.aggregateWithValues(targets, data, values);
+
+        emit UnorderedTransactionsSponsored(
+            msg.sender,
+            owner,
+            feeToken,
+            feeAmount,
+            seed,
             targets.length
         );
     }

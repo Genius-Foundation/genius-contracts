@@ -347,6 +347,8 @@ interface IGeniusVault {
      */
     function addressToBytes32(address _input) external pure returns (bytes32);
 
+    function maxOrderTime() external view returns (uint256);
+
     /**
      * @notice Returns the address of the stablecoin used in the vault.
      * @return The IERC20 interface of the stablecoin.
