@@ -48,14 +48,6 @@ interface IGeniusRouter {
         bytes32 tokenOut
     ) external payable;
 
-    function aggregateWithPermit2(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
-        IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata permitSignature
-    ) external payable;
-
     // =============================================================
     //                           VARIABLES
     // =============================================================

@@ -1165,4 +1165,143 @@ contract GeniusGasTankTest is Test {
         );
         return abi.encodePacked(r, s, v);
     }
+
+    function testAggregateWithPermit2() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(DAI),
+                amount: uint160(BASE_USER_DAI_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        targets[0] = address(DAI);
+        data[0] = abi.encodeWithSelector(
+            DAI.approve.selector,
+            address(ROUTER),
+            BASE_USER_DAI_BALANCE
+        );
+        targets[1] = address(ROUTER);
+        data[1] = abi.encodeWithSelector(
+            ROUTER.swapTo.selector,
+            address(DAI),
+            address(WETH),
+            BASE_USER_DAI_BALANCE - 1 ether,
+            USER
+        );
+        values[0] = 0;
+        values[1] = 0;
+
+        vm.startPrank(USER);
+
+        uint256 initialDAIBalance = DAI.balanceOf(USER);
+        uint256 initialUSDCBalance = WETH.balanceOf(USER);
+
+        GAS_TANK.aggregateWithPermit2(
+            targets,
+            data,
+            values,
+            permitBatch,
+            permitSignature,
+            address(DAI),
+            1 ether
+        );
+
+        assertEq(
+            DAI.balanceOf(USER),
+            initialDAIBalance - BASE_USER_DAI_BALANCE,
+            "DAI balance should decrease"
+        );
+        assertEq(
+            WETH.balanceOf(USER),
+            initialUSDCBalance + BASE_ROUTER_WETH_BALANCE / 2,
+            "WETH balance should increase"
+        );
+        assertEq(
+            DAI.balanceOf(address(ROUTER)),
+            BASE_USER_DAI_BALANCE - 1 ether,
+            "Fee receiver should have received the fees"
+        );
+        assertEq(
+            DAI.balanceOf(FEE_RECIPIENT),
+            1 ether,
+            "Fee receiver should have received the fees"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testAggregateWithPermit2InvalidSignature() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(DAI),
+                amount: uint160(BASE_USER_DAI_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        // Modify the signature to make it invalid
+        permitSignature[0] = bytes1(uint8(permitSignature[0]) + 1);
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        targets[0] = address(DAI);
+        data[0] = abi.encodeWithSelector(
+            DAI.approve.selector,
+            address(ROUTER),
+            BASE_USER_DAI_BALANCE
+        );
+        targets[1] = address(ROUTER);
+        data[1] = abi.encodeWithSelector(
+            ROUTER.swap.selector,
+            address(DAI),
+            address(USDC),
+            BASE_USER_DAI_BALANCE
+        );
+        values[0] = 0;
+        values[1] = 0;
+
+        vm.startPrank(USER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidSignature.selector)
+        );
+        GAS_TANK.aggregateWithPermit2(
+            targets,
+            data,
+            values,
+            permitBatch,
+            permitSignature,
+            address(DAI),
+            1 ether
+        );
+
+        vm.stopPrank();
+    }
 }

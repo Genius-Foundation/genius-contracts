@@ -134,17 +134,6 @@ contract GeniusRouter is IGeniusRouter {
         VAULT.createOrder(order);
     }
 
-    function aggregateWithPermit2(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
-        IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata permitSignature
-    ) external payable override {
-        _permitAndBatchTransfer(permitBatch, permitSignature, msg.sender);
-        MULTICALL.aggregateWithValues(targets, data, values);
-    }
-
     function _permitAndBatchTransfer(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
