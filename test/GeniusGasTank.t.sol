@@ -79,6 +79,73 @@ contract GeniusGasTankTest is Test {
         vm.stopPrank();
     }
 
+    function testSponsorTokenNonAllowedTarget() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(USDC),
+                amount: uint160(BASE_USER_USDC_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        address[] memory targets = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        uint256[] memory values = new uint256[](1);
+
+        targets[0] = address(USDC);
+        data[0] = abi.encodeWithSignature(
+            "transfer(address,uint256)",
+            address(ROUTER),
+            BASE_USER_USDC_BALANCE
+        );
+        values[0] = 0;
+
+        bytes memory sponsorSignature = _generateSignature(
+            targets,
+            data,
+            values,
+            permitBatch,
+            GAS_TANK.nonces(USER),
+            address(USDC),
+            0,
+            1900000000,
+            USER_PK
+        );
+
+        vm.startPrank(SENDER);
+
+        GAS_TANK.sponsorTransactions(
+            targets,
+            data,
+            values,
+            permitBatch,
+            permitSignature,
+            USER,
+            address(USDC),
+            0,
+            1900000000,
+            sponsorSignature
+        );
+
+        assertEq(
+            USDC.balanceOf(address(ROUTER)),
+            BASE_USER_USDC_BALANCE,
+            "USDC balance mismatch"
+        );
+
+        vm.stopPrank();
+    }
+
     function testSponsorSwap() public {
         IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
             .PermitDetails({
