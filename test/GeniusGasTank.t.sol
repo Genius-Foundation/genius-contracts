@@ -125,6 +125,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            0,
             1900000000,
             USER_PK
         );
@@ -211,6 +213,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            1 ether,
             1900000000,
             USER_PK
         );
@@ -301,6 +305,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            0,
             1900000000,
             USER_PK
         );
@@ -378,6 +384,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            feeAmount,
             1900000000,
             USER_PK
         );
@@ -528,6 +536,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            0,
             expiredDeadline,
             USER_PK
         );
@@ -587,6 +597,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            0,
             1900000000,
             USER_PK
         );
@@ -675,6 +687,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            0,
             1900000000,
             USER_PK
         );
@@ -754,6 +768,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            0,
             1900000000,
             USER_PK
         );
@@ -851,6 +867,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            feeAmount,
             1900000000,
             USER_PK
         );
@@ -922,6 +940,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            0,
             1900000000,
             USER_PK
         );
@@ -1003,6 +1023,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             initialNonce,
+            address(USDC),
+            0,
             1900000000,
             USER_PK
         );
@@ -1074,6 +1096,8 @@ contract GeniusGasTankTest is Test {
             values,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(USDC),
+            0,
             1900000000,
             USER_PK
         );
@@ -1141,6 +1165,8 @@ contract GeniusGasTankTest is Test {
         uint256[] memory values,
         IAllowanceTransfer.PermitBatch memory permitBatch,
         uint256 nonce,
+        address feeToken,
+        uint256 feeAmount,
         uint256 deadline,
         uint256 privateKey
     ) internal view returns (bytes memory) {
@@ -1151,6 +1177,8 @@ contract GeniusGasTankTest is Test {
                 values,
                 permitBatch,
                 nonce,
+                feeToken,
+                feeAmount,
                 deadline,
                 address(GAS_TANK)
             )

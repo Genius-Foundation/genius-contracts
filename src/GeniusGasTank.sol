@@ -86,6 +86,8 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
                 values,
                 permitBatch,
                 nonces[owner],
+                feeToken,
+                feeAmount,
                 deadline,
                 address(this)
             )
