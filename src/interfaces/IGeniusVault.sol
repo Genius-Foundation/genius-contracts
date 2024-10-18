@@ -276,12 +276,6 @@ interface IGeniusVault {
     ) external;
 
     /**
-     * @notice Sets the status of an order as filled on the source chain.
-     * @param order The Order struct containing the order details.
-     */
-    function setOrderAsFilled(Order memory order) external;
-
-    /**
      * @notice Claims fees from the GeniusVault contract.
      * @param amount The amount of fees to claim.
      * @param token The address of the token to claim fees in.

@@ -161,11 +161,6 @@ contract GeniusVaultOrders is Test {
             "Available Stablecoin balance should be 1"
         );
         assertEq(
-            VAULT.reservedAssets(),
-            0 ether,
-            "Reserved Stablecoin balance should be 0 ether"
-        );
-        assertEq(
             TOKEN1.balanceOf(TRADER),
             order.minAmountOut,
             "Trader should receive the correct amount"

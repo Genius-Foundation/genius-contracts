@@ -6,7 +6,6 @@ import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 contract GeniusVault is GeniusVaultCore {
-    uint256 public reservedAssets; // The total amount of assets that have been reserved for unfilled orders
     uint256 public unclaimedFees; // The total amount of fees that are available to be claimed
 
     constructor() {
@@ -123,7 +122,8 @@ contract GeniusVault is GeniusVaultCore {
     function createOrder(
         Order memory order
     ) external payable virtual override whenNotPaused {
-        if (order.trader == bytes32(0) || order.receiver == bytes32(0)) revert GeniusErrors.NonAddress0();
+        if (order.trader == bytes32(0) || order.receiver == bytes32(0))
+            revert GeniusErrors.NonAddress0();
         if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
             revert GeniusErrors.InvalidTokenIn();
@@ -148,7 +148,7 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn
         );
 
-        reservedAssets += order.amountIn;
+        unclaimedFees += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit OrderCreated(
@@ -187,36 +187,6 @@ contract GeniusVault is GeniusVaultCore {
     }
 
     /**
-     * @dev See {IGeniusVault-setOrderAsFilled}.
-     */
-    function setOrderAsFilled(
-        Order memory order
-    ) external override onlyOrchestrator whenNotPaused {
-        bytes32 _orderHash = orderHash(order);
-
-        if (orderStatus[_orderHash] != OrderStatus.Created)
-            revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId())
-            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-
-        orderStatus[_orderHash] = OrderStatus.Filled;
-        unclaimedFees += order.fee;
-        reservedAssets -= order.amountIn;
-
-        emit OrderFilled(
-            order.seed,
-            order.trader,
-            order.receiver,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline,
-            order.fee
-        );
-    }
-
-    /**
      * @notice Reverts an order and refunds the trader
      * @param order The order to revert
      */
@@ -224,14 +194,7 @@ contract GeniusVault is GeniusVaultCore {
         Order calldata order,
         address[] memory targets,
         bytes[] memory data
-    ) external override nonReentrant whenNotPaused {
-        if (
-            !hasRole(ORCHESTRATOR_ROLE, msg.sender) &&
-            msg.sender != bytes32ToAddress(order.trader)
-        ) {
-            revert GeniusErrors.InvalidTrader();
-        }
-
+    ) external override nonReentrant whenNotPaused onlyOrchestrator {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Created)
             revert GeniusErrors.InvalidOrderStatus();
@@ -259,7 +222,7 @@ contract GeniusVault is GeniusVaultCore {
             MULTICALL.aggregate(targets, data);
         }
 
-        reservedAssets -= order.amountIn;
+        unclaimedFees -= order.fee;
 
         emit OrderReverted(
             order.seed,
@@ -282,7 +245,7 @@ contract GeniusVault is GeniusVaultCore {
             ? totalStakedAssets - reduction
             : 0;
 
-        return minBalance + unclaimedFees + reservedAssets;
+        return minBalance + unclaimedFees;
     }
 
     /**

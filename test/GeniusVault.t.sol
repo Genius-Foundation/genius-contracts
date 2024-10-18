@@ -622,23 +622,6 @@ contract GeniusVaultTest is Test {
         );
     }
 
-    function testSetOrderAsFilled() public {
-        vm.startPrank(address(ORCHESTRATOR));
-        deal(address(USDC), address(ORCHESTRATOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.createOrder(order);
-
-        vm.startPrank(ORCHESTRATOR);
-        VAULT.setOrderAsFilled(order);
-
-        bytes32 orderHash = VAULT.orderHash(order);
-        assertEq(
-            uint256(VAULT.orderStatus(orderHash)),
-            uint256(IGeniusVault.OrderStatus.Filled),
-            "Order status should be Filled"
-        );
-    }
-
     function testRevertOrder() public {
         vm.startPrank(address(ORCHESTRATOR));
         deal(address(USDC), address(ORCHESTRATOR), 1_000 ether);
@@ -985,64 +968,6 @@ contract GeniusVaultTest is Test {
             )
         );
         VAULT.fillOrder(order, targets, calldatas);
-    }
-
-    function testSetOrderAsFilledWithWrongSourceChain() public {
-        vm.startPrank(address(ORCHESTRATOR));
-        deal(address(USDC), address(ORCHESTRATOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
-
-        order = IGeniusVault.Order({
-            seed: keccak256("order"),
-            amountIn: 1_000 ether,
-            receiver: RECEIVER,
-            trader: VAULT.addressToBytes32(TRADER),
-            srcChainId: block.chainid,
-            destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
-            tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: 1 ether,
-            minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
-        });
-
-        VAULT.createOrder(order);
-
-        vm.startPrank(ORCHESTRATOR);
-        vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.InvalidOrderStatus.selector)
-        );
-        VAULT.setOrderAsFilled(badOrder);
-    }
-
-    function testSetOrderAsFilledTwice() public {
-        vm.startPrank(address(ORCHESTRATOR));
-        deal(address(USDC), address(ORCHESTRATOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
-
-        order = IGeniusVault.Order({
-            seed: keccak256("order"),
-            amountIn: 1_000 ether,
-            trader: VAULT.addressToBytes32(TRADER),
-            receiver: RECEIVER,
-            srcChainId: uint16(block.chainid),
-            destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
-            tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: 1 ether,
-            minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
-        });
-
-        VAULT.createOrder(order);
-
-        vm.startPrank(ORCHESTRATOR);
-        VAULT.setOrderAsFilled(order);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.InvalidOrderStatus.selector)
-        );
-        VAULT.setOrderAsFilled(order);
     }
 
     function testRevertOrderTwice() public {

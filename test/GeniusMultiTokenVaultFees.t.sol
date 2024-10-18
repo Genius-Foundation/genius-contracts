@@ -137,12 +137,12 @@ contract GeniusMultiTokenVaultFees is Test {
 
         assertEq(
             VAULT.supportedTokenFees(address(USDC)),
-            0,
+            1 ether,
             "Total unclaimed fees should be 1 ether"
         );
         assertEq(
             VAULT.minLiquidity(),
-            1000 ether,
+            1 ether,
             "Needed liquidity should be 1000 ether"
         );
         assertEq(
@@ -152,13 +152,8 @@ contract GeniusMultiTokenVaultFees is Test {
         );
         assertEq(
             VAULT.availableAssets(),
-            0 ether,
+            999 ether,
             "Available assets should be 0"
-        );
-        assertEq(
-            VAULT.supportedTokenReserves(address(USDC)),
-            1000 ether,
-            "Token reserve should be 1000 tokens"
         );
     }
 
@@ -185,20 +180,10 @@ contract GeniusMultiTokenVaultFees is Test {
         vm.stopPrank();
 
         assertEq(
-            VAULT.supportedTokenReserves(address(USDC)),
-            1000 ether,
-            "Token reserve should be 1000 tokens"
-        );
-        assertEq(
             VAULT.availableAssets(),
-            0 ether,
-            "Available assets should be 0"
+            999 ether,
+            "Available assets should be 999"
         );
-
-        // Set the order as filled
-        vm.startPrank(ORCHESTRATOR);
-        VAULT.setOrderAsFilled(order);
-        vm.stopPrank();
 
         order = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
@@ -271,11 +256,6 @@ contract GeniusMultiTokenVaultFees is Test {
             3 ether,
             "Stablecoin balance should be 1 ether"
         );
-        assertEq(
-            VAULT.supportedTokenReserves(address(USDC)),
-            0 ether,
-            "Token reserve should be 0 tokens"
-        );
     }
 
     function testRemoveTooMuchLiquidity() public {
@@ -307,7 +287,7 @@ contract GeniusMultiTokenVaultFees is Test {
             destChainId: block.chainid,
             fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: 1 ether,
+            fee: 0,
             minAmountOut: 0,
             tokenOut: bytes32(uint256(1))
         });
@@ -323,7 +303,7 @@ contract GeniusMultiTokenVaultFees is Test {
         calldatas[0] = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            999 ether
+            1_000 ether
         );
 
         // Remove liquidity
@@ -331,8 +311,8 @@ contract GeniusMultiTokenVaultFees is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 GeniusErrors.InsufficientLiquidity.selector,
-                0 ether,
-                999 ether
+                999 ether,
+                1_000 ether
             )
         );
         VAULT.fillOrder(order, targets, calldatas);
@@ -350,13 +330,13 @@ contract GeniusMultiTokenVaultFees is Test {
         );
         assertEq(
             VAULT.supportedTokenFees(address(USDC)),
-            0,
+            1 ether,
             "Total unclaimed fees should still be 1 ether"
         );
         assertEq(
             VAULT.availableAssets(),
-            0 ether,
-            "Available assets should be 0 ether"
+            999 ether,
+            "Available assets should be 999 ether"
         );
         assertEq(
             VAULT.tokenBalance(address(USDC)),
@@ -437,34 +417,18 @@ contract GeniusMultiTokenVaultFees is Test {
 
         assertEq(
             VAULT.supportedTokenFees(address(USDC)),
-            0,
+            1 ether,
             "USDC unclaimed fees should be 1 ether"
         );
         assertEq(
             VAULT.supportedTokenFees(address(WETH)),
-            0,
+            1 ether,
             "WETH unclaimed fees should be 1 ether"
         );
         assertEq(
             VAULT.supportedTokenFees(address(USDT)),
-            0,
+            1 ether,
             "USDT unclaimed fees should be 1 ether"
-        );
-
-        assertEq(
-            VAULT.supportedTokenReserves(address(USDC)),
-            1_000 ether,
-            "USDC reserve should be 1000 tokens"
-        );
-        assertEq(
-            VAULT.supportedTokenReserves(address(WETH)),
-            1_000 ether,
-            "WETH reserve should be 1,000 ether"
-        );
-        assertEq(
-            VAULT.supportedTokenReserves(address(USDT)),
-            1_000 ether,
-            "USDT reserve should be 1,000 ether"
         );
     }
 }
