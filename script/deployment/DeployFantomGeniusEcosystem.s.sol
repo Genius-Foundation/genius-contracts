@@ -4,8 +4,10 @@ pragma solidity ^0.8.20;
 import {DeployGeniusEcosystemCore} from "./DeployGeniusEcosystemCore.s.sol";
 
 contract DeployFantomGeniusEcosystem is DeployGeniusEcosystemCore {
-    address public constant stableAddress = 0x28a92dde19D9989F39A49905d7C9C2FAc7799bDf;
-    address public constant permit2Address = 0x838c010F57889195C88f2097488e49B7ad04EcB1;
+    address public constant stableAddress =
+        0x28a92dde19D9989F39A49905d7C9C2FAc7799bDf;
+    address public constant permit2Address =
+        0x838c010F57889195C88f2097488e49B7ad04EcB1;
     address public constant owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
 
     function run() external {
@@ -16,11 +18,12 @@ contract DeployFantomGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        address[] memory routers = new address[](3);
-        routers[0] = 0xD0c22A5435F4E8E5770C1fAFb5374015FC12F7cD; // Odos
-        routers[1] = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5; // Kyberswap
-        routers[2] = 0xa7FD99748cE527eAdC0bDAc60cba8a4eF4090f7c; // OKX
-
-        _run(stableAddress, permit2Address, owner, orchestrators, routers);
+        _run(
+            permit2Address,
+            stableAddress,
+            owner,
+            orchestrators,
+            new address[](0)
+        );
     }
 }

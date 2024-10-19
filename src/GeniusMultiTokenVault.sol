@@ -33,7 +33,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
     mapping(address token => bool isSupported) public supportedTokens; // Mapping of token addresses to TokenInfo structs
     mapping(address token => uint256 amount) public supportedTokenFees; // Mapping of token address to total unclaimed fees
-    mapping(address token => uint256 amount) public supportedTokenReserves; // Mapping of token address to total reserved assets
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
@@ -51,11 +50,22 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      * @dev See {IGeniusMultiTokenPool-initialize}.
      */
     function initialize(
-        address stablecoin,
-        address admin,
+        address _stablecoin,
+        address _admin,
+        address _multicall,
+        uint256 _rebalanceThreshold,
+        uint256 _orderRevertBuffer,
+        uint256 _maxOrderTime,
         address[] memory tokens
     ) external initializer {
-        GeniusVaultCore._initialize(stablecoin, admin);
+        GeniusVaultCore._initialize(
+            _stablecoin,
+            _admin,
+            _multicall,
+            _rebalanceThreshold,
+            _orderRevertBuffer,
+            _maxOrderTime
+        );
 
         supportedTokens[address(STABLECOIN)] = true;
         emit TokenSupported(address(STABLECOIN), true);
@@ -84,10 +94,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         bytes[] calldata data
     ) external payable override onlyOrchestrator whenNotPaused {
         _isAmountValid(amountIn, availableAssets());
-        _checkNative(_sum(values));
 
-        _transferERC20(address(STABLECOIN), address(EXECUTOR), amountIn);
-        EXECUTOR.aggregate(targets, data, values);
+        _transferERC20(address(STABLECOIN), address(MULTICALL), amountIn);
+        MULTICALL.aggregateWithValues(targets, data, values);
 
         emit RemovedLiquidity(amountIn, dstChainId);
     }
@@ -99,12 +108,12 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     /**
      * @dev See {IGeniusMultiTokenPool-addLiquiditySwap}.
      */
-    function addLiquiditySwap(
+    function createOrder(
         Order memory order
     ) external payable override whenNotPaused {
         address tokenIn = bytes32ToAddress(order.tokenIn);
-        address trader = bytes32ToAddress(order.trader);
-        if (trader == address(0)) revert GeniusErrors.InvalidTrader();
+        if (order.trader == bytes32(0) || order.receiver == bytes32(0))
+            revert GeniusErrors.NonAddress0();
         if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (supportedTokens[tokenIn] == false)
             revert GeniusErrors.InvalidToken(tokenIn);
@@ -136,9 +145,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         }
 
         orderStatus[_orderHash] = OrderStatus.Created;
-        supportedTokenReserves[tokenIn] += order.amountIn;
+        supportedTokenFees[tokenIn] += order.fee;
 
-        emit SwapDeposit(
+        emit OrderCreated(
             order.seed,
             order.trader,
             order.tokenIn,
@@ -153,10 +162,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     /**
      * @dev See {IGeniusMultiTokenPool-removeLiquiditySwap}.
      */
-    function removeLiquiditySwap(
+    function fillOrder(
         Order memory order,
         address[] memory targets,
-        uint256[] calldata values,
         bytes[] memory data
     ) external override nonReentrant onlyOrchestrator whenNotPaused {
         address tokenIn = bytes32ToAddress(order.tokenIn);
@@ -185,10 +193,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
             _transferERC20(
                 tokenIn,
-                address(EXECUTOR),
+                address(MULTICALL),
                 order.amountIn - order.fee
             );
-            EXECUTOR.aggregate(targets, data, values);
+            MULTICALL.aggregate(targets, data);
 
             uint256 postSwapBalance = tokenOut.balanceOf(receiver);
 
@@ -199,7 +207,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
                 );
         }
 
-        emit SwapWithdrawal(
+        emit OrderFilled(
             order.seed,
             order.trader,
             order.receiver,
@@ -245,10 +253,14 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256 preSwapBalance = stablecoinBalance();
 
         if (token == NATIVE) {
-            EXECUTOR.aggregate{value: amount}(targets, dataArray, amounts);
+            MULTICALL.aggregateWithValues{value: amount}(
+                targets,
+                dataArray,
+                amounts
+            );
         } else {
-            _transferERC20(token, address(EXECUTOR), amount);
-            EXECUTOR.aggregate(targets, dataArray, amounts);
+            _transferERC20(token, address(MULTICALL), amount);
+            MULTICALL.aggregate(targets, dataArray);
         }
 
         uint256 postSwapBalance = stablecoinBalance();
@@ -264,51 +276,15 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     // ╚═══════════════════════════════════════════════════════════╝
 
     /**
-     * @dev See {IGeniusVault-setOrderAsFilled}.
-     */
-    function setOrderAsFilled(
-        Order memory order
-    ) external override(IGeniusVault) onlyOrchestrator whenNotPaused {
-        address tokenIn = bytes32ToAddress(order.tokenIn);
-        bytes32 _orderHash = orderHash(order);
-
-        if (orderStatus[_orderHash] != OrderStatus.Created)
-            revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId())
-            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-
-        orderStatus[_orderHash] = OrderStatus.Filled;
-
-        supportedTokenFees[tokenIn] += order.fee;
-        supportedTokenReserves[tokenIn] -= order.amountIn;
-
-        emit OrderFilled(
-            order.seed,
-            order.trader,
-            order.receiver,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline,
-            order.fee
-        );
-    }
-
-    /**
      * @dev See {IGeniusVault-revertOrder}.
      */
     function revertOrder(
         Order calldata order,
         address[] memory targets,
-        uint256[] calldata values,
         bytes[] memory data
-    ) external nonReentrant whenNotPaused {
+    ) external nonReentrant whenNotPaused onlyOrchestrator {
         address tokenIn = bytes32ToAddress(order.tokenIn);
         address trader = bytes32ToAddress(order.trader);
-        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender) && msg.sender != trader) {
-            revert GeniusErrors.InvalidTrader();
-        }
 
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Created)
@@ -320,24 +296,18 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
                 order.fillDeadline + orderRevertBuffer
             );
 
-        (uint256 _totalRefund, uint256 _protocolFee) = _calculateRefundAmount(
-            order.amountIn,
-            order.fee
-        );
-
         orderStatus[_orderHash] = OrderStatus.Reverted;
-        supportedTokenFees[tokenIn] += _protocolFee;
-        supportedTokenReserves[tokenIn] -= order.amountIn;
+        supportedTokenFees[tokenIn] -= order.fee;
 
         if (targets.length == 0) {
-            _transferERC20(address(STABLECOIN), trader, _totalRefund);
+            _transferERC20(address(STABLECOIN), trader, order.amountIn);
         } else {
             _transferERC20(
                 address(STABLECOIN),
-                address(EXECUTOR),
-                _totalRefund
+                address(MULTICALL),
+                order.amountIn
             );
-            EXECUTOR.aggregate(targets, data, values);
+            MULTICALL.aggregate(targets, data);
         }
 
         emit OrderReverted(
@@ -421,9 +391,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             ? totalStakedAssets - reduction
             : 0;
 
-        uint256 result = minBalance +
-            supportedTokenFees[address(STABLECOIN)] +
-            supportedTokenReserves[address(STABLECOIN)];
+        uint256 result = minBalance + supportedTokenFees[address(STABLECOIN)];
 
         return result;
     }

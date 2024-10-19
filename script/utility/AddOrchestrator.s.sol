@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
-import {GeniusExecutor} from "../../src/GeniusExecutor.sol";
 
 /**
  * @title AddOrchestrator
@@ -18,7 +17,6 @@ import {GeniusExecutor} from "../../src/GeniusExecutor.sol";
         BSC: forge script script/utility/AddOrchestrator.s.sol:AddOrchestrator --rpc-url $BSC_RPC_URL --broadcast --verify -vvvv --via-ir
  */
 contract AddOrchestrator is Script {
-
     bytes32 constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
     /**
@@ -29,7 +27,9 @@ contract AddOrchestrator is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        GeniusExecutor geniusExecutor = GeniusExecutor(payable(0xcB695ED94387946d05c7b4F6EAb0d0471b08a06b));
+        GeniusVault geniusVault = GeniusVault(
+            payable(vm.envAddress("GENIUS_VAULT_ADDRESS"))
+        );
 
         address[] memory orchestrators = new address[](5);
         orchestrators[0] = 0x17cC1e3AF40C88B235d9837990B8ad4D7C06F5cc;
@@ -38,10 +38,8 @@ contract AddOrchestrator is Script {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        bytes32 ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
-
         for (uint i = 0; i < orchestrators.length; i++) {
-            geniusExecutor.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
+            geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
             console.log("Orchestrator added to GeniusVault:", orchestrators[i]);
         }
 

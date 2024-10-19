@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Script, console} from "forge-std/Script.sol";
-import {GeniusExecutor} from "../../src/GeniusExecutor.sol";
+import {GeniusGasTank} from "../../src/GeniusGasTank.sol";
 
 contract AddEthereumTargets is Script {
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
@@ -29,25 +29,39 @@ contract AddEthereumTargets is Script {
         orchestrators[8] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[9] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        GeniusExecutor geniusExecutor = GeniusExecutor(payable(0x39A32f31726950C550441EAe5bc290A6581FDEe3));
+        GeniusGasTank geniusGasTank = GeniusGasTank(
+            payable(0x39A32f31726950C550441EAe5bc290A6581FDEe3)
+        );
 
-        console.log("Deployer private key: %s", vm.envUint("DEPLOYER_PRIVATE_KEY"));
-        console.log("Checking if has role: %s", geniusExecutor.hasRole(0x00, 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909));
+        console.log(
+            "Deployer private key: %s",
+            vm.envUint("DEPLOYER_PRIVATE_KEY")
+        );
+        console.log(
+            "Checking if has role: %s",
+            geniusGasTank.hasRole(
+                0x00,
+                0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909
+            )
+        );
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        bool hasAdminRole = geniusExecutor.hasRole(0x00, 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909);
+        bool hasAdminRole = geniusGasTank.hasRole(
+            0x00,
+            0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909
+        );
         console.log("Has admin role: %s", hasAdminRole);
 
-        // Add all of the targets 
+        // Add all of the targets
         for (uint256 i; i < targets.length; i++) {
-            geniusExecutor.setAllowedTarget(targets[i], true);
+            geniusGasTank.setAllowedTarget(targets[i], true);
         }
 
         // Add all of the orchestrators
         for (uint256 i; i < orchestrators.length; i++) {
-            if (!geniusExecutor.hasRole(ORCHESTRATOR_ROLE, orchestrators[i])) {
-                geniusExecutor.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
+            if (!geniusGasTank.hasRole(ORCHESTRATOR_ROLE, orchestrators[i])) {
+                geniusGasTank.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
             } else {
                 console.log("Orchestrator already added: %s", orchestrators[i]);
             }

@@ -8,9 +8,9 @@ import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import {IGeniusExecutor} from "./interfaces/IGeniusExecutor.sol";
+import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 
@@ -28,33 +28,25 @@ abstract contract GeniusVaultCore is
     ERC20Upgradeable,
     AccessControlUpgradeable,
     PausableUpgradeable,
-    ReentrancyGuard
+    ReentrancyGuardUpgradeable
 {
     using SafeERC20 for IERC20;
 
-    // ╔═══════════════════════════════════════════════════════════╗
-    // ║                        IMMUTABLES                         ║
-    // ╚═══════════════════════════════════════════════════════════╝
+    // Immutable state variables (not actually immutable due to upgradeability)
+    IERC20 public STABLECOIN;
+    IGeniusMulticall public MULTICALL;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
-    IERC20 public STABLECOIN;
-    IGeniusExecutor public EXECUTOR;
+    // Mutable state variables
+    uint256 public maxOrderTime;
+    uint256 public orderRevertBuffer;
+    uint256 public totalStakedAssets;
+    uint256 public rebalanceThreshold;
 
-    // ╔═══════════════════════════════════════════════════════════╗
-    // ║                         VARIABLES                         ║
-    // ╚═══════════════════════════════════════════════════════════╝
-
-    uint256 public maxOrderTime; // In seconds
-    uint256 public orderRevertBuffer; // In seconds
-
-    uint256 public crosschainFee; // The fee charged for cross-chain swaps
-    uint256 public totalStakedAssets; // The total amount of stablecoin assets made available to the vault through user deposits
-    uint256 public rebalanceThreshold; // The maximum % of deviation from totalStakedAssets before blocking trades
-
-    mapping(address bridge => uint256 isSupported) public supportedBridges; // Mapping of bridge address to support status
-    mapping(bytes32 => OrderStatus) public orderStatus; // Mapping of order hash to order status
+    mapping(address => uint256) public supportedBridges;
+    mapping(bytes32 => OrderStatus) public orderStatus;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
@@ -86,24 +78,28 @@ abstract contract GeniusVaultCore is
      * @dev See {IGeniusVault-initialize}.
      */
     function _initialize(
-        address stablecoin,
-        address admin
+        address _stablecoin,
+        address _admin,
+        address _multicall,
+        uint256 _rebalanceThreshold,
+        uint256 _orderRevertBuffer,
+        uint256 _maxOrderTime
     ) internal onlyInitializing {
-        if (stablecoin == address(0)) revert GeniusErrors.NonAddress0();
-        if (admin == address(0)) revert GeniusErrors.NonAddress0();
+        if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
+        if (_admin == address(0)) revert GeniusErrors.NonAddress0();
 
         __ERC20_init("Genius USD", "gUSD");
         __AccessControl_init();
         __Pausable_init();
 
-        STABLECOIN = IERC20(stablecoin);
-        rebalanceThreshold = 7_500; // 75%
-        crosschainFee = 30;
-        orderRevertBuffer = 60;
-        maxOrderTime = 300;
+        STABLECOIN = IERC20(_stablecoin);
+        MULTICALL = IGeniusMulticall(_multicall);
+        _setRebalanceThreshold(_rebalanceThreshold);
+        _setOrderRevertBuffer(_orderRevertBuffer);
+        _setMaxOrderTime(_maxOrderTime);
 
-        _grantRole(DEFAULT_ADMIN_ROLE, admin);
-        _grantRole(PAUSER_ROLE, admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(PAUSER_ROLE, _admin);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -167,8 +163,7 @@ abstract contract GeniusVaultCore is
     function setMaxOrderTime(
         uint256 _maxOrderTime
     ) external override onlyAdmin {
-        maxOrderTime = _maxOrderTime;
-        emit MaxOrderTimeChanged(_maxOrderTime);
+        _setMaxOrderTime(_maxOrderTime);
     }
 
     /**
@@ -177,8 +172,7 @@ abstract contract GeniusVaultCore is
     function setOrderRevertBuffer(
         uint256 _orderRevertBuffer
     ) external override onlyAdmin {
-        orderRevertBuffer = _orderRevertBuffer;
-        emit OrderRevertBufferChanged(_orderRevertBuffer);
+        _setOrderRevertBuffer(_orderRevertBuffer);
     }
 
     /**
@@ -187,31 +181,7 @@ abstract contract GeniusVaultCore is
     function setRebalanceThreshold(
         uint256 _rebalanceThreshold
     ) external override onlyAdmin {
-        _validatePercentage(_rebalanceThreshold);
-
-        rebalanceThreshold = _rebalanceThreshold;
-        emit RebalanceThresholdChanged(_rebalanceThreshold);
-    }
-
-    /**
-     * @dev See {IGeniusVault-setExecutor}.
-     */
-    function setExecutor(address executor) external override onlyAdmin {
-        if (executor == address(0)) revert GeniusErrors.NonAddress0();
-        EXECUTOR = IGeniusExecutor(executor);
-        emit ExecutorChanged(executor);
-    }
-
-    /**
-     * @dev See {IGeniusVault-setCrosschainFee}.
-     */
-    function setCrosschainFee(
-        uint256 _crosschaiFee
-    ) external override onlyAdmin {
-        _validatePercentage(_crosschaiFee);
-
-        crosschainFee = _crosschaiFee;
-        emit CrosschainFeeChanged(_crosschaiFee);
+        _setRebalanceThreshold(_rebalanceThreshold);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -290,13 +260,21 @@ abstract contract GeniusVaultCore is
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    /**
-     * @dev Checks if the native currency sent with the transaction is equal to the specified amount.
-     * @param amount The expected amount of native currency.
-     */
-    function _checkNative(uint256 amount) internal {
-        if (msg.value != amount)
-            revert GeniusErrors.InvalidNativeAmount(amount);
+    function _setMaxOrderTime(uint256 _maxOrderTime) internal {
+        maxOrderTime = _maxOrderTime;
+        emit MaxOrderTimeChanged(_maxOrderTime);
+    }
+
+    function _setOrderRevertBuffer(uint256 _orderRevertBuffer) internal {
+        orderRevertBuffer = _orderRevertBuffer;
+        emit OrderRevertBufferChanged(_orderRevertBuffer);
+    }
+
+    function _setRebalanceThreshold(uint256 _rebalanceThreshold) internal {
+        _validatePercentage(_rebalanceThreshold);
+
+        rebalanceThreshold = _rebalanceThreshold;
+        emit RebalanceThresholdChanged(_rebalanceThreshold);
     }
 
     /**
@@ -344,39 +322,6 @@ abstract contract GeniusVaultCore is
         } else {
             totalStakedAssets -= amount;
         }
-    }
-
-    /**
-     * @dev Internal function to sum token amounts.
-     * @param amounts The array of token amounts to sum.
-     */
-    function _sum(
-        uint256[] calldata amounts
-    ) internal pure returns (uint256 total) {
-        for (uint i = 0; i < amounts.length; ) {
-            total += amounts[i];
-
-            unchecked {
-                i++;
-            }
-        }
-    }
-
-    /**
-     * @dev Internal function to calculate the refund amount for a reverted order.
-     * @param amountIn The total amount of stablecoins sent within the order.
-     * @param fee The total fee charged for the order.
-     * @return refundAmount The amount to refund to the user.
-     * @return protocolFee The fee without the swap fee.
-     */
-    function _calculateRefundAmount(
-        uint256 amountIn,
-        uint256 fee
-    ) internal view returns (uint256 refundAmount, uint256 protocolFee) {
-        uint256 _swapFee = (amountIn * crosschainFee) / 10_000;
-        uint256 _protocolFee = fee - _swapFee;
-
-        return (amountIn - _protocolFee, _protocolFee);
     }
 
     function _validatePercentage(uint256 percentage) internal pure {
@@ -434,4 +379,7 @@ abstract contract GeniusVaultCore is
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyAdmin {}
+
+    // Storage gap for future upgrades
+    uint256[50] private __gap;
 }

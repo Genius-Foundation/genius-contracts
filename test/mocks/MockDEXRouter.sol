@@ -4,9 +4,12 @@ pragma solidity ^0.8.20;
 import {console} from "forge-std/Test.sol";
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./MockERC20.sol";
 
 contract MockDEXRouter {
+    using SafeERC20 for IERC20;
+
     // Mapping to store created mock tokens
     mapping(address => address) public mockTokens;
     uint256 public usdcAmountOut;
@@ -65,19 +68,15 @@ contract MockDEXRouter {
         if (tokenIn == address(0)) {
             require(msg.value == amountIn, "Incorrect ETH amount sent");
         } else {
-            // For ERC20 input, we don't actually need to transfer tokens
-            // We just check if the caller has approved enough tokens
-            require(
-                IERC20(tokenIn).transferFrom(
-                    msg.sender,
-                    address(this),
-                    amountIn
-                )
+            IERC20(tokenIn).safeTransferFrom(
+                msg.sender,
+                address(this),
+                amountIn
             );
         }
 
         // Mint or transfer output tokens
-        IERC20(tokenOut).transfer(
+        IERC20(tokenOut).safeTransfer(
             to,
             IERC20(tokenOut).balanceOf(address(this)) / 2
         );

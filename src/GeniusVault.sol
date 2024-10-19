@@ -6,7 +6,6 @@ import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 contract GeniusVault is GeniusVaultCore {
-    uint256 public reservedAssets; // The total amount of assets that have been reserved for unfilled orders
     uint256 public unclaimedFees; // The total amount of fees that are available to be claimed
 
     constructor() {
@@ -15,31 +14,23 @@ contract GeniusVault is GeniusVaultCore {
 
     /**
      * @notice Initializes the vault
-     * @param stablecoin The address of the stablecoin to use
-     * @param admin The address of the admin
      */
     function initialize(
-        address stablecoin,
-        address admin
+        address _stablecoin,
+        address _admin,
+        address _multicall,
+        uint256 _rebalanceThreshold,
+        uint256 _orderRevertBuffer,
+        uint256 _maxOrderTime
     ) external initializer {
-        GeniusVaultCore._initialize(stablecoin, admin);
-    }
-
-    /**
-     * @notice Removes liquidity from the vault to be used for rewarding stakers
-     * @param amount The amount of liquidity to remove
-     */
-    function removeRewardLiquidity(
-        uint256 amount
-    ) external onlyOrchestrator whenNotPaused {
-        uint256 _totalAssets = stablecoinBalance();
-        uint256 _neededLiquidity = minLiquidity();
-
-        _isAmountValid(
-            amount,
-            _availableAssets(_totalAssets, _neededLiquidity)
+        GeniusVaultCore._initialize(
+            _stablecoin,
+            _admin,
+            _multicall,
+            _rebalanceThreshold,
+            _orderRevertBuffer,
+            _maxOrderTime
         );
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
     }
 
     /**
@@ -53,22 +44,20 @@ contract GeniusVault is GeniusVaultCore {
         bytes[] memory data
     ) external payable virtual override onlyOrchestrator whenNotPaused {
         _isAmountValid(amountIn, availableAssets());
-        _checkNative(_sum(values));
 
-        _transferERC20(address(STABLECOIN), address(EXECUTOR), amountIn);
+        _transferERC20(address(STABLECOIN), address(MULTICALL), amountIn);
 
-        EXECUTOR.aggregate(targets, data, values);
+        MULTICALL.aggregateWithValues(targets, data, values);
 
         emit RemovedLiquidity(amountIn, dstChainId);
     }
 
     /**
-     * @dev See {IGeniusVault-removeLiquiditySwap}.
+     * @dev See {IGeniusVault-fillOrder}.
      */
-    function removeLiquiditySwap(
+    function fillOrder(
         Order memory order,
         address[] memory targets,
-        uint256[] calldata values,
         bytes[] memory data
     ) external virtual override nonReentrant onlyOrchestrator whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
@@ -101,10 +90,10 @@ contract GeniusVault is GeniusVaultCore {
 
             _transferERC20(
                 address(STABLECOIN),
-                address(EXECUTOR),
+                address(MULTICALL),
                 order.amountIn - order.fee
             );
-            EXECUTOR.aggregate(targets, data, values);
+            MULTICALL.aggregate(targets, data);
 
             uint256 postSwapBalance = tokenOut.balanceOf(receiver);
 
@@ -115,7 +104,7 @@ contract GeniusVault is GeniusVaultCore {
                 );
         }
 
-        emit SwapWithdrawal(
+        emit OrderFilled(
             order.seed,
             order.trader,
             order.receiver,
@@ -128,12 +117,13 @@ contract GeniusVault is GeniusVaultCore {
     }
 
     /**
-     * @dev See {IGeniusVault-addLiquiditySwap}.
+     * @dev See {IGeniusVault-newOrder}.
      */
-    function addLiquiditySwap(
+    function createOrder(
         Order memory order
     ) external payable virtual override whenNotPaused {
-        if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
+        if (order.trader == bytes32(0) || order.receiver == bytes32(0))
+            revert GeniusErrors.NonAddress0();
         if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
             revert GeniusErrors.InvalidTokenIn();
@@ -158,10 +148,10 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn
         );
 
-        reservedAssets += order.amountIn;
+        unclaimedFees += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;
 
-        emit SwapDeposit(
+        emit OrderCreated(
             order.seed,
             order.trader,
             order.tokenIn,
@@ -197,52 +187,14 @@ contract GeniusVault is GeniusVaultCore {
     }
 
     /**
-     * @dev See {IGeniusVault-setOrderAsFilled}.
-     */
-    function setOrderAsFilled(
-        Order memory order
-    ) external override onlyOrchestrator whenNotPaused {
-        bytes32 _orderHash = orderHash(order);
-
-        if (orderStatus[_orderHash] != OrderStatus.Created)
-            revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId())
-            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-
-        orderStatus[_orderHash] = OrderStatus.Filled;
-        unclaimedFees += order.fee;
-        reservedAssets -= order.amountIn;
-
-        emit OrderFilled(
-            order.seed,
-            order.trader,
-            order.receiver,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline,
-            order.fee
-        );
-    }
-
-    /**
      * @notice Reverts an order and refunds the trader
      * @param order The order to revert
      */
     function revertOrder(
         Order calldata order,
         address[] memory targets,
-        uint256[] calldata values,
         bytes[] memory data
-    ) external nonReentrant whenNotPaused {
-        if (
-            !hasRole(ORCHESTRATOR_ROLE, msg.sender) &&
-            msg.sender != bytes32ToAddress(order.trader)
-        ) {
-            revert GeniusErrors.InvalidTrader();
-        }
-
+    ) external override nonReentrant whenNotPaused onlyOrchestrator {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Created)
             revert GeniusErrors.InvalidOrderStatus();
@@ -253,30 +205,24 @@ contract GeniusVault is GeniusVaultCore {
                 order.fillDeadline + orderRevertBuffer
             );
 
-        (uint256 _totalRefund, uint256 _protocolFee) = _calculateRefundAmount(
-            order.amountIn,
-            order.fee
-        );
-
         orderStatus[orderHash_] = OrderStatus.Reverted;
 
         if (targets.length == 0) {
             _transferERC20(
                 address(STABLECOIN),
                 bytes32ToAddress(order.trader),
-                _totalRefund
+                order.amountIn
             );
         } else {
             _transferERC20(
                 address(STABLECOIN),
-                address(EXECUTOR),
-                _totalRefund
+                address(MULTICALL),
+                order.amountIn
             );
-            EXECUTOR.aggregate(targets, data, values);
+            MULTICALL.aggregate(targets, data);
         }
 
-        reservedAssets -= order.amountIn;
-        unclaimedFees += _protocolFee;
+        unclaimedFees -= order.fee;
 
         emit OrderReverted(
             order.seed,
@@ -299,7 +245,7 @@ contract GeniusVault is GeniusVaultCore {
             ? totalStakedAssets - reduction
             : 0;
 
-        return minBalance + unclaimedFees + reservedAssets;
+        return minBalance + unclaimedFees;
     }
 
     /**
