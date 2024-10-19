@@ -37,6 +37,7 @@ contract AddArbitrumTargets is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Add all of the targets
+        // Add all of the targets
         for (uint256 i; i < targets.length; i++) {
             geniusGasTank.setAllowedTarget(targets[i], true);
         }
