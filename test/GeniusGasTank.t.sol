@@ -124,7 +124,7 @@ contract GeniusGasTankTest is Test {
 
         vm.startPrank(SENDER);
 
-        GAS_TANK.sponsorTransactions(
+        GAS_TANK.sponsorOrderedTransactions(
             targets,
             data,
             values,

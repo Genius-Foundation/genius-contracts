@@ -32,7 +32,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
     mapping(address => bool) private allowedTargets;
 
     mapping(address => uint256) public nonces;
-    mapping(bytes32 => bool) public seeds;
+    mapping(address => mapping(bytes32 => bool)) public seeds;
 
     constructor(
         address _admin,
@@ -132,7 +132,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         if (deadline < block.timestamp)
             revert GeniusErrors.DeadlinePassed(deadline);
         _checkTargets(targets, permitBatch.details);
-        if (seeds[seed]) revert GeniusErrors.InvalidSeed();
+        if (seeds[owner][seed]) revert GeniusErrors.InvalidSeed();
 
         bytes32 messageHash = keccak256(
             abi.encode(
@@ -146,7 +146,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
             )
         );
 
-        seeds[seed] = true;
+        seeds[owner][seed] = true;
         _verifySignature(messageHash, signature, owner);
         _permitAndBatchTransfer(
             permitBatch,
