@@ -206,6 +206,8 @@ contract GeniusSponsoredOrdersTest is Test {
             gasTankValues,
             permitBatch,
             GAS_TANK.nonces(USER),
+            address(DAI),
+            sponsorFee,
             1900000000,
             USER_PK
         );
@@ -284,6 +286,8 @@ contract GeniusSponsoredOrdersTest is Test {
         uint256[] memory values,
         IAllowanceTransfer.PermitBatch memory permitBatch,
         uint256 nonce,
+        address feeToken,
+        uint256 feeAmount,
         uint256 deadline,
         uint256 privateKey
     ) internal view returns (bytes memory) {
@@ -294,6 +298,8 @@ contract GeniusSponsoredOrdersTest is Test {
                 values,
                 permitBatch,
                 nonce,
+                feeToken,
+                feeAmount,
                 deadline,
                 address(GAS_TANK)
             )

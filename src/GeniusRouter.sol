@@ -194,15 +194,45 @@ contract GeniusRouter is IGeniusRouter {
         VAULT.createOrder(order);
     }
 
-    function aggregateWithPermit2(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+    /**
+     * @dev See {IGeniusRouter-createOrderPermit2}.
+     */
+    function createOrderPermit2(
+        bytes32 seed,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata permitSignature
+        bytes calldata permitSignature,
+        uint256 destChainId,
+        uint256 fillDeadline,
+        uint256 fee,
+        bytes32 receiver,
+        uint256 minAmountOut,
+        bytes32 tokenOut
     ) external payable override {
-        _permitAndBatchTransfer(permitBatch, permitSignature, msg.sender);
-        MULTICALL.aggregateWithValues(targets, data, values);
+        address owner = msg.sender;
+        if (permitBatch.details.length != 0)
+            revert GeniusErrors.ArrayLengthsMismatch();
+        if (permitBatch.details[0].token != address(STABLECOIN))
+            revert GeniusErrors.InvalidTokenIn();
+
+        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
+
+        uint256 delta = STABLECOIN.balanceOf(address(this));
+
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: seed,
+            trader: VAULT.addressToBytes32(owner),
+            receiver: receiver,
+            tokenIn: VAULT.addressToBytes32(address(STABLECOIN)),
+            tokenOut: tokenOut,
+            amountIn: delta,
+            minAmountOut: minAmountOut,
+            destChainId: destChainId,
+            fillDeadline: fillDeadline,
+            srcChainId: block.chainid,
+            fee: fee
+        });
+
+        VAULT.createOrder(order);
     }
 
     function _permitAndBatchTransfer(

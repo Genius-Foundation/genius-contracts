@@ -33,7 +33,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
     mapping(address token => bool isSupported) public supportedTokens; // Mapping of token addresses to TokenInfo structs
     mapping(address token => uint256 amount) public supportedTokenFees; // Mapping of token address to total unclaimed fees
-    mapping(address token => uint256 amount) public supportedTokenReserves; // Mapping of token address to total reserved assets
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
@@ -146,7 +145,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         }
 
         orderStatus[_orderHash] = OrderStatus.Created;
-        supportedTokenReserves[tokenIn] += order.amountIn;
+        supportedTokenFees[tokenIn] += order.fee;
 
         emit OrderCreated(
             order.seed,
@@ -277,50 +276,15 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     // ╚═══════════════════════════════════════════════════════════╝
 
     /**
-     * @dev See {IGeniusVault-setOrderAsFilled}.
-     */
-    function setOrderAsFilled(
-        Order memory order
-    ) external override(IGeniusVault) onlyOrchestrator whenNotPaused {
-        address tokenIn = bytes32ToAddress(order.tokenIn);
-        bytes32 _orderHash = orderHash(order);
-
-        if (orderStatus[_orderHash] != OrderStatus.Created)
-            revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId())
-            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-
-        orderStatus[_orderHash] = OrderStatus.Filled;
-
-        supportedTokenFees[tokenIn] += order.fee;
-        supportedTokenReserves[tokenIn] -= order.amountIn;
-
-        emit OrderFilled(
-            order.seed,
-            order.trader,
-            order.receiver,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline,
-            order.fee
-        );
-    }
-
-    /**
      * @dev See {IGeniusVault-revertOrder}.
      */
     function revertOrder(
         Order calldata order,
         address[] memory targets,
         bytes[] memory data
-    ) external nonReentrant whenNotPaused {
+    ) external nonReentrant whenNotPaused onlyOrchestrator {
         address tokenIn = bytes32ToAddress(order.tokenIn);
         address trader = bytes32ToAddress(order.trader);
-        if (!hasRole(ORCHESTRATOR_ROLE, msg.sender) && msg.sender != trader) {
-            revert GeniusErrors.InvalidTrader();
-        }
 
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Created)
@@ -333,7 +297,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             );
 
         orderStatus[_orderHash] = OrderStatus.Reverted;
-        supportedTokenReserves[tokenIn] -= order.amountIn;
+        supportedTokenFees[tokenIn] -= order.fee;
 
         if (targets.length == 0) {
             _transferERC20(address(STABLECOIN), trader, order.amountIn);
@@ -427,9 +391,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             ? totalStakedAssets - reduction
             : 0;
 
-        uint256 result = minBalance +
-            supportedTokenFees[address(STABLECOIN)] +
-            supportedTokenReserves[address(STABLECOIN)];
+        uint256 result = minBalance + supportedTokenFees[address(STABLECOIN)];
 
         return result;
     }

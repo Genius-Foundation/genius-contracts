@@ -7,6 +7,8 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {GeniusMulticall} from "../../src/GeniusMulticall.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
 import {GeniusActions} from "../../src/GeniusActions.sol";
+import {GeniusRouter} from "../../src/GeniusRouter.sol";
+import {GeniusGasTank} from "../../src/GeniusGasTank.sol";
 
 /**
  * @title DeployPolygonGeniusEcosystem
@@ -19,12 +21,16 @@ contract DeployGeniusEcosystemCore is Script {
     bytes32 constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
     GeniusVault public geniusVault;
+    GeniusRouter public geniusRouter;
+    GeniusGasTank public geniusGasTank;
     GeniusMulticall public geniusMulticall;
 
     function _run(
+        address _permit2Address,
         address _stableAddress,
         address _owner,
-        address[] memory orchestrators
+        address[] memory orchestrators,
+        address[] memory allowedTargets
     ) internal {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
@@ -48,12 +54,28 @@ contract DeployGeniusEcosystemCore is Script {
 
         geniusVault = GeniusVault(address(proxy));
 
+        geniusRouter = new GeniusRouter(
+            _permit2Address,
+            address(geniusVault),
+            address(geniusMulticall)
+        );
+
+        geniusGasTank = new GeniusGasTank(
+            _owner,
+            payable(_owner),
+            _permit2Address,
+            address(geniusMulticall),
+            allowedTargets
+        );
+
         // Add orchestrators
         for (uint256 i = 0; i < orchestrators.length; i++) {
             geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
         }
 
-        console.log("GeniusVault deployed at: ", address(geniusVault));
         console.log("GeniusMulticall deployed at: ", address(geniusMulticall));
+        console.log("GeniusVault deployed at: ", address(geniusVault));
+        console.log("GeniusRouter deployed at: ", address(geniusRouter));
+        console.log("GeniusGasTank deployed at: ", address(geniusGasTank));
     }
 }

@@ -16,6 +16,6 @@ contract DeployBlastGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        _run(stableAddress, owner, orchestrators);
+        _run(permit2Address, stableAddress, owner, orchestrators, new address[](0));
     }
 }

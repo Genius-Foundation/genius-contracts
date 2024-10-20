@@ -55,6 +55,16 @@ interface IGeniusGasTank {
         bytes calldata signature
     ) external payable;
 
+    function aggregateWithPermit2(
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values,
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata permitSignature,
+        address feeToken,
+        uint256 feeAmount
+    ) external payable;
+
     function setFeeRecipient(address payable _feeRecipient) external;
 
     function setAllowedTarget(address target, bool isAllowed) external;

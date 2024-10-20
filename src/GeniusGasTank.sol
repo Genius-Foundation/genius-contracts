@@ -87,6 +87,8 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
                 values,
                 permitBatch,
                 nonces[owner],
+                feeToken,
+                feeAmount,
                 deadline,
                 address(this)
             )
@@ -165,6 +167,28 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
             seed,
             targets.length
         );
+    }
+
+    function aggregateWithPermit2(
+        address[] calldata targets,
+        bytes[] calldata data,
+        uint256[] calldata values,
+        IAllowanceTransfer.PermitBatch calldata permitBatch,
+        bytes calldata permitSignature,
+        address feeToken,
+        uint256 feeAmount
+    ) external payable override {
+        _checkTargets(targets, permitBatch.details);
+        _permitAndBatchTransfer(
+            permitBatch,
+            permitSignature,
+            msg.sender,
+            feeToken,
+            feeAmount
+        );
+        IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
+
+        MULTICALL.aggregateWithValues(targets, data, values);
     }
 
     /**

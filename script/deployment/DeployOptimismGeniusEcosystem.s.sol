@@ -17,6 +17,12 @@ contract DeployOptimismGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        _run(stableAddress, owner, orchestrators);
+        address[] memory targets = new address[](4);
+        targets[0] = 0xf332761c673b59B21fF6dfa8adA44d78c12dEF09;
+        targets[1] = 0x68D6B739D2020067D1e2F713b999dA97E4d54812;
+        targets[2] = 0xCa423977156BB05b13A2BA3b76Bc5419E2fE9680;
+        targets[3] = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5;
+
+        _run(permit2Address, stableAddress, owner, orchestrators, targets);
     }
 }
