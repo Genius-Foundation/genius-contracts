@@ -1226,41 +1226,6 @@ contract GeniusGasTankTest is Test {
         return (permitBatch, permitSignature);
     }
 
-    function _generateSignature(
-        address[] memory targets,
-        bytes[] memory data,
-        uint256[] memory values,
-        IAllowanceTransfer.PermitBatch memory permitBatch,
-        uint256 nonce,
-        address feeToken,
-        uint256 feeAmount,
-        uint256 deadline,
-        uint256 privateKey
-    ) internal view returns (bytes memory) {
-        bytes32 messageHash = keccak256(
-            abi.encode(
-                targets,
-                data,
-                values,
-                permitBatch,
-                nonce,
-                feeToken,
-                feeAmount,
-                deadline,
-                address(GAS_TANK)
-            )
-        );
-
-        bytes32 ethSignedMessageHash = keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash)
-        );
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            privateKey,
-            ethSignedMessageHash
-        );
-        return abi.encodePacked(r, s, v);
-    }
-
     function testAggregateWithPermit2() public {
         IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
             .PermitDetails({
@@ -1398,5 +1363,473 @@ contract GeniusGasTankTest is Test {
         );
 
         vm.stopPrank();
+    }
+
+    function testSponsorUnorderedTransactions() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(USDC),
+                amount: uint160(BASE_USER_USDC_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        targets[0] = address(USDC);
+        data[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(ROUTER),
+            BASE_USER_USDC_BALANCE
+        );
+        targets[1] = address(ROUTER);
+        data[1] = abi.encodeWithSignature(
+            "swapTo(address,address,uint256,address)",
+            address(USDC),
+            address(WETH),
+            BASE_USER_USDC_BALANCE,
+            USER
+        );
+        values[0] = 0;
+        values[1] = 0;
+
+        bytes32 seed = keccak256("test_seed");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sponsorSignature = _generateUnorderedSignature(
+            targets,
+            data,
+            values,
+            permitBatch,
+            seed,
+            address(USDC),
+            0,
+            deadline,
+            USER_PK
+        );
+
+        vm.startPrank(SENDER);
+
+        GAS_TANK.sponsorUnorderedTransactions(
+            targets,
+            data,
+            values,
+            permitBatch,
+            permitSignature,
+            USER,
+            address(USDC),
+            0,
+            deadline,
+            seed,
+            sponsorSignature
+        );
+
+        assertEq(USDC.balanceOf(USER), 0, "USDC balance mismatch");
+        assertEq(
+            WETH.balanceOf(USER),
+            BASE_ROUTER_WETH_BALANCE / 2,
+            "WETH balance mismatch"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testSponsorUnorderedTransactionsWithFee() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(USDC),
+                amount: uint160(BASE_USER_USDC_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        targets[0] = address(USDC);
+        data[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(ROUTER),
+            BASE_USER_USDC_BALANCE - 1 ether
+        );
+        targets[1] = address(ROUTER);
+        data[1] = abi.encodeWithSignature(
+            "swapTo(address,address,uint256,address)",
+            address(USDC),
+            address(WETH),
+            BASE_USER_USDC_BALANCE - 1 ether,
+            USER
+        );
+        values[0] = 0;
+        values[1] = 0;
+
+        bytes32 seed = keccak256("test_seed_with_fee");
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 feeAmount = 1 ether;
+
+        bytes memory sponsorSignature = _generateUnorderedSignature(
+            targets,
+            data,
+            values,
+            permitBatch,
+            seed,
+            address(USDC),
+            feeAmount,
+            deadline,
+            USER_PK
+        );
+
+        vm.startPrank(SENDER);
+
+        GAS_TANK.sponsorUnorderedTransactions(
+            targets,
+            data,
+            values,
+            permitBatch,
+            permitSignature,
+            USER,
+            address(USDC),
+            feeAmount,
+            deadline,
+            seed,
+            sponsorSignature
+        );
+
+        assertEq(
+            USDC.balanceOf(FEE_RECIPIENT),
+            feeAmount,
+            "Fee not transferred correctly"
+        );
+        assertEq(
+            USDC.balanceOf(address(ROUTER)),
+            BASE_USER_USDC_BALANCE - feeAmount,
+            "USDC balance mismatch"
+        );
+        assertEq(
+            WETH.balanceOf(USER),
+            BASE_ROUTER_WETH_BALANCE / 2,
+            "WETH balance mismatch"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testSponsorUnorderedTransactionsInvalidSignature() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(USDC),
+                amount: uint160(BASE_USER_USDC_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        targets[0] = address(USDC);
+        data[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(ROUTER),
+            BASE_USER_USDC_BALANCE
+        );
+        targets[1] = address(ROUTER);
+        data[1] = abi.encodeWithSignature(
+            "swapTo(address,address,uint256,address)",
+            address(USDC),
+            address(WETH),
+            BASE_USER_USDC_BALANCE,
+            USER
+        );
+        values[0] = 0;
+        values[1] = 0;
+
+        bytes32 seed = keccak256("test_seed_invalid_signature");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory invalidSignature = abi.encodePacked(
+            bytes32(0),
+            bytes32(0),
+            uint8(0)
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector)
+        );
+        GAS_TANK.sponsorUnorderedTransactions(
+            targets,
+            data,
+            values,
+            permitBatch,
+            permitSignature,
+            USER,
+            address(USDC),
+            0,
+            deadline,
+            seed,
+            invalidSignature
+        );
+    }
+
+    function testSponsorUnorderedTransactionsExpiredDeadline() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(USDC),
+                amount: uint160(BASE_USER_USDC_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        targets[0] = address(USDC);
+        data[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(ROUTER),
+            BASE_USER_USDC_BALANCE
+        );
+        targets[1] = address(ROUTER);
+        data[1] = abi.encodeWithSignature(
+            "swapTo(address,address,uint256,address)",
+            address(USDC),
+            address(WETH),
+            BASE_USER_USDC_BALANCE,
+            USER
+        );
+        values[0] = 0;
+        values[1] = 0;
+
+        bytes32 seed = keccak256("test_seed_expired_deadline");
+        uint256 expiredDeadline = block.timestamp - 1;
+
+        bytes memory sponsorSignature = _generateUnorderedSignature(
+            targets,
+            data,
+            values,
+            permitBatch,
+            seed,
+            address(USDC),
+            0,
+            expiredDeadline,
+            USER_PK
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.DeadlinePassed.selector,
+                expiredDeadline
+            )
+        );
+        GAS_TANK.sponsorUnorderedTransactions(
+            targets,
+            data,
+            values,
+            permitBatch,
+            permitSignature,
+            USER,
+            address(USDC),
+            0,
+            expiredDeadline,
+            seed,
+            sponsorSignature
+        );
+    }
+
+    function testSponsorUnorderedTransactionsInvalidSeed() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(USDC),
+                amount: uint160(BASE_USER_USDC_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        targets[0] = address(USDC);
+        data[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(ROUTER),
+            BASE_USER_USDC_BALANCE
+        );
+        targets[1] = address(ROUTER);
+        data[1] = abi.encodeWithSignature(
+            "swapTo(address,address,uint256,address)",
+            address(USDC),
+            address(WETH),
+            BASE_USER_USDC_BALANCE,
+            USER
+        );
+        values[0] = 0;
+        values[1] = 0;
+
+        bytes32 seed = keccak256("test_seed_invalid");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sponsorSignature = _generateUnorderedSignature(
+            targets,
+            data,
+            values,
+            permitBatch,
+            seed,
+            address(USDC),
+            0,
+            deadline,
+            USER_PK
+        );
+
+        // First transaction should succeed
+        GAS_TANK.sponsorUnorderedTransactions(
+            targets,
+            data,
+            values,
+            permitBatch,
+            permitSignature,
+            USER,
+            address(USDC),
+            0,
+            deadline,
+            seed,
+            sponsorSignature
+        );
+
+        // Second transaction with the same seed should fail
+        vm.expectRevert(GeniusErrors.InvalidSeed.selector);
+        GAS_TANK.sponsorUnorderedTransactions(
+            targets,
+            data,
+            values,
+            permitBatch,
+            permitSignature,
+            USER,
+            address(USDC),
+            0,
+            deadline,
+            seed,
+            sponsorSignature
+        );
+    }
+
+    function _generateSignature(
+        address[] memory targets,
+        bytes[] memory data,
+        uint256[] memory values,
+        IAllowanceTransfer.PermitBatch memory permitBatch,
+        uint256 nonce,
+        address feeToken,
+        uint256 feeAmount,
+        uint256 deadline,
+        uint256 privateKey
+    ) internal view returns (bytes memory) {
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                nonce,
+                feeToken,
+                feeAmount,
+                deadline,
+                address(GAS_TANK)
+            )
+        );
+
+        bytes32 ethSignedMessageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash)
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            ethSignedMessageHash
+        );
+        return abi.encodePacked(r, s, v);
+    }
+
+    function _generateUnorderedSignature(
+        address[] memory targets,
+        bytes[] memory data,
+        uint256[] memory values,
+        IAllowanceTransfer.PermitBatch memory permitBatch,
+        bytes32 seed,
+        address feeToken,
+        uint256 feeAmount,
+        uint256 deadline,
+        uint256 privateKey
+    ) internal view returns (bytes memory) {
+        bytes32 messageHash = keccak256(
+            abi.encode(
+                targets,
+                data,
+                values,
+                permitBatch,
+                seed,
+                feeToken,
+                feeAmount,
+                deadline,
+                address(GAS_TANK)
+            )
+        );
+
+        bytes32 ethSignedMessageHash = keccak256(
+            abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash)
+        );
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            privateKey,
+            ethSignedMessageHash
+        );
+        return abi.encodePacked(r, s, v);
     }
 }

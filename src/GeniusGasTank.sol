@@ -141,6 +141,8 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
                 values,
                 permitBatch,
                 seed,
+                feeToken,
+                feeAmount,
                 deadline,
                 address(this)
             )
