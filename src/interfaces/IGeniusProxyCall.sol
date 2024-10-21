@@ -20,7 +20,7 @@ interface IGeniusProxyCall {
         uint256 minAmountOut,
         bytes calldata swapData,
         bytes calldata callData
-    ) external;
+    ) external returns (bool);
 
     function approveTokenExecuteAndVerify(
         address token,
