@@ -5,6 +5,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 import {MultiSendCallOnly} from "./libs/MultiSendCallOnly.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title GeniusProxyCall
@@ -14,6 +15,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *         in a single transaction.
  */
 contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
+    using SafeERC20 for IERC20;
+
     /**
      * @dev See {IGeniusProxyCall-aggregate}.
      */
@@ -48,7 +51,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
             );
             (_success, ) = address(this).call(wrappedSwapData);
             if (!_success) {
-                IERC20(stablecoin).transfer(
+                IERC20(stablecoin).safeTransfer(
                     receiver,
                     IERC20(stablecoin).balanceOf(address(this))
                 );
@@ -80,7 +83,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         uint256 balance = IERC20(tokenOut).balanceOf(receiver);
 
         if (balance > 0) {
-            IERC20(tokenOut).transfer(receiver, balance);
+            IERC20(tokenOut).safeTransfer(receiver, balance);
         }
         return _success;
     }
@@ -134,7 +137,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address to,
         bytes calldata data
     ) external payable {
-        IERC20(token).transfer(to, IERC20(token).balanceOf(address(this)));
+        IERC20(token).safeTransfer(to, IERC20(token).balanceOf(address(this)));
         (bool _success, ) = to.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(to, 0);
     }
@@ -146,7 +149,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
     ) external payable {
         uint256 tokensLength = tokens.length;
         for (uint i; i < tokensLength; i++) {
-            IERC20(tokens[i]).transfer(
+            IERC20(tokens[i]).safeTransfer(
                 to,
                 IERC20(tokens[i]).balanceOf(address(this))
             );
