@@ -246,4 +246,6 @@ library GeniusErrors {
     error NoStablecoinBalanceIncrease();
 
     error InvalidSignature();
+
+    error InvalidCallerMulticall();
 }

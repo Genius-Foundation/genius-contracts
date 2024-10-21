@@ -10,7 +10,7 @@ import {MockERC20} from "./mocks/MockERC20.sol";
 
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
 contract GeniusVaultDOSTest is Test {
@@ -32,7 +32,7 @@ contract GeniusVaultDOSTest is Test {
     ERC20 public USDC;
     GeniusVault public VAULT;
     GeniusMultiTokenVault public MULTIVAULT;
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public MULTICALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -67,7 +67,7 @@ contract GeniusVaultDOSTest is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
 
-        MULTICALL = new GeniusMulticall();
+        MULTICALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER);
         GeniusVault implementation = new GeniusVault();

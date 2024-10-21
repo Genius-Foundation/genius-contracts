@@ -141,29 +141,6 @@ interface IGeniusVault {
     );
 
     /**
-     * @notice Emitted on the source chain when an order is reverted.
-     * @param seed The unique seed of the order.
-     * @param trader The address of the trader.
-     * @param tokenIn The address of the input token.
-     * @param amountIn The amount of input tokens.
-     * @param srcChainId The source chain ID.
-     * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
-     * @param fee the fees paid for the order
-     */
-    event OrderReverted(
-        bytes32 indexed seed,
-        bytes32 indexed trader,
-        bytes32 receiver,
-        bytes32 tokenIn,
-        uint256 amountIn,
-        uint256 srcChainId,
-        uint256 indexed destChainId,
-        uint256 fillDeadline,
-        uint256 fee
-    );
-
-    /**
      * @notice Emitted when liquidity is removed for rebalancing.
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
@@ -239,16 +216,13 @@ interface IGeniusVault {
      * and bridge it to the destination chain.
      * @param amountIn The amount of tokens to remove from the bridge vault.
      * @param dstChainId The chain ID of the destination chain.
-     * @param targets The array of target addresses to call.
-     * @param values The array of values to send along with the function calls.
      * @param data The array of function call data.
      */
     function removeBridgeLiquidity(
         uint256 amountIn,
         uint256 dstChainId,
-        address[] memory targets,
-        uint256[] calldata values,
-        bytes[] memory data
+        address target,
+        bytes calldata data
     ) external payable;
 
     /**
@@ -265,14 +239,10 @@ interface IGeniusVault {
      */
     function fillOrder(
         Order memory order,
-        address[] memory targets,
-        bytes[] memory data
-    ) external;
-
-    function revertOrder(
-        Order calldata order,
-        address[] memory targets,
-        bytes[] memory data
+        address swapTarget,
+        bytes calldata swapData,
+        address callTarget,
+        bytes calldata callData
     ) external;
 
     /**

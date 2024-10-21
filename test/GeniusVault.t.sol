@@ -10,7 +10,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
@@ -36,7 +36,7 @@ contract GeniusVaultTest is Test {
     ERC20 public WETH;
 
     GeniusVault public VAULT;
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public MULTICALL;
     MockDEXRouter public DEX_ROUTER;
 
     IGeniusVault.Order public badOrder;
@@ -58,7 +58,7 @@ contract GeniusVaultTest is Test {
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
 
-        MULTICALL = new GeniusMulticall();
+        MULTICALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER, OWNER);
 

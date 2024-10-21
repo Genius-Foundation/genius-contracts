@@ -7,7 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockUSDC} from "./mocks/mockUSDC.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract GeniusVaultStakingTest is Test {
@@ -17,13 +17,13 @@ contract GeniusVaultStakingTest is Test {
 
     MockUSDC public usdc;
     GeniusVault public geniusVault;
-    GeniusMulticall public multicall;
+    GeniusProxyCall public multicall;
 
     function setUp() public {
         trader = makeAddr("trader");
         usdc = new MockUSDC();
 
-        multicall = new GeniusMulticall();
+        multicall = new GeniusProxyCall();
 
         vm.prank(owner);
         GeniusVault implementation = new GeniusVault();

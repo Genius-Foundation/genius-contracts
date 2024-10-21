@@ -10,7 +10,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -33,7 +33,7 @@ contract GeniusVaultOrders is Test {
 
     GeniusVault public VAULT;
 
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public MULTICALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -49,7 +49,7 @@ contract GeniusVaultOrders is Test {
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         TOKEN1 = new MockERC20("Token1", "TK1", 18);
 
-        MULTICALL = new GeniusMulticall();
+        MULTICALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER, OWNER);
         GeniusVault implementation = new GeniusVault();

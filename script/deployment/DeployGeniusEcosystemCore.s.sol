@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Script, console} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {GeniusMulticall} from "../../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../../src/GeniusProxyCall.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
 import {GeniusActions} from "../../src/GeniusActions.sol";
 import {GeniusRouter} from "../../src/GeniusRouter.sol";
@@ -23,7 +23,7 @@ contract DeployGeniusEcosystemCore is Script {
     GeniusVault public geniusVault;
     GeniusRouter public geniusRouter;
     GeniusGasTank public geniusGasTank;
-    GeniusMulticall public geniusMulticall;
+    GeniusProxyCall public geniusMulticall;
 
     function _run(
         address _permit2Address,
@@ -36,7 +36,7 @@ contract DeployGeniusEcosystemCore is Script {
         vm.startBroadcast(deployerPrivateKey);
         // geniusActions = new GeniusActions(admin);
 
-        geniusMulticall = new GeniusMulticall();
+        geniusMulticall = new GeniusProxyCall();
 
         GeniusVault implementation = new GeniusVault();
 
@@ -73,7 +73,7 @@ contract DeployGeniusEcosystemCore is Script {
             geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
         }
 
-        console.log("GeniusMulticall deployed at: ", address(geniusMulticall));
+        console.log("GeniusProxyCall deployed at: ", address(geniusMulticall));
         console.log("GeniusVault deployed at: ", address(geniusVault));
         console.log("GeniusRouter deployed at: ", address(geniusRouter));
         console.log("GeniusGasTank deployed at: ", address(geniusGasTank));

@@ -39,15 +39,18 @@ contract GeniusVault is GeniusVaultCore {
     function removeBridgeLiquidity(
         uint256 amountIn,
         uint256 dstChainId,
-        address[] memory targets,
-        uint256[] calldata values,
-        bytes[] memory data
+        address target,
+        bytes calldata data
     ) external payable virtual override onlyOrchestrator whenNotPaused {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
         _isAmountValid(amountIn, availableAssets());
 
         _transferERC20(address(STABLECOIN), address(MULTICALL), amountIn);
-
-        MULTICALL.aggregateWithValues(targets, data, values);
+        MULTICALL.approveTokenExecute{value: msg.value}(
+            address(STABLECOIN),
+            target,
+            data
+        );
 
         emit RemovedLiquidity(amountIn, dstChainId);
     }
@@ -57,8 +60,10 @@ contract GeniusVault is GeniusVaultCore {
      */
     function fillOrder(
         Order memory order,
-        address[] memory targets,
-        bytes[] memory data
+        address swapTarget,
+        bytes memory swapData,
+        address callTarget,
+        bytes memory callData
     ) external virtual override nonReentrant onlyOrchestrator whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
@@ -69,15 +74,23 @@ contract GeniusVault is GeniusVaultCore {
             revert GeniusErrors.DeadlinePassed(order.fillDeadline);
         if (order.srcChainId == _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-
         _isAmountValid(order.amountIn - order.fee, availableAssets());
-
         if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
+        bool isSwap = swapTarget != address(0);
+        bool isCall = callTarget != address(0);
+
+        if (isCall) {
+            bytes32 reconstructedSeed = keccak256(
+                abi.encode(callTarget, callData)
+            );
+            if (reconstructedSeed != order.seed)
+                revert GeniusErrors.InvalidSeed();
+        }
 
         orderStatus[orderHash_] = OrderStatus.Filled;
         address receiver = bytes32ToAddress(order.receiver);
 
-        if (targets.length == 0) {
+        if (!isCall && !isSwap) {
             _transferERC20(
                 address(STABLECOIN),
                 receiver,
@@ -85,23 +98,16 @@ contract GeniusVault is GeniusVaultCore {
             );
         } else {
             IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
-
-            uint256 preSwapBalance = tokenOut.balanceOf(receiver);
-
-            _transferERC20(
+            MULTICALL.call(
+                receiver,
+                swapTarget,
+                callTarget,
                 address(STABLECOIN),
-                address(MULTICALL),
-                order.amountIn - order.fee
+                address(tokenOut),
+                order.minAmountOut,
+                swapData,
+                callData
             );
-            MULTICALL.aggregate(targets, data);
-
-            uint256 postSwapBalance = tokenOut.balanceOf(receiver);
-
-            if (postSwapBalance - preSwapBalance < order.minAmountOut)
-                revert GeniusErrors.InvalidAmountOut(
-                    postSwapBalance - preSwapBalance,
-                    order.minAmountOut
-                );
         }
 
         emit OrderFilled(
@@ -184,57 +190,6 @@ contract GeniusVault is GeniusVaultCore {
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         emit FeesClaimed(address(STABLECOIN), amount);
-    }
-
-    /**
-     * @notice Reverts an order and refunds the trader
-     * @param order The order to revert
-     */
-    function revertOrder(
-        Order calldata order,
-        address[] memory targets,
-        bytes[] memory data
-    ) external override nonReentrant whenNotPaused onlyOrchestrator {
-        bytes32 orderHash_ = orderHash(order);
-        if (orderStatus[orderHash_] != OrderStatus.Created)
-            revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId())
-            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
-        if (_currentTimeStamp() < order.fillDeadline + orderRevertBuffer)
-            revert GeniusErrors.DeadlineNotPassed(
-                order.fillDeadline + orderRevertBuffer
-            );
-
-        orderStatus[orderHash_] = OrderStatus.Reverted;
-
-        if (targets.length == 0) {
-            _transferERC20(
-                address(STABLECOIN),
-                bytes32ToAddress(order.trader),
-                order.amountIn
-            );
-        } else {
-            _transferERC20(
-                address(STABLECOIN),
-                address(MULTICALL),
-                order.amountIn
-            );
-            MULTICALL.aggregate(targets, data);
-        }
-
-        unclaimedFees -= order.fee;
-
-        emit OrderReverted(
-            order.seed,
-            order.trader,
-            order.receiver,
-            order.tokenIn,
-            order.amountIn,
-            order.srcChainId,
-            order.destChainId,
-            order.fillDeadline,
-            order.fee
-        );
     }
 
     function minLiquidity() public view override returns (uint256) {

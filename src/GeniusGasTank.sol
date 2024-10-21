@@ -11,7 +11,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
 import {IGeniusGasTank} from "./interfaces/IGeniusGasTank.sol";
-import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
+import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 
 /**
  * @title GeniusGasTank
@@ -26,7 +26,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     IAllowanceTransfer public immutable PERMIT2;
-    IGeniusMulticall public immutable MULTICALL;
+    IGeniusProxyCall public immutable MULTICALL;
 
     address payable private feeRecipient;
     mapping(address => bool) private allowedTargets;
@@ -45,7 +45,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         _grantRole(PAUSER_ROLE, _admin);
         _setFeeRecipient(_feeRecipient);
         PERMIT2 = IAllowanceTransfer(_permit2);
-        MULTICALL = IGeniusMulticall(_multicall);
+        MULTICALL = IGeniusProxyCall(_multicall);
 
         uint256 allowedTargetsLength = _allowedTargets.length;
         for (uint256 i = 0; i < allowedTargetsLength; ++i)
@@ -65,9 +65,8 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
     }
 
     function sponsorOrderedTransactions(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address owner,
@@ -78,13 +77,11 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
     ) external payable override whenNotPaused {
         if (deadline < block.timestamp)
             revert GeniusErrors.DeadlinePassed(deadline);
-        _checkTargets(targets, permitBatch.details);
 
         bytes32 messageHash = keccak256(
             abi.encode(
-                targets,
+                target,
                 data,
-                values,
                 permitBatch,
                 nonces[owner],
                 feeToken,
@@ -95,7 +92,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
 
         _verifySignature(messageHash, signature, owner);
-        _permitAndBatchTransfer(
+        address[] memory tokensIn = _permitAndBatchTransfer(
             permitBatch,
             permitSignature,
             owner,
@@ -104,22 +101,21 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
 
-        MULTICALL.aggregateWithValues(targets, data, values);
+        MULTICALL.approveTokensAndExecute(tokensIn, target, data);
 
         emit OrderedTransactionsSponsored(
             msg.sender,
             owner,
+            target,
             feeToken,
             feeAmount,
-            nonces[owner]++,
-            targets.length
+            nonces[owner]++
         );
     }
 
     function sponsorUnorderedTransactions(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address owner,
@@ -131,14 +127,12 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
     ) external payable override whenNotPaused {
         if (deadline < block.timestamp)
             revert GeniusErrors.DeadlinePassed(deadline);
-        _checkTargets(targets, permitBatch.details);
         if (seeds[owner][seed]) revert GeniusErrors.InvalidSeed();
 
         bytes32 messageHash = keccak256(
             abi.encode(
-                targets,
+                target,
                 data,
-                values,
                 permitBatch,
                 seed,
                 feeToken,
@@ -150,7 +144,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
 
         seeds[owner][seed] = true;
         _verifySignature(messageHash, signature, owner);
-        _permitAndBatchTransfer(
+        address[] memory tokensIn = _permitAndBatchTransfer(
             permitBatch,
             permitSignature,
             owner,
@@ -159,29 +153,27 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
 
-        MULTICALL.aggregateWithValues(targets, data, values);
+        MULTICALL.approveTokensAndExecute(tokensIn, target, data);
 
         emit UnorderedTransactionsSponsored(
             msg.sender,
             owner,
+            target,
             feeToken,
             feeAmount,
-            seed,
-            targets.length
+            seed
         );
     }
 
     function aggregateWithPermit2(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address feeToken,
         uint256 feeAmount
     ) external payable override {
-        _checkTargets(targets, permitBatch.details);
-        _permitAndBatchTransfer(
+        address[] memory tokensIn = _permitAndBatchTransfer(
             permitBatch,
             permitSignature,
             msg.sender,
@@ -190,7 +182,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
 
-        MULTICALL.aggregateWithValues(targets, data, values);
+        MULTICALL.approveTokensAndExecute(tokensIn, target, data);
     }
 
     /**
@@ -238,38 +230,16 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         emit AllowedTarget(target, isAllowed);
     }
 
-    function _checkTargets(
-        address[] memory targets,
-        IAllowanceTransfer.PermitDetails[] memory tokenDetails
-    ) internal view {
-        uint256 targetsLength = targets.length;
-        uint256 tokenDetailsLength = tokenDetails.length;
-        for (uint256 i = 0; i < targetsLength; ++i) {
-            address target = targets[i];
-            if (!allowedTargets[target]) {
-                bool isToken = false;
-
-                for (uint256 j; j < tokenDetailsLength; ++j) {
-                    if (target == tokenDetails[j].token) {
-                        isToken = true;
-                        break;
-                    }
-                }
-
-                if (!isToken) revert GeniusErrors.InvalidTarget(target);
-            }
-        }
-    }
-
     function _permitAndBatchTransfer(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address owner,
         address feeToken,
         uint256 feeAmount
-    ) private {
+    ) private returns (address[] memory tokensIn) {
         if (permitBatch.spender != address(this))
             revert GeniusErrors.InvalidSpender();
+        tokensIn = new address[](permitBatch.details.length);
 
         PERMIT2.permit(owner, permitBatch, permitSignature);
 
@@ -279,6 +249,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
                 detailsLength
             );
         for (uint i; i < detailsLength; ++i) {
+            tokensIn[i] = permitBatch.details[i].token;
             address toAddress = permitBatch.details[i].token == feeToken
                 ? address(this)
                 : address(MULTICALL);

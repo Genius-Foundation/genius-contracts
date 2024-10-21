@@ -7,19 +7,19 @@ interface IGeniusGasTank {
     event OrderedTransactionsSponsored(
         address indexed sender,
         address indexed owner,
-        address indexed feeToken,
+        address indexed target,
+        address feeToken,
         uint256 feeAmount,
-        uint256 nonce,
-        uint256 txnsCount
+        uint256 nonce
     );
 
     event UnorderedTransactionsSponsored(
         address indexed sender,
         address indexed owner,
-        address indexed feeToken,
+        address indexed target,
+        address feeToken,
         uint256 feeAmount,
-        bytes32 seed,
-        uint256 txnsCount
+        bytes32 seed
     );
 
     event FeeRecipientUpdated(address newFeeRecipient);
@@ -29,9 +29,8 @@ interface IGeniusGasTank {
     function nonces(address owner) external view returns (uint256);
 
     function sponsorOrderedTransactions(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address owner,
@@ -42,9 +41,8 @@ interface IGeniusGasTank {
     ) external payable;
 
     function sponsorUnorderedTransactions(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address owner,
@@ -56,9 +54,8 @@ interface IGeniusGasTank {
     ) external payable;
 
     function aggregateWithPermit2(
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address feeToken,

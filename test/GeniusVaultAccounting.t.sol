@@ -8,7 +8,7 @@ import {PermitSignature} from "./utils/SigUtils.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {GeniusVault} from "../src/GeniusVault.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
@@ -26,7 +26,7 @@ contract GeniusVaultAccounting is Test {
 
     // ============ Internal Contracts ============
     GeniusVault public VAULT;
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public MULTICALL;
     MockDEXRouter public DEX_ROUTER;
 
     // ============ Constants ============
@@ -127,7 +127,7 @@ contract GeniusVaultAccounting is Test {
         OWNER = address(0x1);
         TRADER = address(0x2);
         ORCHESTRATOR = address(0x3);
-        MULTICALL = new GeniusMulticall();
+        MULTICALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER);
 

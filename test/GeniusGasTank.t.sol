@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import {Test} from "forge-std/Test.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {GeniusGasTank} from "../src/GeniusGasTank.sol";
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
@@ -26,7 +26,7 @@ contract GeniusGasTankTest is Test {
     IEIP712 public PERMIT2;
     PermitSignature public sigUtils;
 
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public MULTICALL;
     GeniusGasTank public GAS_TANK;
     ERC20 public USDC;
     ERC20 public WETH;
@@ -52,7 +52,7 @@ contract GeniusGasTankTest is Test {
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
 
-        MULTICALL = new GeniusMulticall();
+        MULTICALL = new GeniusProxyCall();
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
         DAI = ERC20(0xd586E7F844cEa2F87f50152665BCbc2C279D8d70);

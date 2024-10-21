@@ -10,7 +10,7 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
+import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 
@@ -34,7 +34,7 @@ abstract contract GeniusVaultCore is
 
     // Immutable state variables (not actually immutable due to upgradeability)
     IERC20 public STABLECOIN;
-    IGeniusMulticall public MULTICALL;
+    IGeniusProxyCall public MULTICALL;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
@@ -93,7 +93,7 @@ abstract contract GeniusVaultCore is
         __Pausable_init();
 
         STABLECOIN = IERC20(_stablecoin);
-        MULTICALL = IGeniusMulticall(_multicall);
+        MULTICALL = IGeniusProxyCall(_multicall);
         _setRebalanceThreshold(_rebalanceThreshold);
         _setOrderRevertBuffer(_orderRevertBuffer);
         _setMaxOrderTime(_maxOrderTime);
@@ -216,10 +216,23 @@ abstract contract GeniusVaultCore is
     /**
      * @dev See {IGeniusVault-orderHash}.
      */
-    function orderHash(
-        Order memory order
-    ) public pure override returns (bytes32) {
-        return keccak256(abi.encode(order));
+    function orderHash(Order memory order) public pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    order.seed,
+                    order.trader,
+                    order.receiver,
+                    order.tokenIn,
+                    order.tokenOut,
+                    order.amountIn,
+                    order.minAmountOut,
+                    order.srcChainId,
+                    order.destChainId,
+                    order.fillDeadline,
+                    order.fee
+                )
+            );
     }
 
     /**

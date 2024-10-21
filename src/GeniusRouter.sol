@@ -8,7 +8,7 @@ import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusRouter} from "./interfaces/IGeniusRouter.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
-import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
+import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 
 /**
  * @title GeniusRouter
@@ -27,7 +27,7 @@ contract GeniusRouter is IGeniusRouter {
     IERC20 public immutable override STABLECOIN;
     IGeniusVault public immutable VAULT;
     IAllowanceTransfer public immutable PERMIT2;
-    IGeniusMulticall public immutable MULTICALL;
+    IGeniusProxyCall public immutable MULTICALL;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
@@ -36,7 +36,7 @@ contract GeniusRouter is IGeniusRouter {
     constructor(address permit2, address vault, address multicall) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IGeniusVault(vault);
-        MULTICALL = IGeniusMulticall(multicall);
+        MULTICALL = IGeniusProxyCall(multicall);
 
         STABLECOIN = VAULT.STABLECOIN();
         STABLECOIN.approve(address(VAULT), type(uint256).max);
@@ -46,9 +46,8 @@ contract GeniusRouter is IGeniusRouter {
         bytes32 seed,
         address[] calldata tokensIn,
         uint256[] calldata amountsIn,
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         address owner,
         uint256 destChainId,
         uint256 fee,
@@ -60,9 +59,8 @@ contract GeniusRouter is IGeniusRouter {
             seed,
             tokensIn,
             amountsIn,
-            targets,
+            target,
             data,
-            values,
             owner,
             destChainId,
             block.timestamp + VAULT.maxOrderTime(),
@@ -77,9 +75,8 @@ contract GeniusRouter is IGeniusRouter {
         bytes32 seed,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         uint256 destChainId,
         uint256 fee,
         bytes32 receiver,
@@ -90,9 +87,8 @@ contract GeniusRouter is IGeniusRouter {
             seed,
             permitBatch,
             permitSignature,
-            targets,
+            target,
             data,
-            values,
             destChainId,
             block.timestamp + VAULT.maxOrderTime(),
             fee,
@@ -109,9 +105,8 @@ contract GeniusRouter is IGeniusRouter {
         bytes32 seed,
         address[] calldata tokensIn,
         uint256[] calldata amountsIn,
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         address owner,
         uint256 destChainId,
         uint256 fillDeadline,
@@ -131,7 +126,11 @@ contract GeniusRouter is IGeniusRouter {
                 amountsIn[i]
             );
 
-        MULTICALL.aggregateWithValues(targets, data, values);
+        MULTICALL.approveTokensAndExecute{value: msg.value}(
+            tokensIn,
+            target,
+            data
+        );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
@@ -159,9 +158,8 @@ contract GeniusRouter is IGeniusRouter {
         bytes32 seed,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         uint256 destChainId,
         uint256 fillDeadline,
         uint256 fee,
@@ -171,9 +169,17 @@ contract GeniusRouter is IGeniusRouter {
     ) public payable override {
         address owner = msg.sender;
 
-        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
+        address[] memory tokensIn = _permitAndBatchTransfer(
+            permitBatch,
+            permitSignature,
+            owner
+        );
 
-        MULTICALL.aggregateWithValues(targets, data, values);
+        MULTICALL.approveTokensAndExecute{value: msg.value}(
+            tokensIn,
+            target,
+            data
+        );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
@@ -239,7 +245,8 @@ contract GeniusRouter is IGeniusRouter {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address owner
-    ) private {
+    ) private returns (address[] memory tokensIn) {
+        tokensIn = new address[](permitBatch.details.length);
         if (permitBatch.spender != address(this))
             revert GeniusErrors.InvalidSpender();
 
@@ -250,6 +257,7 @@ contract GeniusRouter is IGeniusRouter {
                 permitBatch.details.length
             );
         for (uint i; i < permitBatch.details.length; i++) {
+            tokensIn[i] = permitBatch.details[i].token;
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
                 to: address(MULTICALL),
