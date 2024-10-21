@@ -102,6 +102,28 @@ abstract contract GeniusVaultCore is
         _grantRole(PAUSER_ROLE, _admin);
     }
 
+    /**
+     * @dev See {IGeniusVault-rebalanceLiquidity}.
+     */
+    function rebalanceLiquidity(
+        uint256 amountIn,
+        uint256 dstChainId,
+        address target,
+        bytes calldata data
+    ) external payable virtual override onlyOrchestrator whenNotPaused {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        _isAmountValid(amountIn, availableAssets());
+
+        _transferERC20(address(STABLECOIN), address(MULTICALL), amountIn);
+        MULTICALL.approveTokenExecute{value: msg.value}(
+            address(STABLECOIN),
+            target,
+            data
+        );
+
+        emit RebalancedLiquidity(amountIn, dstChainId);
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                    STAKING FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
@@ -151,6 +173,73 @@ abstract contract GeniusVaultCore is
         emit StakeWithdraw(msg.sender, receiver, owner, amount);
 
         STABLECOIN.safeTransfer(receiver, amount);
+    }
+
+    /**
+     * @dev See {IGeniusVault-fillOrder}.
+     */
+    function fillOrder(
+        Order memory order,
+        address swapTarget,
+        bytes memory swapData,
+        address callTarget,
+        bytes memory callData
+    ) external virtual override nonReentrant onlyOrchestrator whenNotPaused {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
+            revert GeniusErrors.OrderAlreadyFilled(orderHash_);
+        if (order.destChainId != _currentChainId())
+            revert GeniusErrors.InvalidDestChainId(order.destChainId);
+        if (order.fillDeadline < _currentTimeStamp())
+            revert GeniusErrors.DeadlinePassed(order.fillDeadline);
+        if (order.srcChainId == _currentChainId())
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+        _isAmountValid(order.amountIn - order.fee, availableAssets());
+        if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
+        bool isSwap = swapTarget != address(0);
+        bool isCall = callTarget != address(0);
+
+        if (isCall) {
+            bytes32 reconstructedSeed = keccak256(
+                abi.encode(callTarget, callData)
+            );
+            if (reconstructedSeed != order.seed)
+                revert GeniusErrors.InvalidSeed();
+        }
+
+        orderStatus[orderHash_] = OrderStatus.Filled;
+        address receiver = bytes32ToAddress(order.receiver);
+
+        if (!isCall && !isSwap) {
+            _transferERC20(
+                address(STABLECOIN),
+                receiver,
+                order.amountIn - order.fee
+            );
+        } else {
+            IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
+            MULTICALL.call(
+                receiver,
+                swapTarget,
+                callTarget,
+                address(STABLECOIN),
+                address(tokenOut),
+                order.minAmountOut,
+                swapData,
+                callData
+            );
+        }
+
+        emit OrderFilled(
+            order.seed,
+            order.trader,
+            order.receiver,
+            addressToBytes32(address(STABLECOIN)),
+            order.amountIn,
+            order.srcChainId,
+            order.destChainId,
+            order.fillDeadline
+        );
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -213,6 +302,18 @@ abstract contract GeniusVaultCore is
         return STABLECOIN.balanceOf(address(this));
     }
 
+    function minLiquidity() public view virtual override returns (uint256);
+
+    /**
+     * @dev See {IGeniusVault-availableAssets}.
+     */
+    function availableAssets() public view returns (uint256) {
+        uint256 _totalAssets = stablecoinBalance();
+        uint256 _neededLiquidity = minLiquidity();
+
+        return _availableAssets(_totalAssets, _neededLiquidity);
+    }
+
     /**
      * @dev See {IGeniusVault-orderHash}.
      */
@@ -234,18 +335,6 @@ abstract contract GeniusVaultCore is
                 )
             );
     }
-
-    /**
-     * @notice Returns the current state of the assets in the GeniusVault contract.
-     * @return balanceStablecoin The total number of assets in the vault.
-     * @return availableAssets The number of assets available for use.
-     * @return totalStakedAssets The total number of assets currently staked in the vault.
-     */
-    function allAssets()
-        external
-        view
-        virtual
-        returns (uint256, uint256, uint256);
 
     /**
      * @dev See {IGeniusVault-bytes32ToAddress}.

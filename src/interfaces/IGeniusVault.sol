@@ -145,7 +145,7 @@ interface IGeniusVault {
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
      */
-    event RemovedLiquidity(uint256 amount, uint256 indexed chainId);
+    event RebalancedLiquidity(uint256 amount, uint256 indexed chainId);
 
     /**
      * @notice Emitted when fees are claimed from the Vault contract.
@@ -218,7 +218,7 @@ interface IGeniusVault {
      * @param dstChainId The chain ID of the destination chain.
      * @param data The array of function call data.
      */
-    function removeBridgeLiquidity(
+    function rebalanceLiquidity(
         uint256 amountIn,
         uint256 dstChainId,
         address target,

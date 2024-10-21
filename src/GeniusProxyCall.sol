@@ -56,7 +56,6 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
             }
         }
 
-
         if (isCall) {
             bytes memory wrappedCallData;
 
