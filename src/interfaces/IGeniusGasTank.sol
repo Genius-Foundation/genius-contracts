@@ -24,8 +24,6 @@ interface IGeniusGasTank {
 
     event FeeRecipientUpdated(address newFeeRecipient);
 
-    event AllowedTarget(address indexed target, bool indexed isAllowed);
-
     function nonces(address owner) external view returns (uint256);
 
     function sponsorOrderedTransactions(
@@ -63,8 +61,6 @@ interface IGeniusGasTank {
     ) external payable;
 
     function setFeeRecipient(address payable _feeRecipient) external;
-
-    function setAllowedTarget(address target, bool isAllowed) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.

@@ -29,7 +29,6 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
     IGeniusProxyCall public immutable MULTICALL;
 
     address payable private feeRecipient;
-    mapping(address => bool) private allowedTargets;
 
     mapping(address => uint256) public nonces;
     mapping(address => mapping(bytes32 => bool)) public seeds;
@@ -38,18 +37,13 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         address _admin,
         address payable _feeRecipient,
         address _permit2,
-        address _multicall,
-        address[] memory _allowedTargets
+        address _multicall
     ) {
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
         _setFeeRecipient(_feeRecipient);
         PERMIT2 = IAllowanceTransfer(_permit2);
         MULTICALL = IGeniusProxyCall(_multicall);
-
-        uint256 allowedTargetsLength = _allowedTargets.length;
-        for (uint256 i = 0; i < allowedTargetsLength; ++i)
-            _setAllowedTarget(_allowedTargets[i], true);
     }
 
     modifier onlyAdmin() {
@@ -195,16 +189,6 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
     }
 
     /**
-     * @dev See {IGeniusGasTank-setAllowedTarget}.
-     */
-    function setAllowedTarget(
-        address target,
-        bool isAllowed
-    ) external override onlyAdmin {
-        _setAllowedTarget(target, isAllowed);
-    }
-
-    /**
      * @dev See {IGeniusGasTank-pause}.
      */
     function pause() external override onlyPauser {
@@ -222,12 +206,6 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         if (_feeRecipient == address(0)) revert GeniusErrors.NonAddress0();
         feeRecipient = _feeRecipient;
         emit FeeRecipientUpdated(_feeRecipient);
-    }
-
-    function _setAllowedTarget(address target, bool isAllowed) internal {
-        if (target == address(0)) revert GeniusErrors.InvalidTarget(target);
-        allowedTargets[target] = isAllowed;
-        emit AllowedTarget(target, isAllowed);
     }
 
     function _permitAndBatchTransfer(

@@ -137,13 +137,12 @@ abstract contract GeniusVaultCore is
     ) external override whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
+        totalStakedAssets += amount;
+        
         STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
-
         _mint(receiver, amount);
 
         emit StakeDeposit(msg.sender, receiver, amount);
-
-        totalStakedAssets += amount;
     }
 
     /**
