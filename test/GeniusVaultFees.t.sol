@@ -187,19 +187,13 @@ contract GeniusVaultFees is Test {
             )
         );
 
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-
-        // Target is stablecoin
-        targets[0] = address(USDC);
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
             1_000 ether
         );
 
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(USDC), data, address(0), "");
 
         order = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
@@ -215,14 +209,12 @@ contract GeniusVaultFees is Test {
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
-        targets[0] = address(USDC);
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
+        data = abi.encodeWithSelector(
             USDC.transfer.selector,
             TRADER,
             999 ether
         );
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(USDC), data, address(0), "");
         vm.stopPrank();
 
         // Add assertions to check the state after removing liquidity
@@ -304,10 +296,7 @@ contract GeniusVaultFees is Test {
             )
         );
 
-        address[] memory targets = new address[](0);
-        bytes[] memory calldatas = new bytes[](0);
-
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(0), "", address(0), "");
 
         order = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
@@ -323,7 +312,7 @@ contract GeniusVaultFees is Test {
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(0), "", address(0), "");
         vm.stopPrank();
 
         // Add assertions to check the state after removing liquidity
@@ -407,19 +396,13 @@ contract GeniusVaultFees is Test {
             )
         );
 
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-
-        // Target is stablecoin
-        targets[0] = address(USDC);
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
             1000 ether
         );
 
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(USDC), data, address(0), "");
 
         // Add assertions to check the state after removing liquidity
         assertEq(

@@ -111,26 +111,13 @@ contract GeniusRouterTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE;
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
@@ -155,9 +142,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             destChainId,
             block.timestamp + 200,
@@ -192,26 +178,13 @@ contract GeniusRouterTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
@@ -236,9 +209,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             permitBatch,
             permitSignature,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             destChainId,
             block.timestamp + 200,
             fee,
@@ -342,13 +314,14 @@ contract GeniusRouterTest is Test {
             fee
         );
 
+        bytes memory transactions = _encodeTransactions(targets, values, data);
+
         GENIUS_ROUTER.swapAndCreateOrder(
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
-            data,
-            values,
+            address(MULTICALL),
+            transactions,
             USER,
             destChainId,
             block.timestamp + 200,
@@ -371,27 +344,13 @@ contract GeniusRouterTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE;
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
-
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
 
@@ -405,9 +364,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             destChainId,
             block.timestamp + 200,
@@ -425,26 +383,13 @@ contract GeniusRouterTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE;
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
@@ -460,9 +405,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             destChainId,
             block.timestamp - 1, // Expired deadline
@@ -480,26 +424,13 @@ contract GeniusRouterTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE;
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 fee = 0; // Zero fee
         uint256 minAmountOut = 49 ether;
@@ -524,9 +455,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             destChainId,
             block.timestamp + 200,
@@ -549,26 +479,13 @@ contract GeniusRouterTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE;
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
@@ -587,9 +504,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             block.chainid, // Same as current chain ID
             block.timestamp + 200,
@@ -607,10 +523,6 @@ contract GeniusRouterTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE;
 
-        address[] memory targets = new address[](0);
-        bytes[] memory data = new bytes[](0);
-        uint256[] memory values = new uint256[](0);
-
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
 
@@ -625,9 +537,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
-            data,
-            values,
+            address(0),
+            "",
             USER,
             destChainId,
             block.timestamp + 200,
@@ -645,19 +556,11 @@ contract GeniusRouterTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE;
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](1); // Mismatched length
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        targets[1] = address(DEX_ROUTER);
-        data[0] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DAI.approve.selector,
             address(DEX_ROUTER),
             BASE_USER_DAI_BALANCE
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
@@ -673,9 +576,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             destChainId,
             block.timestamp + 200,
@@ -693,26 +595,13 @@ contract GeniusRouterTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE;
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
@@ -728,9 +617,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             destChainId,
             block.timestamp + 200,
@@ -748,26 +636,13 @@ contract GeniusRouterTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE;
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
@@ -783,9 +658,8 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             destChainId,
             block.timestamp + 200,
@@ -794,5 +668,32 @@ contract GeniusRouterTest is Test {
             minAmountOut,
             bytes32(0) // Invalid tokenOut
         );
+    }
+
+    function _encodeTransactions(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory dataArray
+    ) internal pure returns (bytes memory) {
+        require(
+            targets.length == values.length &&
+                values.length == dataArray.length,
+            "Array lengths must match"
+        );
+
+        bytes memory encoded = new bytes(0);
+
+        for (uint i = 0; i < targets.length; i++) {
+            encoded = abi.encodePacked(
+                encoded,
+                uint8(0), // operation (0 for call)
+                targets[i],
+                values[i],
+                uint256(dataArray[i].length),
+                dataArray[i]
+            );
+        }
+
+        return encoded;
     }
 }

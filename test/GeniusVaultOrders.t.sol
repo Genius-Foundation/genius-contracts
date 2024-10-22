@@ -112,20 +112,7 @@ contract GeniusVaultOrders is Test {
         // Remove liquidity
         vm.startPrank(address(ORCHESTRATOR));
 
-        address[] memory targets = new address[](2);
-        bytes[] memory calldatas = new bytes[](2);
-
-        // Executor authorizes the Router to spend USDC
-        targets[0] = address(USDC);
-        calldatas[0] = abi.encodeWithSelector(
-            ERC20.approve.selector,
-            address(DEX_ROUTER),
-            order.amountIn - order.fee
-        );
-
-        // Executor swaps USDC for TOKEN1
-        targets[1] = address(DEX_ROUTER);
-        calldatas[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(USDC),
             address(TOKEN1),
@@ -133,7 +120,7 @@ contract GeniusVaultOrders is Test {
             TRADER
         );
 
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(DEX_ROUTER), data, address(0), "");
         vm.stopPrank();
 
         bytes32 hash = VAULT.orderHash(order);
@@ -189,29 +176,13 @@ contract GeniusVaultOrders is Test {
         // Remove liquidity
         vm.startPrank(address(ORCHESTRATOR));
 
-        address[] memory targets = new address[](2);
-        bytes[] memory calldatas = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        // Executor authorizes the Router to spend USDC
-        targets[0] = address(USDC);
-        calldatas[0] = abi.encodeWithSelector(
-            ERC20.approve.selector,
-            address(DEX_ROUTER),
-            order.amountIn - order.fee
-        );
-        values[0] = 0;
-
-        // Executor swaps USDC for TOKEN1
-        targets[1] = address(DEX_ROUTER);
-        calldatas[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(USDC),
             address(TOKEN1),
             order.amountIn - order.fee,
             TRADER
         );
-        values[1] = 0;
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -221,7 +192,7 @@ contract GeniusVaultOrders is Test {
             )
         );
 
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(DEX_ROUTER), data, address(0), "");
         vm.stopPrank();
     }
 }

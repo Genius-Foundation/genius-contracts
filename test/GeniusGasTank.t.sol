@@ -65,8 +65,7 @@ contract GeniusGasTankTest is Test {
             ADMIN,
             payable(FEE_RECIPIENT),
             address(PERMIT2),
-            address(MULTICALL),
-            allowedTargets
+            address(MULTICALL)
         );
 
         deal(address(USDC), USER, BASE_USER_USDC_BALANCE);
@@ -98,22 +97,15 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](1);
-        bytes[] memory data = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "transfer(address,uint256)",
             address(ROUTER),
             BASE_USER_USDC_BALANCE
         );
-        values[0] = 0;
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            address(USDC),
             data,
-            values,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -125,9 +117,8 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(SENDER);
 
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(USDC),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -165,31 +156,17 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -201,9 +178,8 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(SENDER);
 
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -253,31 +229,17 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE - 1 ether
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE - 1 ether,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -289,9 +251,8 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(SENDER);
 
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -350,26 +311,20 @@ contract GeniusGasTankTest is Test {
 
         // Build swap transaction
 
-        address[] memory targets = new address[](1);
-        bytes[] memory data = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
-
-        targets[0] = address(ROUTER);
-        data[0] = abi.encodeWithSignature(
+        address target = address(ROUTER);
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
 
         // Build signature
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            target,
             data,
-            values,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -389,9 +344,8 @@ contract GeniusGasTankTest is Test {
         );
         // Call sponsorSwap
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            target,
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -422,33 +376,20 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        address target = address(ROUTER);
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE - 1 ether,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 feeAmount = 1 ether;
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            target,
             data,
-            values,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -460,9 +401,8 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(SENDER);
 
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            target,
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -510,26 +450,13 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes memory invalidSignature = abi.encodePacked(
             bytes32(0),
@@ -542,9 +469,8 @@ contract GeniusGasTankTest is Test {
             abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector)
         );
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(USDC),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -574,33 +500,19 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 expiredDeadline = block.timestamp - 1;
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -616,76 +528,14 @@ contract GeniusGasTankTest is Test {
             )
         );
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
             address(USDC),
             0,
             expiredDeadline,
-            sponsorSignature
-        );
-    }
-
-    function testSponsorSwapUnauthorizedTarget() public {
-        address unauthorizedTarget = makeAddr("UNAUTHORIZED");
-
-        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
-            .PermitDetails({
-                token: address(USDC),
-                amount: uint160(BASE_USER_USDC_BALANCE),
-                nonce: 0,
-                expiration: 1900000000
-            });
-
-        IAllowanceTransfer.PermitDetails[]
-            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
-
-        detailsArray[0] = details;
-
-        (
-            IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory permitSignature
-        ) = _generatePermitBatchSignature(detailsArray);
-
-        address[] memory targets = new address[](1);
-        bytes[] memory data = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
-
-        targets[0] = unauthorizedTarget;
-        data[0] = abi.encodeWithSignature("someFunction()");
-        values[0] = 0;
-
-        bytes memory sponsorSignature = _generateSignature(
-            targets,
-            data,
-            values,
-            permitBatch,
-            GAS_TANK.nonces(USER),
-            address(USDC),
-            0,
-            1900000000,
-            USER_PK
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                GeniusErrors.InvalidTarget.selector,
-                unauthorizedTarget
-            )
-        );
-        GAS_TANK.sponsorOrderedTransactions(
-            targets,
-            data,
-            values,
-            permitBatch,
-            permitSignature,
-            USER,
-            address(USDC),
-            0,
-            1900000000,
             sponsorSignature
         );
     }
@@ -711,32 +561,20 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(details);
 
-        address[] memory targets = new address[](4);
-        bytes[] memory data = new bytes[](4);
-        uint256[] memory values = new uint256[](4);
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
 
-        targets[0] = address(USDC);
+        targets[0] = address(ROUTER);
         data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(DAI);
-        data[1] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[2] = address(ROUTER);
-        data[2] = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        targets[3] = address(ROUTER);
-        data[3] = abi.encodeWithSignature(
+        targets[1] = address(ROUTER);
+        data[1] = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(DAI),
             address(WETH),
@@ -745,13 +583,12 @@ contract GeniusGasTankTest is Test {
         );
         values[0] = 0;
         values[1] = 0;
-        values[2] = 0;
-        values[3] = 0;
+
+        bytes memory transactions = _encodeTransactions(targets, values, data);
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
-            data,
-            values,
+            address(MULTICALL),
+            transactions,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -763,9 +600,8 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(USER);
 
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
-            data,
-            values,
+            address(MULTICALL),
+            transactions,
             permitBatch,
             permitSignature,
             USER,
@@ -808,31 +644,17 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -845,9 +667,8 @@ contract GeniusGasTankTest is Test {
             abi.encodeWithSelector(Pausable.EnforcedPause.selector)
         );
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -862,9 +683,8 @@ contract GeniusGasTankTest is Test {
 
         vm.prank(USER);
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -905,33 +725,19 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE - 1 ether
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE - 1 ether,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 feeAmount = 1 ether;
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -942,9 +748,8 @@ contract GeniusGasTankTest is Test {
 
         vm.prank(USER);
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -969,79 +774,6 @@ contract GeniusGasTankTest is Test {
         GAS_TANK.setFeeRecipient(payable(newFeeRecipient));
     }
 
-    function testSetAllowedTarget() public {
-        address newTarget = makeAddr("NEW_TARGET");
-
-        vm.prank(ADMIN);
-        GAS_TANK.setAllowedTarget(newTarget, true);
-
-        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
-            .PermitDetails({
-                token: address(USDC),
-                amount: uint160(BASE_USER_USDC_BALANCE),
-                nonce: 0,
-                expiration: 1900000000
-            });
-
-        IAllowanceTransfer.PermitDetails[]
-            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
-
-        detailsArray[0] = details;
-
-        (
-            IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory permitSignature
-        ) = _generatePermitBatchSignature(detailsArray);
-
-        address[] memory targets = new address[](1);
-        bytes[] memory data = new bytes[](1);
-        uint256[] memory values = new uint256[](1);
-
-        targets[0] = newTarget;
-        data[0] = abi.encodeWithSignature("dummyFunction()");
-        values[0] = 0;
-
-        bytes memory sponsorSignature = _generateSignature(
-            targets,
-            data,
-            values,
-            permitBatch,
-            GAS_TANK.nonces(USER),
-            address(USDC),
-            0,
-            1900000000,
-            USER_PK
-        );
-
-        vm.mockCall(
-            newTarget,
-            abi.encodeWithSignature("dummyFunction()"),
-            abi.encode()
-        );
-
-        vm.prank(USER);
-        GAS_TANK.sponsorOrderedTransactions(
-            targets,
-            data,
-            values,
-            permitBatch,
-            permitSignature,
-            USER,
-            address(USDC),
-            0,
-            1900000000,
-            sponsorSignature
-        );
-    }
-
-    function testSetAllowedTargetUnauthorized() public {
-        address newTarget = makeAddr("NEW_TARGET");
-
-        vm.prank(USER);
-        vm.expectRevert(GeniusErrors.IsNotAdmin.selector);
-        GAS_TANK.setAllowedTarget(newTarget, true);
-    }
-
     function testNonceIncrement() public {
         IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
             .PermitDetails({
@@ -1061,33 +793,19 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 initialNonce = GAS_TANK.nonces(USER);
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             initialNonce,
             address(USDC),
@@ -1098,9 +816,8 @@ contract GeniusGasTankTest is Test {
 
         vm.prank(USER);
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -1136,31 +853,17 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes memory sponsorSignature = _generateSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(USDC),
@@ -1172,9 +875,8 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(SENDER);
 
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -1189,9 +891,8 @@ contract GeniusGasTankTest is Test {
         // Try to replay the same transaction
         vm.expectRevert(GeniusErrors.InvalidSignature.selector);
         GAS_TANK.sponsorOrderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -1245,26 +946,13 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             ROUTER.swapTo.selector,
             address(DAI),
             address(WETH),
             BASE_USER_DAI_BALANCE - 1 ether,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         vm.startPrank(USER);
 
@@ -1272,9 +960,8 @@ contract GeniusGasTankTest is Test {
         uint256 initialUSDCBalance = WETH.balanceOf(USER);
 
         GAS_TANK.aggregateWithPermit2(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             address(DAI),
@@ -1327,35 +1014,20 @@ contract GeniusGasTankTest is Test {
         // Modify the signature to make it invalid
         permitSignature[0] = bytes1(uint8(permitSignature[0]) + 1);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             ROUTER.swap.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE
         );
-        values[0] = 0;
-        values[1] = 0;
-
         vm.startPrank(USER);
 
         vm.expectRevert(
             abi.encodeWithSelector(GeniusErrors.InvalidSignature.selector)
         );
         GAS_TANK.aggregateWithPermit2(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             address(DAI),
@@ -1383,34 +1055,20 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes32 seed = keccak256("test_seed");
         uint256 deadline = block.timestamp + 1 hours;
 
         bytes memory sponsorSignature = _generateUnorderedSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             seed,
             address(USDC),
@@ -1422,9 +1080,8 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(SENDER);
 
         GAS_TANK.sponsorUnorderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -1463,35 +1120,21 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE - 1 ether
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE - 1 ether,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes32 seed = keccak256("test_seed_with_fee");
         uint256 deadline = block.timestamp + 1 hours;
         uint256 feeAmount = 1 ether;
 
         bytes memory sponsorSignature = _generateUnorderedSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             seed,
             address(USDC),
@@ -1503,9 +1146,8 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(SENDER);
 
         GAS_TANK.sponsorUnorderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -1553,26 +1195,13 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes32 seed = keccak256("test_seed_invalid_signature");
         uint256 deadline = block.timestamp + 1 hours;
@@ -1587,9 +1216,8 @@ contract GeniusGasTankTest is Test {
             abi.encodeWithSelector(ECDSA.ECDSAInvalidSignature.selector)
         );
         GAS_TANK.sponsorUnorderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -1619,34 +1247,20 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes32 seed = keccak256("test_seed_expired_deadline");
         uint256 expiredDeadline = block.timestamp - 1;
 
         bytes memory sponsorSignature = _generateUnorderedSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             seed,
             address(USDC),
@@ -1662,9 +1276,8 @@ contract GeniusGasTankTest is Test {
             )
         );
         GAS_TANK.sponsorUnorderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -1694,34 +1307,20 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(detailsArray);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(USDC);
-        data[0] = abi.encodeWithSignature(
-            "approve(address,uint256)",
-            address(ROUTER),
-            BASE_USER_USDC_BALANCE
-        );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        bytes memory data = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        values[0] = 0;
-        values[1] = 0;
 
         bytes32 seed = keccak256("test_seed_invalid");
         uint256 deadline = block.timestamp + 1 hours;
 
         bytes memory sponsorSignature = _generateUnorderedSignature(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             seed,
             address(USDC),
@@ -1732,9 +1331,8 @@ contract GeniusGasTankTest is Test {
 
         // First transaction should succeed
         GAS_TANK.sponsorUnorderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -1748,9 +1346,8 @@ contract GeniusGasTankTest is Test {
         // Second transaction with the same seed should fail
         vm.expectRevert(GeniusErrors.InvalidSeed.selector);
         GAS_TANK.sponsorUnorderedTransactions(
-            targets,
+            address(ROUTER),
             data,
-            values,
             permitBatch,
             permitSignature,
             USER,
@@ -1763,9 +1360,8 @@ contract GeniusGasTankTest is Test {
     }
 
     function _generateSignature(
-        address[] memory targets,
-        bytes[] memory data,
-        uint256[] memory values,
+        address target,
+        bytes memory data,
         IAllowanceTransfer.PermitBatch memory permitBatch,
         uint256 nonce,
         address feeToken,
@@ -1775,9 +1371,8 @@ contract GeniusGasTankTest is Test {
     ) internal view returns (bytes memory) {
         bytes32 messageHash = keccak256(
             abi.encode(
-                targets,
+                target,
                 data,
-                values,
                 permitBatch,
                 nonce,
                 feeToken,
@@ -1798,9 +1393,8 @@ contract GeniusGasTankTest is Test {
     }
 
     function _generateUnorderedSignature(
-        address[] memory targets,
-        bytes[] memory data,
-        uint256[] memory values,
+        address target,
+        bytes memory data,
         IAllowanceTransfer.PermitBatch memory permitBatch,
         bytes32 seed,
         address feeToken,
@@ -1810,9 +1404,8 @@ contract GeniusGasTankTest is Test {
     ) internal view returns (bytes memory) {
         bytes32 messageHash = keccak256(
             abi.encode(
-                targets,
+                target,
                 data,
-                values,
                 permitBatch,
                 seed,
                 feeToken,
@@ -1831,5 +1424,32 @@ contract GeniusGasTankTest is Test {
             ethSignedMessageHash
         );
         return abi.encodePacked(r, s, v);
+    }
+
+    function _encodeTransactions(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory dataArray
+    ) internal pure returns (bytes memory) {
+        require(
+            targets.length == values.length &&
+                values.length == dataArray.length,
+            "Array lengths must match"
+        );
+
+        bytes memory encoded = new bytes(0);
+
+        for (uint i = 0; i < targets.length; i++) {
+            encoded = abi.encodePacked(
+                encoded,
+                uint8(0), // operation (0 for call)
+                targets[i],
+                values[i],
+                uint256(dataArray[i].length),
+                dataArray[i]
+            );
+        }
+
+        return encoded;
     }
 }

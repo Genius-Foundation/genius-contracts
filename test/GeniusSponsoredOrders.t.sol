@@ -98,15 +98,11 @@ contract GeniusSponsoredOrdersTest is Test {
         TOKEN_OUT = GENIUS_VAULT.addressToBytes32(address(USDC));
         TOKEN_IN = TOKEN_OUT;
 
-        address[] memory allowedTargets = new address[](1);
-        allowedTargets[0] = address(GENIUS_ROUTER);
-
         GAS_TANK = new GeniusGasTank(
             ADMIN,
             payable(FEE_RECIPIENT),
             address(PERMIT2),
-            address(MULTICALL),
-            allowedTargets
+            address(MULTICALL)
         );
 
         deal(address(USDC), address(DEX_ROUTER), BASE_ROUTER_USDC_BALANCE);
@@ -125,52 +121,24 @@ contract GeniusSponsoredOrdersTest is Test {
         address[] memory tokensIn = new address[](1);
         uint256[] memory amountsIn = new uint256[](1);
 
-        tokensIn[0] = address(DAI);
-        amountsIn[0] = BASE_USER_DAI_BALANCE - sponsorFee;
-
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE - sponsorFee
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE - sponsorFee,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 bridgeFee = 1 ether;
         uint256 minAmountOut = 49 ether;
 
-        address[] memory gasTankTargets = new address[](2);
-        bytes[] memory gasTankData = new bytes[](2);
-        uint256[] memory gasTankValues = new uint256[](2);
-
-        gasTankTargets[0] = address(DAI);
-        gasTankData[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(GENIUS_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        gasTankTargets[1] = address(GENIUS_ROUTER);
-        gasTankData[1] = abi.encodeWithSelector(
+        bytes memory gasTankData = abi.encodeWithSelector(
             GENIUS_ROUTER.swapAndCreateOrder.selector,
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             destChainId,
             block.timestamp + 200,
@@ -179,8 +147,6 @@ contract GeniusSponsoredOrdersTest is Test {
             minAmountOut,
             TOKEN_OUT
         );
-        gasTankValues[0] = 0;
-        gasTankValues[1] = 0;
 
         IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
             .PermitDetails({
@@ -201,9 +167,8 @@ contract GeniusSponsoredOrdersTest is Test {
         ) = _generatePermitBatchSignature(detailsArray);
 
         bytes memory sponsorSignature = _generateSignature(
-            gasTankTargets,
+            address(GENIUS_ROUTER),
             gasTankData,
-            gasTankValues,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(DAI),
@@ -230,16 +195,15 @@ contract GeniusSponsoredOrdersTest is Test {
         emit IGeniusGasTank.OrderedTransactionsSponsored(
             SENDER,
             USER,
+            address(DEX_ROUTER),
             address(DAI),
             sponsorFee,
-            0,
-            2
+            0
         );
 
         GAS_TANK.sponsorOrderedTransactions(
-            gasTankTargets,
+            address(DEX_ROUTER),
             gasTankData,
-            gasTankValues,
             permitBatch,
             permitSignature,
             USER,
@@ -281,9 +245,8 @@ contract GeniusSponsoredOrdersTest is Test {
     }
 
     function _generateSignature(
-        address[] memory targets,
-        bytes[] memory data,
-        uint256[] memory values,
+        address target,
+        bytes memory data,
         IAllowanceTransfer.PermitBatch memory permitBatch,
         uint256 nonce,
         address feeToken,
@@ -293,9 +256,8 @@ contract GeniusSponsoredOrdersTest is Test {
     ) internal view returns (bytes memory) {
         bytes32 messageHash = keccak256(
             abi.encode(
-                targets,
+                target,
                 data,
-                values,
                 permitBatch,
                 nonce,
                 feeToken,

@@ -200,11 +200,9 @@ contract GeniusMultiTokenVaultFees is Test {
         });
 
         // Create dummy targets, calldata, and values arrays to call fillOrder
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
 
         // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
             997 ether
@@ -223,7 +221,7 @@ contract GeniusMultiTokenVaultFees is Test {
 
         // Remove liquidity
         vm.startPrank(address(ORCHESTRATOR));
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(USDC), data, address(0), "");
 
         // Add assertions to check the state after removing liquidity
         assertEq(
@@ -292,15 +290,8 @@ contract GeniusMultiTokenVaultFees is Test {
             tokenOut: bytes32(uint256(1))
         });
 
-        // Create an Order struct for removing liquidity
-
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-
-        // Target is stablecoin
-        targets[0] = address(USDC);
         // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
             1_000 ether
@@ -315,7 +306,7 @@ contract GeniusMultiTokenVaultFees is Test {
                 1_000 ether
             )
         );
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(USDC), data, address(0), "");
 
         // Add assertions to check the state after removing liquidity
         assertEq(

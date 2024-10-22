@@ -17,12 +17,6 @@ contract DeployBaseGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        address[] memory targets = new address[](4);
-        targets[0] = 0x6b2C0c7be2048Daa9b5527982C29f48062B34D58;
-        targets[1] = 0x57df6092665eb6058DE53939612413ff4B09114E;
-        targets[2] = 0x19cEeAd7105607Cd444F5ad10dd51356436095a1;
-        targets[3] = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5;
-
-        _run(permit2Address, stableAddress, owner, orchestrators, targets);
+        _run(permit2Address, stableAddress, owner, orchestrators);
     }
 }

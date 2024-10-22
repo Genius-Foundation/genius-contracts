@@ -20,7 +20,10 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
     /**
      * @dev See {IGeniusProxyCall-aggregate}.
      */
-    function execute(address target, bytes calldata data) external override payable {
+    function execute(
+        address target,
+        bytes calldata data
+    ) external payable override {
         (bool _success, ) = target.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
     }
@@ -95,11 +98,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address tokenOut,
         uint256 minAmountOut,
         address expectedTokenReceiver
-    ) external override payable {
-        IERC20(token).approve(target, type(uint256).max);
-        (bool _success, ) = target.call{value: msg.value}(data);
-        if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
-        IERC20(token).approve(target, 0);
+    ) external payable override {
+        approveTokenExecute(token, target, data);
+
         uint256 balance = IERC20(tokenOut).balanceOf(expectedTokenReceiver);
         if (balance < minAmountOut)
             revert GeniusErrors.InvalidAmountOut(balance, minAmountOut);
@@ -109,34 +110,42 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address token,
         address target,
         bytes calldata data
-    ) external override payable {
-        IERC20(token).approve(target, type(uint256).max);
-        (bool _success, ) = target.call{value: msg.value}(data);
-        if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
-        IERC20(token).approve(target, 0);
+    ) public payable override {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (target == address(this)) {
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+        } else {
+            IERC20(token).approve(target, type(uint256).max);
+
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+
+            IERC20(token).approve(target, 0);
+        }
     }
 
     function approveTokensAndExecute(
         address[] memory tokens,
         address target,
         bytes calldata data
-    ) external override payable {
+    ) external payable override {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         if (target == address(this)) {
             (bool _success, ) = target.call{value: msg.value}(data);
             if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
         } else {
             uint256 tokensLength = tokens.length;
-        for (uint i; i < tokensLength; i++) {
-            IERC20(tokens[i]).approve(target, type(uint256).max);
-        }
+            for (uint i; i < tokensLength; i++) {
+                IERC20(tokens[i]).approve(target, type(uint256).max);
+            }
 
-        (bool _success, ) = target.call{value: msg.value}(data);
-        if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
-        
-        for (uint i; i < tokensLength; i++) {
-            IERC20(tokens[i]).approve(target, 0);
-        }
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+
+            for (uint i; i < tokensLength; i++) {
+                IERC20(tokens[i]).approve(target, 0);
+            }
         }
     }
 
@@ -145,7 +154,10 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address target,
         bytes calldata data
     ) external payable {
-        IERC20(token).safeTransfer(target, IERC20(token).balanceOf(address(this)));
+        IERC20(token).safeTransfer(
+            target,
+            IERC20(token).balanceOf(address(this))
+        );
         (bool _success, ) = target.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
     }

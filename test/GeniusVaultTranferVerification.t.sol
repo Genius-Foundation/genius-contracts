@@ -124,12 +124,6 @@ contract GeniusVaultTransferVerificationTest is Test {
 
         // Prepare removal of bridge liquidity
         vm.startPrank(ORCHESTRATOR);
-        address[] memory targets = new address[](1);
-        targets[0] = address(USDC);
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
-
         address recipient = makeAddr("recipient");
 
         bytes memory transferData = abi.encodeWithSelector(
@@ -138,16 +132,12 @@ contract GeniusVaultTransferVerificationTest is Test {
             wrongTransferAmount
         );
 
-        bytes[] memory data = new bytes[](1);
-        data[0] = transferData;
-
         vm.expectRevert();
-        VAULT.removeBridgeLiquidity(
+        VAULT.rebalanceLiquidity(
             amountToRemove,
             targetChainId,
-            targets,
-            values,
-            data
+            address(USDC),
+            transferData
         );
         vm.stopPrank();
     }
@@ -173,16 +163,12 @@ contract GeniusVaultTransferVerificationTest is Test {
             wrongTransferAmount
         );
 
-        bytes[] memory data = new bytes[](1);
-        data[0] = transferData;
-
         vm.expectRevert();
-        MULTIVAULT.removeBridgeLiquidity(
+        MULTIVAULT.rebalanceLiquidity(
             amountToRemove,
             targetChainId,
-            targets,
-            values,
-            data
+            address(USDC),
+            transferData
         );
         vm.stopPrank();
     }

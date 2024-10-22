@@ -22,8 +22,7 @@ contract DeployFantomGeniusEcosystem is DeployGeniusEcosystemCore {
             permit2Address,
             stableAddress,
             owner,
-            orchestrators,
-            new address[](0)
+            orchestrators
         );
     }
 }
