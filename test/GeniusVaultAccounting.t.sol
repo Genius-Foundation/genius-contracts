@@ -26,7 +26,7 @@ contract GeniusVaultAccounting is Test {
 
     // ============ Internal Contracts ============
     GeniusVault public VAULT;
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     // ============ Constants ============
@@ -127,7 +127,7 @@ contract GeniusVaultAccounting is Test {
         OWNER = address(0x1);
         TRADER = address(0x2);
         ORCHESTRATOR = address(0x3);
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER);
 
@@ -138,7 +138,7 @@ contract GeniusVaultAccounting is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300

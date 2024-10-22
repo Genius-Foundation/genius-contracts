@@ -31,7 +31,7 @@ contract GeniusSponsoredOrdersTest is Test {
     IEIP712 public PERMIT2;
     PermitSignature public sigUtils;
 
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     GeniusRouter public GENIUS_ROUTER;
     GeniusVault public GENIUS_VAULT;
     GeniusGasTank public GAS_TANK;
@@ -64,7 +64,7 @@ contract GeniusSponsoredOrdersTest is Test {
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
 
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
@@ -79,7 +79,7 @@ contract GeniusSponsoredOrdersTest is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             ADMIN,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -91,7 +91,7 @@ contract GeniusSponsoredOrdersTest is Test {
         GENIUS_ROUTER = new GeniusRouter(
             address(PERMIT2),
             address(GENIUS_VAULT),
-            address(MULTICALL)
+            address(PROXYCALL)
         );
 
         RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
@@ -102,7 +102,7 @@ contract GeniusSponsoredOrdersTest is Test {
             ADMIN,
             payable(FEE_RECIPIENT),
             address(PERMIT2),
-            address(MULTICALL)
+            address(PROXYCALL)
         );
 
         deal(address(USDC), address(DEX_ROUTER), BASE_ROUTER_USDC_BALANCE);
@@ -120,6 +120,9 @@ contract GeniusSponsoredOrdersTest is Test {
 
         address[] memory tokensIn = new address[](1);
         uint256[] memory amountsIn = new uint256[](1);
+
+        tokensIn[0] = address(DAI);
+        amountsIn[0] = BASE_USER_DAI_BALANCE - sponsorFee;
 
         bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
@@ -195,14 +198,14 @@ contract GeniusSponsoredOrdersTest is Test {
         emit IGeniusGasTank.OrderedTransactionsSponsored(
             SENDER,
             USER,
-            address(DEX_ROUTER),
+            address(GENIUS_ROUTER),
             address(DAI),
             sponsorFee,
             0
         );
 
         GAS_TANK.sponsorOrderedTransactions(
-            address(DEX_ROUTER),
+            address(GENIUS_ROUTER),
             gasTankData,
             permitBatch,
             permitSignature,

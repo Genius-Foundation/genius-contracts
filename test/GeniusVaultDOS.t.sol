@@ -32,7 +32,7 @@ contract GeniusVaultDOSTest is Test {
     ERC20 public USDC;
     GeniusVault public VAULT;
     GeniusMultiTokenVault public MULTIVAULT;
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -67,7 +67,7 @@ contract GeniusVaultDOSTest is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
 
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -76,7 +76,7 @@ contract GeniusVaultDOSTest is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -91,7 +91,7 @@ contract GeniusVaultDOSTest is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300,

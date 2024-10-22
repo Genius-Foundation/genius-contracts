@@ -26,7 +26,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     IAllowanceTransfer public immutable PERMIT2;
-    IGeniusProxyCall public immutable MULTICALL;
+    IGeniusProxyCall public immutable PROXYCALL;
 
     address payable private feeRecipient;
 
@@ -43,7 +43,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         _grantRole(PAUSER_ROLE, _admin);
         _setFeeRecipient(_feeRecipient);
         PERMIT2 = IAllowanceTransfer(_permit2);
-        MULTICALL = IGeniusProxyCall(_multicall);
+        PROXYCALL = IGeniusProxyCall(_multicall);
     }
 
     modifier onlyAdmin() {
@@ -95,10 +95,14 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
 
-        if (target == address(MULTICALL))
-            MULTICALL.execute{value: msg.value}(target, data);
+        if (target == address(PROXYCALL))
+            PROXYCALL.execute{value: msg.value}(target, data);
         else {
-            MULTICALL.approveTokensAndExecute{value: msg.value}(tokensIn, target, data);
+            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+                tokensIn,
+                target,
+                data
+            );
         }
 
         emit OrderedTransactionsSponsored(
@@ -151,11 +155,14 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
 
-
-        if (target == address(MULTICALL))
-            MULTICALL.execute{value: msg.value}(target, data);
+        if (target == address(PROXYCALL))
+            PROXYCALL.execute{value: msg.value}(target, data);
         else {
-            MULTICALL.approveTokensAndExecute{value: msg.value}(tokensIn, target, data);
+            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+                tokensIn,
+                target,
+                data
+            );
         }
 
         emit UnorderedTransactionsSponsored(
@@ -187,10 +194,14 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
 
-        if (target == address(MULTICALL)) {
-            MULTICALL.execute{value: msg.value}(target, data);
+        if (target == address(PROXYCALL)) {
+            PROXYCALL.execute{value: msg.value}(target, data);
         } else {
-            MULTICALL.approveTokensAndExecute{value: msg.value}(tokensIn, target, data);
+            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+                tokensIn,
+                target,
+                data
+            );
         }
     }
 
@@ -245,7 +256,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
             tokensIn[i] = permitBatch.details[i].token;
             address toAddress = permitBatch.details[i].token == feeToken
                 ? address(this)
-                : address(MULTICALL);
+                : address(PROXYCALL);
 
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
@@ -259,7 +270,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
 
         uint256 feeTokenBalance = IERC20(feeToken).balanceOf(address(this));
         IERC20(feeToken).safeTransfer(
-            address(MULTICALL),
+            address(PROXYCALL),
             feeTokenBalance - feeAmount
         );
     }

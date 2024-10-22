@@ -22,7 +22,7 @@ contract DeployRouter is Script {
         geniusRouter = new GeniusRouter(
             vm.envAddress("PERMIT2_ADDRESS"),
             vm.envAddress("GENIUS_VAULT_ADDRESS"),
-            vm.envAddress("GENIUS_MULTICALL_ADDRESS")
+            vm.envAddress("GENIUS_PROXYCALL_ADDRESS")
         );
 
         console.log("GeniusRouter deployed at: ", address(geniusRouter));

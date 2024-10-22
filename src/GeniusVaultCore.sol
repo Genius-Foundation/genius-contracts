@@ -34,7 +34,7 @@ abstract contract GeniusVaultCore is
 
     // Immutable state variables (not actually immutable due to upgradeability)
     IERC20 public STABLECOIN;
-    IGeniusProxyCall public MULTICALL;
+    IGeniusProxyCall public PROXYCALL;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
@@ -93,7 +93,7 @@ abstract contract GeniusVaultCore is
         __Pausable_init();
 
         STABLECOIN = IERC20(_stablecoin);
-        MULTICALL = IGeniusProxyCall(_multicall);
+        PROXYCALL = IGeniusProxyCall(_multicall);
         _setRebalanceThreshold(_rebalanceThreshold);
         _setOrderRevertBuffer(_orderRevertBuffer);
         _setMaxOrderTime(_maxOrderTime);
@@ -114,8 +114,8 @@ abstract contract GeniusVaultCore is
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         _isAmountValid(amountIn, availableAssets());
 
-        _transferERC20(address(STABLECOIN), address(MULTICALL), amountIn);
-        MULTICALL.approveTokenExecute{value: msg.value}(
+        _transferERC20(address(STABLECOIN), address(PROXYCALL), amountIn);
+        PROXYCALL.approveTokenExecute{value: msg.value}(
             address(STABLECOIN),
             target,
             data
@@ -138,7 +138,7 @@ abstract contract GeniusVaultCore is
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         totalStakedAssets += amount;
-        
+
         STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
         _mint(receiver, amount);
 
@@ -217,7 +217,11 @@ abstract contract GeniusVaultCore is
             );
         } else {
             IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
-            MULTICALL.call(
+            IERC20(address(STABLECOIN)).safeTransfer(
+                address(PROXYCALL),
+                order.amountIn - order.fee
+            );
+            PROXYCALL.call(
                 receiver,
                 swapTarget,
                 callTarget,

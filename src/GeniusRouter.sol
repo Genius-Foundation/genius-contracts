@@ -27,7 +27,7 @@ contract GeniusRouter is IGeniusRouter {
     IERC20 public immutable override STABLECOIN;
     IGeniusVault public immutable VAULT;
     IAllowanceTransfer public immutable PERMIT2;
-    IGeniusProxyCall public immutable MULTICALL;
+    IGeniusProxyCall public immutable PROXYCALL;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
@@ -36,7 +36,7 @@ contract GeniusRouter is IGeniusRouter {
     constructor(address permit2, address vault, address multicall) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IGeniusVault(vault);
-        MULTICALL = IGeniusProxyCall(multicall);
+        PROXYCALL = IGeniusProxyCall(multicall);
 
         STABLECOIN = VAULT.STABLECOIN();
         STABLECOIN.approve(address(VAULT), type(uint256).max);
@@ -119,18 +119,24 @@ contract GeniusRouter is IGeniusRouter {
         if (tokensIn.length != amountsIn.length)
             revert GeniusErrors.ArrayLengthsMismatch();
 
-        for (uint256 i = 0; i < tokensIn.length; i++)
-            IERC20(tokensIn[i]).safeTransferFrom(
-                msg.sender,
-                address(MULTICALL),
-                amountsIn[i]
-            );
+        for (uint256 i = 0; i < tokensIn.length; i++) {
+            if (msg.sender != address(PROXYCALL)) {
+                IERC20(tokensIn[i]).safeTransferFrom(
+                    msg.sender,
+                    address(PROXYCALL),
+                    amountsIn[i]
+                );
+            }
+        }
 
-        MULTICALL.approveTokensAndExecute{value: msg.value}(
-            tokensIn,
-            target,
-            data
-        );
+        if (target == address(PROXYCALL))
+            PROXYCALL.execute{value: msg.value}(target, data);
+        else
+            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+                tokensIn,
+                target,
+                data
+            );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
@@ -175,11 +181,14 @@ contract GeniusRouter is IGeniusRouter {
             owner
         );
 
-        MULTICALL.approveTokensAndExecute{value: msg.value}(
-            tokensIn,
-            target,
-            data
-        );
+        if (target == address(PROXYCALL))
+            PROXYCALL.execute{value: msg.value}(target, data);
+        else
+            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+                tokensIn,
+                target,
+                data
+            );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
@@ -260,7 +269,7 @@ contract GeniusRouter is IGeniusRouter {
             tokensIn[i] = permitBatch.details[i].token;
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
-                to: address(MULTICALL),
+                to: address(PROXYCALL),
                 amount: permitBatch.details[i].amount,
                 token: permitBatch.details[i].token
             });

@@ -29,7 +29,7 @@ contract GeniusRouterTest is Test {
     IEIP712 public PERMIT2;
     PermitSignature public sigUtils;
 
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     GeniusRouter public GENIUS_ROUTER;
     GeniusVault public GENIUS_VAULT;
 
@@ -61,7 +61,7 @@ contract GeniusRouterTest is Test {
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
 
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
         DAI = ERC20(0xd586E7F844cEa2F87f50152665BCbc2C279D8d70);
@@ -75,7 +75,7 @@ contract GeniusRouterTest is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             ADMIN,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -87,7 +87,7 @@ contract GeniusRouterTest is Test {
         GENIUS_ROUTER = new GeniusRouter(
             address(PERMIT2),
             address(GENIUS_VAULT),
-            address(MULTICALL)
+            address(PROXYCALL)
         );
 
         RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
@@ -320,7 +320,7 @@ contract GeniusRouterTest is Test {
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            address(MULTICALL),
+            address(PROXYCALL),
             transactions,
             USER,
             destChainId,
@@ -531,7 +531,7 @@ contract GeniusRouterTest is Test {
         DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
 
         vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.EmptyArray.selector)
+            abi.encodeWithSelector(GeniusErrors.NonAddress0.selector)
         );
         GENIUS_ROUTER.swapAndCreateOrder(
             bytes32(uint256(1)),
@@ -551,10 +551,9 @@ contract GeniusRouterTest is Test {
 
     function testSwapAndCreateOrderWithMismatchedArrayLengths() public {
         address[] memory tokensIn = new address[](1);
-        uint256[] memory amountsIn = new uint256[](1);
+        uint256[] memory amountsIn = new uint256[](0);
 
         tokensIn[0] = address(DAI);
-        amountsIn[0] = BASE_USER_DAI_BALANCE;
 
         bytes memory data = abi.encodeWithSelector(
             DAI.approve.selector,
@@ -566,9 +565,6 @@ contract GeniusRouterTest is Test {
         uint256 minAmountOut = 49 ether;
 
         vm.startPrank(USER);
-
-        DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
-
         vm.expectRevert(
             abi.encodeWithSelector(GeniusErrors.ArrayLengthsMismatch.selector)
         );
@@ -694,6 +690,11 @@ contract GeniusRouterTest is Test {
             );
         }
 
-        return encoded;
+        bytes memory data = abi.encodeWithSelector(
+            GeniusProxyCall.multiSend.selector,
+            encoded
+        );
+
+        return data;
     }
 }

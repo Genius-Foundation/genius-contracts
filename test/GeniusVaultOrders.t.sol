@@ -33,7 +33,7 @@ contract GeniusVaultOrders is Test {
 
     GeniusVault public VAULT;
 
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -49,7 +49,7 @@ contract GeniusVaultOrders is Test {
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         TOKEN1 = new MockERC20("Token1", "TK1", 18);
 
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER, OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -58,7 +58,7 @@ contract GeniusVaultOrders is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -154,7 +154,9 @@ contract GeniusVaultOrders is Test {
         );
     }
 
-    function testRemoveLiquiditySwapShouldRevertIfAmountOutTooSmall() public {
+    function testRemoveLiquiditySwapShouldTransferUsdcIfAmountOutTooSmall()
+        public
+    {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
         uint32 timestamp = uint32(block.timestamp + 200);
@@ -184,15 +186,21 @@ contract GeniusVaultOrders is Test {
             TRADER
         );
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                GeniusErrors.InvalidAmountOut.selector,
-                50_000_000 ether,
-                51_000_000 ether
-            )
-        );
+        uint256 balanceBefore = USDC.balanceOf(TRADER);
 
         VAULT.fillOrder(order, address(DEX_ROUTER), data, address(0), "");
         vm.stopPrank();
+
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            1 ether,
+            "GeniusVault balance should be 1 ether (only fees left)"
+        );
+
+        assertEq(
+            USDC.balanceOf(TRADER) - balanceBefore,
+            999 ether,
+            "Executor balance should be 999 USDC"
+        );
     }
 }

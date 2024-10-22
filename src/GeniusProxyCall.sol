@@ -24,6 +24,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address target,
         bytes calldata data
     ) external payable override {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
+
         (bool _success, ) = target.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
     }
@@ -83,7 +86,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
             (_success, ) = address(this).call(wrappedCallData);
         }
 
-        uint256 balance = IERC20(tokenOut).balanceOf(receiver);
+        uint256 balance = IERC20(tokenOut).balanceOf(address(this));
 
         if (balance > 0) {
             IERC20(tokenOut).safeTransfer(receiver, balance);
@@ -112,6 +115,8 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         bytes calldata data
     ) public payable override {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
+
         if (target == address(this)) {
             (bool _success, ) = target.call{value: msg.value}(data);
             if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
@@ -131,12 +136,14 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         bytes calldata data
     ) external payable override {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
+
         if (target == address(this)) {
             (bool _success, ) = target.call{value: msg.value}(data);
             if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
         } else {
             uint256 tokensLength = tokens.length;
-            for (uint i; i < tokensLength; i++) {
+            for (uint256 i; i < tokensLength; i++) {
                 IERC20(tokens[i]).approve(target, type(uint256).max);
             }
 
@@ -154,6 +161,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address target,
         bytes calldata data
     ) external payable {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
+
         IERC20(token).safeTransfer(
             target,
             IERC20(token).balanceOf(address(this))
@@ -167,6 +177,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address target,
         bytes calldata data
     ) external payable {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
+
         uint256 tokensLength = tokens.length;
         for (uint i; i < tokensLength; i++) {
             IERC20(tokens[i]).safeTransfer(
@@ -182,6 +195,14 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         if (address(this) != msg.sender)
             revert GeniusErrors.InvalidCallerMulticall();
         _multiSend(transactions);
+    }
+
+    function _isContract(address _addr) private view returns (bool hasCode) {
+        uint256 length;
+        assembly {
+            length := extcodesize(_addr)
+        }
+        return length > 0;
     }
 
     receive() external payable {

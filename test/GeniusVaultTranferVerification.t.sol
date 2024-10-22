@@ -35,7 +35,7 @@ contract GeniusVaultTransferVerificationTest is Test {
     ERC20 public USDC;
     GeniusVault public VAULT;
     GeniusMultiTokenVault public MULTIVAULT;
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -43,7 +43,7 @@ contract GeniusVaultTransferVerificationTest is Test {
         vm.selectFork(avalanche);
         assertEq(vm.activeFork(), avalanche);
 
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
 
@@ -79,7 +79,7 @@ contract GeniusVaultTransferVerificationTest is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -94,7 +94,7 @@ contract GeniusVaultTransferVerificationTest is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300,

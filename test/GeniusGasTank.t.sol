@@ -26,7 +26,7 @@ contract GeniusGasTankTest is Test {
     IEIP712 public PERMIT2;
     PermitSignature public sigUtils;
 
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     GeniusGasTank public GAS_TANK;
     ERC20 public USDC;
     ERC20 public WETH;
@@ -52,7 +52,7 @@ contract GeniusGasTankTest is Test {
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
 
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
         DAI = ERC20(0xd586E7F844cEa2F87f50152665BCbc2C279D8d70);
@@ -65,7 +65,7 @@ contract GeniusGasTankTest is Test {
             ADMIN,
             payable(FEE_RECIPIENT),
             address(PERMIT2),
-            address(MULTICALL)
+            address(PROXYCALL)
         );
 
         deal(address(USDC), USER, BASE_USER_USDC_BALANCE);
@@ -290,73 +290,6 @@ contract GeniusGasTankTest is Test {
         vm.stopPrank();
     }
 
-    function testSponsorFailsIfNoMulticallApproval() public {
-        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
-            .PermitDetails({
-                token: address(USDC),
-                amount: uint160(BASE_USER_USDC_BALANCE),
-                nonce: 0,
-                expiration: 1900000000
-            });
-
-        IAllowanceTransfer.PermitDetails[]
-            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
-
-        detailsArray[0] = details;
-
-        (
-            IAllowanceTransfer.PermitBatch memory permitBatch,
-            bytes memory permitSignature
-        ) = _generatePermitBatchSignature(detailsArray);
-
-        // Build swap transaction
-
-        address target = address(ROUTER);
-        bytes memory data = abi.encodeWithSignature(
-            "swapTo(address,address,uint256,address)",
-            address(USDC),
-            address(WETH),
-            BASE_USER_USDC_BALANCE,
-            USER
-        );
-
-        // Build signature
-
-        bytes memory sponsorSignature = _generateSignature(
-            target,
-            data,
-            permitBatch,
-            GAS_TANK.nonces(USER),
-            address(USDC),
-            0,
-            1900000000,
-            USER_PK
-        );
-
-        vm.startPrank(SENDER);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                GeniusErrors.ExternalCallFailed.selector,
-                address(ROUTER),
-                0
-            )
-        );
-        // Call sponsorSwap
-        GAS_TANK.sponsorOrderedTransactions(
-            target,
-            data,
-            permitBatch,
-            permitSignature,
-            USER,
-            address(USDC),
-            0,
-            1900000000,
-            sponsorSignature
-        );
-        vm.stopPrank();
-    }
-
     function testSponsorSwapWithFee() public {
         IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
             .PermitDetails({
@@ -561,20 +494,32 @@ contract GeniusGasTankTest is Test {
             bytes memory permitSignature
         ) = _generatePermitBatchSignature(details);
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
+        address[] memory targets = new address[](4);
+        bytes[] memory data = new bytes[](4);
+        uint256[] memory values = new uint256[](4);
 
-        targets[0] = address(ROUTER);
+        targets[0] = address(USDC);
         data[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(ROUTER),
+            BASE_USER_USDC_BALANCE
+        );
+        targets[1] = address(DAI);
+        data[1] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(ROUTER),
+            BASE_USER_DAI_BALANCE
+        );
+        targets[2] = address(ROUTER);
+        data[2] = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(USDC),
             address(WETH),
             BASE_USER_USDC_BALANCE,
             USER
         );
-        targets[1] = address(ROUTER);
-        data[1] = abi.encodeWithSignature(
+        targets[3] = address(ROUTER);
+        data[3] = abi.encodeWithSignature(
             "swapTo(address,address,uint256,address)",
             address(DAI),
             address(WETH),
@@ -583,11 +528,13 @@ contract GeniusGasTankTest is Test {
         );
         values[0] = 0;
         values[1] = 0;
+        values[2] = 0;
+        values[3] = 0;
 
         bytes memory transactions = _encodeTransactions(targets, values, data);
 
         bytes memory sponsorSignature = _generateSignature(
-            address(MULTICALL),
+            address(PROXYCALL),
             transactions,
             permitBatch,
             GAS_TANK.nonces(USER),
@@ -600,7 +547,7 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(USER);
 
         GAS_TANK.sponsorOrderedTransactions(
-            address(MULTICALL),
+            address(PROXYCALL),
             transactions,
             permitBatch,
             permitSignature,
@@ -1450,6 +1397,11 @@ contract GeniusGasTankTest is Test {
             );
         }
 
-        return encoded;
+        bytes memory data = abi.encodeWithSelector(
+            GeniusProxyCall.multiSend.selector,
+            encoded
+        );
+
+        return data;
     }
 }

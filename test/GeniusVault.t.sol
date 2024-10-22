@@ -36,7 +36,7 @@ contract GeniusVaultTest is Test {
     ERC20 public WETH;
 
     GeniusVault public VAULT;
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     IGeniusVault.Order public badOrder;
@@ -58,7 +58,7 @@ contract GeniusVaultTest is Test {
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
 
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER, OWNER);
 
@@ -68,7 +68,7 @@ contract GeniusVaultTest is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -231,7 +231,7 @@ contract GeniusVaultTest is Test {
         VAULT.initialize(
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -267,14 +267,14 @@ contract GeniusVaultTest is Test {
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             receiver: RECEIVER,
-            minAmountOut: 0,
+            minAmountOut: 997 ether,
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
         bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
-            997 ether
+            999 ether
         );
 
         vm.startPrank(address(ORCHESTRATOR));

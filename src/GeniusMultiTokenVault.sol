@@ -170,10 +170,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256 preSwapBalance = stablecoinBalance();
 
         if (token == NATIVE) {
-            MULTICALL.execute{value: amount}(target, data);
+            PROXYCALL.execute{value: amount}(target, data);
         } else {
-            _transferERC20(token, address(MULTICALL), amount);
-            MULTICALL.approveTokenExecute(token, target, data);
+            _transferERC20(token, address(PROXYCALL), amount);
+            PROXYCALL.approveTokenExecute(token, target, data);
         }
 
         uint256 postSwapBalance = stablecoinBalance();

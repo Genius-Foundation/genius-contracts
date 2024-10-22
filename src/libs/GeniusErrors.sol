@@ -248,4 +248,6 @@ library GeniusErrors {
     error InvalidSignature();
 
     error InvalidCallerMulticall();
+
+    error TargetIsNotContract();
 }

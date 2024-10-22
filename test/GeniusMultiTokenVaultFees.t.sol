@@ -35,7 +35,7 @@ contract GeniusMultiTokenVaultFees is Test {
 
     GeniusMultiTokenVault public VAULT;
 
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -52,7 +52,7 @@ contract GeniusMultiTokenVaultFees is Test {
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
         USDT = ERC20(0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7); // USDT on Avalanche (example)
 
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER, OWNER);
         GeniusMultiTokenVault implementation = new GeniusMultiTokenVault();
@@ -71,7 +71,7 @@ contract GeniusMultiTokenVaultFees is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300,
@@ -201,14 +201,6 @@ contract GeniusMultiTokenVaultFees is Test {
 
         // Create dummy targets, calldata, and values arrays to call fillOrder
 
-        // Create calldata to transfer the stablecoin to this contract
-        bytes memory data = abi.encodeWithSelector(
-            USDC.transfer.selector,
-            address(this),
-            997 ether
-        );
-        // Value is 0
-
         console.log("Removing liquidity");
         console.log(
             "USDC balance before removing liquidity: ",
@@ -221,7 +213,7 @@ contract GeniusMultiTokenVaultFees is Test {
 
         // Remove liquidity
         vm.startPrank(address(ORCHESTRATOR));
-        VAULT.fillOrder(order, address(USDC), data, address(0), "");
+        VAULT.fillOrder(order, address(0), "", address(0), "");
 
         // Add assertions to check the state after removing liquidity
         assertEq(

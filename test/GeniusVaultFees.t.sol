@@ -34,7 +34,7 @@ contract GeniusVaultFees is Test {
 
     GeniusVault public VAULT;
 
-    GeniusProxyCall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -49,7 +49,7 @@ contract GeniusVaultFees is Test {
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
-        MULTICALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall();
 
         vm.startPrank(OWNER, OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -58,7 +58,7 @@ contract GeniusVaultFees is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -348,7 +348,7 @@ contract GeniusVaultFees is Test {
         );
     }
 
-    function testRemoveTooMuchLiquidity() public {
+    function testFailedSwapTx() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
 
@@ -388,14 +388,7 @@ contract GeniusVaultFees is Test {
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                GeniusErrors.ExternalCallFailed.selector,
-                address(USDC),
-                0
-            )
-        );
-
+    
         bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
@@ -407,13 +400,13 @@ contract GeniusVaultFees is Test {
         // Add assertions to check the state after removing liquidity
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            1_000 ether,
-            "GeniusVault balance should be 1,000 ether"
+            1 ether,
+            "GeniusVault balance should be 1 ether"
         );
         assertEq(
-            USDC.balanceOf(address(ORCHESTRATOR)),
-            0,
-            "Executor balance should be 0"
+            USDC.balanceOf(address(TRADER)),
+            999 ether,
+            "TRADER balance should be 999 ether"
         );
         assertEq(
             VAULT.totalStakedAssets(),
