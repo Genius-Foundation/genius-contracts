@@ -95,7 +95,11 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
 
-        MULTICALL.approveTokensAndExecute(tokensIn, target, data);
+        if (target == address(MULTICALL))
+            MULTICALL.execute{value: msg.value}(target, data);
+        else {
+            MULTICALL.approveTokensAndExecute{value: msg.value}(tokensIn, target, data);
+        }
 
         emit OrderedTransactionsSponsored(
             msg.sender,
@@ -147,7 +151,12 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
 
-        MULTICALL.approveTokensAndExecute(tokensIn, target, data);
+
+        if (target == address(MULTICALL))
+            MULTICALL.execute{value: msg.value}(target, data);
+        else {
+            MULTICALL.approveTokensAndExecute{value: msg.value}(tokensIn, target, data);
+        }
 
         emit UnorderedTransactionsSponsored(
             msg.sender,
@@ -167,6 +176,8 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         address feeToken,
         uint256 feeAmount
     ) external payable override {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+
         address[] memory tokensIn = _permitAndBatchTransfer(
             permitBatch,
             permitSignature,
@@ -176,7 +187,11 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
         IERC20(feeToken).safeTransfer(feeRecipient, feeAmount);
 
-        MULTICALL.approveTokensAndExecute(tokensIn, target, data);
+        if (target == address(MULTICALL)) {
+            MULTICALL.execute{value: msg.value}(target, data);
+        } else {
+            MULTICALL.approveTokensAndExecute{value: msg.value}(tokensIn, target, data);
+        }
     }
 
     /**

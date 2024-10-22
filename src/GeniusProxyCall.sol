@@ -20,7 +20,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
     /**
      * @dev See {IGeniusProxyCall-aggregate}.
      */
-    function execute(address target, bytes calldata data) external payable {
+    function execute(address target, bytes calldata data) external override payable {
         (bool _success, ) = target.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
     }
@@ -34,7 +34,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         uint256 minAmountOut,
         bytes calldata swapData,
         bytes calldata callData
-    ) external returns (bool) {
+    ) external override returns (bool) {
         bool _success = true;
 
         bool isSwap = swapTarget != address(0);
@@ -95,7 +95,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address tokenOut,
         uint256 minAmountOut,
         address expectedTokenReceiver
-    ) external payable {
+    ) external override payable {
         IERC20(token).approve(target, type(uint256).max);
         (bool _success, ) = target.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
@@ -109,7 +109,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address token,
         address target,
         bytes calldata data
-    ) external payable {
+    ) external override payable {
         IERC20(token).approve(target, type(uint256).max);
         (bool _success, ) = target.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
@@ -118,44 +118,52 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
 
     function approveTokensAndExecute(
         address[] memory tokens,
-        address to,
+        address target,
         bytes calldata data
-    ) external payable {
-        uint256 tokensLength = tokens.length;
+    ) external override payable {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (target == address(this)) {
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+        } else {
+            uint256 tokensLength = tokens.length;
         for (uint i; i < tokensLength; i++) {
-            IERC20(tokens[i]).approve(to, type(uint256).max);
+            IERC20(tokens[i]).approve(target, type(uint256).max);
         }
-        (bool _success, ) = to.call{value: msg.value}(data);
-        if (!_success) revert GeniusErrors.ExternalCallFailed(to, 0);
+
+        (bool _success, ) = target.call{value: msg.value}(data);
+        if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+        
         for (uint i; i < tokensLength; i++) {
-            IERC20(tokens[i]).approve(to, 0);
+            IERC20(tokens[i]).approve(target, 0);
+        }
         }
     }
 
     function transferTokenAndExecute(
         address token,
-        address to,
+        address target,
         bytes calldata data
     ) external payable {
-        IERC20(token).safeTransfer(to, IERC20(token).balanceOf(address(this)));
-        (bool _success, ) = to.call{value: msg.value}(data);
-        if (!_success) revert GeniusErrors.ExternalCallFailed(to, 0);
+        IERC20(token).safeTransfer(target, IERC20(token).balanceOf(address(this)));
+        (bool _success, ) = target.call{value: msg.value}(data);
+        if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
     }
 
     function transferTokensAndExecute(
         address[] memory tokens,
-        address to,
+        address target,
         bytes calldata data
     ) external payable {
         uint256 tokensLength = tokens.length;
         for (uint i; i < tokensLength; i++) {
             IERC20(tokens[i]).safeTransfer(
-                to,
+                target,
                 IERC20(tokens[i]).balanceOf(address(this))
             );
         }
-        (bool _success, ) = to.call{value: msg.value}(data);
-        if (!_success) revert GeniusErrors.ExternalCallFailed(to, 0);
+        (bool _success, ) = target.call{value: msg.value}(data);
+        if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
     }
 
     function multiSend(bytes memory transactions) external payable {
