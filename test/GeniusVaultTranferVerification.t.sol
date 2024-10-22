@@ -43,8 +43,6 @@ contract GeniusVaultTransferVerificationTest is Test {
         vm.selectFork(avalanche);
         assertEq(vm.activeFork(), avalanche);
 
-        PROXYCALL = new GeniusProxyCall();
-
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
 
         OWNER = makeAddr("OWNER");
@@ -58,6 +56,8 @@ contract GeniusVaultTransferVerificationTest is Test {
         TOKEN1 = new MockERC20("Token1", "TK1", 18);
         TOKEN2 = new MockERC20("Token2", "TK2", 18);
         TOKEN3 = new MockERC20("Token3", "TK3", 18);
+
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         // Initialize pool with supported tokens
         address[] memory supportedTokens = new address[](4);
@@ -110,6 +110,8 @@ contract GeniusVaultTransferVerificationTest is Test {
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(MULTIVAULT));
 
         vm.stopPrank();
 

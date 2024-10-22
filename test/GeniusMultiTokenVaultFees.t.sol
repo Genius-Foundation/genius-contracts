@@ -52,7 +52,7 @@ contract GeniusMultiTokenVaultFees is Test {
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
         USDT = ERC20(0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7); // USDT on Avalanche (example)
 
-        PROXYCALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER, OWNER);
         GeniusMultiTokenVault implementation = new GeniusMultiTokenVault();
@@ -82,6 +82,8 @@ contract GeniusMultiTokenVaultFees is Test {
 
         VAULT = GeniusMultiTokenVault(address(proxy));
         DEX_ROUTER = new MockDEXRouter();
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
 
         vm.stopPrank();
 

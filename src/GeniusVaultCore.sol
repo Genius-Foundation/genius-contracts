@@ -361,6 +361,10 @@ abstract contract GeniusVaultCore is
         return bytes32(uint256(uint160(_input)));
     }
 
+    function setProxyCall(address _proxyCall) external override onlyAdmin {
+        _setProxyCall(_proxyCall);
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
@@ -373,6 +377,13 @@ abstract contract GeniusVaultCore is
     function _setOrderRevertBuffer(uint256 _orderRevertBuffer) internal {
         orderRevertBuffer = _orderRevertBuffer;
         emit OrderRevertBufferChanged(_orderRevertBuffer);
+    }
+
+    function _setProxyCall(address _proxyCall) internal {
+        if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();
+
+        PROXYCALL = IGeniusProxyCall(_proxyCall);
+        emit ProxyCallChanged(_proxyCall);
     }
 
     function _setRebalanceThreshold(uint256 _rebalanceThreshold) internal {

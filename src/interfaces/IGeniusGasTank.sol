@@ -24,6 +24,12 @@ interface IGeniusGasTank {
 
     event FeeRecipientUpdated(address newFeeRecipient);
 
+    /**
+     * @notice Emitted when the proxy call address is changed.
+     * @param newProxyCall The new proxy call address.
+     */
+    event ProxyCallChanged(address newProxyCall);
+
     function nonces(address owner) external view returns (uint256);
 
     function sponsorOrderedTransactions(
@@ -61,6 +67,12 @@ interface IGeniusGasTank {
     ) external payable;
 
     function setFeeRecipient(address payable _feeRecipient) external;
+
+    /**
+     * @notice Set the proxy call contract address
+     * @param _proxyCall The new proxy call contract address
+     */
+    function setProxyCall(address _proxyCall) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.

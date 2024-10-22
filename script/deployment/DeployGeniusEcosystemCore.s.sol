@@ -35,7 +35,7 @@ contract DeployGeniusEcosystemCore is Script {
         vm.startBroadcast(deployerPrivateKey);
         // geniusActions = new GeniusActions(admin);
 
-        geniusMulticall = new GeniusProxyCall();
+        geniusMulticall = new GeniusProxyCall(_owner, new address[](0));
 
         GeniusVault implementation = new GeniusVault();
 

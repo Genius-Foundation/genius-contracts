@@ -58,7 +58,7 @@ contract GeniusVaultTest is Test {
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
 
-        PROXYCALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER, OWNER);
 
@@ -77,6 +77,8 @@ contract GeniusVaultTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
 
         badOrder = IGeniusVault.Order({
             seed: keccak256(abi.encodePacked("badOrder")),

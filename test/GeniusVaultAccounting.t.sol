@@ -127,7 +127,7 @@ contract GeniusVaultAccounting is Test {
         OWNER = address(0x1);
         TRADER = address(0x2);
         ORCHESTRATOR = address(0x3);
-        PROXYCALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER);
 
@@ -147,6 +147,9 @@ contract GeniusVaultAccounting is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
+
         DEX_ROUTER = new MockDEXRouter();
 
         permit2 = IEIP712(permit2Address);

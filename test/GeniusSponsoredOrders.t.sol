@@ -64,7 +64,7 @@ contract GeniusSponsoredOrdersTest is Test {
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
 
-        PROXYCALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall(ADMIN, new address[](0));
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
@@ -104,6 +104,14 @@ contract GeniusSponsoredOrdersTest is Test {
             address(PERMIT2),
             address(PROXYCALL)
         );
+
+        vm.startPrank(ADMIN);
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_ROUTER));
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_VAULT));
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GAS_TANK));
+
+        vm.stopPrank();
 
         deal(address(USDC), address(DEX_ROUTER), BASE_ROUTER_USDC_BALANCE);
         deal(address(DAI), USER, BASE_USER_DAI_BALANCE);

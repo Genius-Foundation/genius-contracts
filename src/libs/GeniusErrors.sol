@@ -250,4 +250,6 @@ library GeniusErrors {
     error InvalidCallerMulticall();
 
     error TargetIsNotContract();
+
+    error InvalidCaller();
 }

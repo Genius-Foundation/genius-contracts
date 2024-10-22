@@ -179,6 +179,12 @@ interface IGeniusVault {
     event CrosschainFeeChanged(uint256 newFee);
 
     /**
+     * @notice Emitted when the proxy call address is changed.
+     * @param newProxyCall The new proxy call address.
+     */
+    event ProxyCallChanged(address newProxyCall);
+
+    /**
      * @notice Returns the total balance of the vault.
      * @return The total balance of the vault.
      */
@@ -269,6 +275,12 @@ interface IGeniusVault {
      * @param _maxOrderTime The new max order time.
      */
     function setMaxOrderTime(uint256 _maxOrderTime) external;
+
+    /**
+     * @notice Set the proxy call contract address
+     * @param _proxyCall The new proxy call contract address
+     */
+    function setProxyCall(address _proxyCall) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.

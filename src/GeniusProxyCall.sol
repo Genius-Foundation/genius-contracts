@@ -6,6 +6,7 @@ import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 import {MultiSendCallOnly} from "./libs/MultiSendCallOnly.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @title GeniusProxyCall
@@ -14,8 +15,31 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
  * @notice The GeniusProxyCall contract allows for the aggregation of multiple calls
  *         in a single transaction.
  */
-contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
+contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
     using SafeERC20 for IERC20;
+
+    bytes32 public constant CALLER_ROLE = keccak256("CALLER_ROLE");
+
+    constructor(address _admin, address[] memory callers) {
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+
+        uint256 callersLength = callers.length;
+        for (uint256 i; i < callersLength; i++) {
+            _grantRole(CALLER_ROLE, callers[i]);
+        }
+    }
+
+    modifier onlyCallerOrSelf() {
+        if (!hasRole(CALLER_ROLE, msg.sender) && msg.sender != address(this))
+            revert GeniusErrors.InvalidCaller();
+        _;
+    }
+
+    modifier onlyAdmin() {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
+            revert GeniusErrors.IsNotAdmin();
+        _;
+    }
 
     /**
      * @dev See {IGeniusProxyCall-aggregate}.
@@ -23,7 +47,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
     function execute(
         address target,
         bytes calldata data
-    ) external payable override {
+    ) external payable override onlyCallerOrSelf {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
 
@@ -40,7 +64,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         uint256 minAmountOut,
         bytes calldata swapData,
         bytes calldata callData
-    ) external override returns (bool) {
+    ) external override onlyCallerOrSelf returns (bool) {
         bool _success = true;
 
         bool isSwap = swapTarget != address(0);
@@ -101,8 +125,8 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address tokenOut,
         uint256 minAmountOut,
         address expectedTokenReceiver
-    ) external payable override {
-        approveTokenExecute(token, target, data);
+    ) external payable override onlyCallerOrSelf {
+        _approveTokenAndExecute(token, target, data);
 
         uint256 balance = IERC20(tokenOut).balanceOf(expectedTokenReceiver);
         if (balance < minAmountOut)
@@ -113,21 +137,8 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         address token,
         address target,
         bytes calldata data
-    ) public payable override {
-        if (target == address(0)) revert GeniusErrors.NonAddress0();
-        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
-
-        if (target == address(this)) {
-            (bool _success, ) = target.call{value: msg.value}(data);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
-        } else {
-            IERC20(token).approve(target, type(uint256).max);
-
-            (bool _success, ) = target.call{value: msg.value}(data);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
-
-            IERC20(token).approve(target, 0);
-        }
+    ) public payable override onlyCallerOrSelf {
+        _approveTokenAndExecute(token, target, data);
     }
 
     function approveTokensAndExecute(
@@ -195,6 +206,27 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly {
         if (address(this) != msg.sender)
             revert GeniusErrors.InvalidCallerMulticall();
         _multiSend(transactions);
+    }
+
+    function _approveTokenAndExecute(
+        address token,
+        address target,
+        bytes calldata data
+    ) internal {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
+
+        if (target == address(this)) {
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+        } else {
+            IERC20(token).approve(target, type(uint256).max);
+
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target, 0);
+
+            IERC20(token).approve(target, 0);
+        }
     }
 
     function _isContract(address _addr) private view returns (bool hasCode) {

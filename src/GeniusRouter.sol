@@ -33,10 +33,10 @@ contract GeniusRouter is IGeniusRouter {
     // ║                        CONSTRUCTOR                        ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    constructor(address permit2, address vault, address multicall) {
+    constructor(address permit2, address vault, address proxycall) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IGeniusVault(vault);
-        PROXYCALL = IGeniusProxyCall(multicall);
+        PROXYCALL = IGeniusProxyCall(proxycall);
 
         STABLECOIN = VAULT.STABLECOIN();
         STABLECOIN.approve(address(VAULT), type(uint256).max);

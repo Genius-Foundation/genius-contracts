@@ -67,7 +67,7 @@ contract GeniusVaultDOSTest is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
 
-        PROXYCALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -107,6 +107,9 @@ contract GeniusVaultDOSTest is Test {
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(MULTIVAULT));
 
         vm.stopPrank();
 

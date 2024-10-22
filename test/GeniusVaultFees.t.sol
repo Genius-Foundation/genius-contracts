@@ -49,7 +49,7 @@ contract GeniusVaultFees is Test {
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
-        PROXYCALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER, OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -68,6 +68,8 @@ contract GeniusVaultFees is Test {
 
         VAULT = GeniusVault(address(proxy));
         DEX_ROUTER = new MockDEXRouter();
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
 
         vm.stopPrank();
 
@@ -388,7 +390,6 @@ contract GeniusVaultFees is Test {
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
-    
         bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),

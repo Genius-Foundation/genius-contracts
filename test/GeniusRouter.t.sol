@@ -61,7 +61,7 @@ contract GeniusRouterTest is Test {
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
 
-        PROXYCALL = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall(ADMIN, new address[](0));
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
         DAI = ERC20(0xd586E7F844cEa2F87f50152665BCbc2C279D8d70);
@@ -89,6 +89,9 @@ contract GeniusRouterTest is Test {
             address(GENIUS_VAULT),
             address(PROXYCALL)
         );
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_ROUTER));
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_VAULT));
 
         RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
         TOKEN_OUT = GENIUS_VAULT.addressToBytes32(address(USDC));

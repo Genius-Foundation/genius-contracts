@@ -17,22 +17,22 @@ contract GeniusVaultStakingTest is Test {
 
     MockUSDC public usdc;
     GeniusVault public geniusVault;
-    GeniusProxyCall public multicall;
+    GeniusProxyCall public PROXYCALL;
 
     function setUp() public {
         trader = makeAddr("trader");
         usdc = new MockUSDC();
 
-        multicall = new GeniusProxyCall();
+        PROXYCALL = new GeniusProxyCall(owner, new address[](0));
 
-        vm.prank(owner);
+        vm.startPrank(owner);
         GeniusVault implementation = new GeniusVault();
 
         bytes memory data = abi.encodeWithSelector(
             GeniusVault.initialize.selector,
             address(usdc),
             owner,
-            address(multicall),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -42,8 +42,10 @@ contract GeniusVaultStakingTest is Test {
 
         geniusVault = GeniusVault(address(proxy));
 
-        vm.prank(owner);
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(geniusVault));
+
         usdc.mint(trader, 1_000 ether);
+        vm.stopPrank();
     }
 
     function testSelfDeposit() public {

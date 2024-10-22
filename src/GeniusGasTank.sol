@@ -214,6 +214,10 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         _setFeeRecipient(_feeRecipient);
     }
 
+    function setProxyCall(address _proxyCall) external override onlyAdmin {
+        _setProxyCall(_proxyCall);
+    }
+
     /**
      * @dev See {IGeniusGasTank-pause}.
      */
@@ -232,6 +236,13 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         if (_feeRecipient == address(0)) revert GeniusErrors.NonAddress0();
         feeRecipient = _feeRecipient;
         emit FeeRecipientUpdated(_feeRecipient);
+    }
+
+    function _setProxyCall(address _proxyCall) internal {
+        if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();
+        
+        _grantRole(PAUSER_ROLE, _proxyCall);
+        emit FeeRecipientUpdated(_proxyCall);
     }
 
     function _permitAndBatchTransfer(
