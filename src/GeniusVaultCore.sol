@@ -208,6 +208,9 @@ abstract contract GeniusVaultCore is
 
         orderStatus[orderHash_] = OrderStatus.Filled;
         address receiver = bytes32ToAddress(order.receiver);
+        address effectiveTokenOut = address(STABLECOIN);
+        uint256 effectiveAmountOut = order.amountIn - order.fee;
+        bool success = true;
 
         if (!isCall && !isSwap) {
             _transferERC20(
@@ -221,7 +224,7 @@ abstract contract GeniusVaultCore is
                 address(PROXYCALL),
                 order.amountIn - order.fee
             );
-            PROXYCALL.call(
+            (effectiveTokenOut, effectiveAmountOut, success) = PROXYCALL.call(
                 receiver,
                 swapTarget,
                 callTarget,
@@ -237,11 +240,10 @@ abstract contract GeniusVaultCore is
             order.seed,
             order.trader,
             order.receiver,
-            addressToBytes32(address(STABLECOIN)),
-            order.amountIn,
-            order.srcChainId,
+            effectiveTokenOut,
+            effectiveAmountOut,
             order.destChainId,
-            order.fillDeadline
+            success
         );
     }
 

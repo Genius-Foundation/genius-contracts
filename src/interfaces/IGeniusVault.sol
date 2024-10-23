@@ -101,21 +101,20 @@ interface IGeniusVault {
      * @notice Emitted on the destination chain when a swap withdrawal occurs.
      * @param seed The unique seed of the order.
      * @param trader The address of the trader.
-     * @param tokenOut The address of the output token.
-     * @param amountOut The amount of output tokens.
+     * @param receiver The address of the receiver.
+     * @param effectiveTokenOut The address of the output token.
+     * @param effectiveAmountOut The amount of output tokens.
      * @param srcChainId The source chain ID.
-     * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
+     * @param success False if any external call failed
      */
     event OrderFilled(
         bytes32 indexed seed,
         bytes32 indexed trader,
-        bytes32 receiver,
-        bytes32 tokenOut,
-        uint256 amountOut,
-        uint256 indexed srcChainId,
-        uint256 destChainId,
-        uint256 fillDeadline
+        bytes32 indexed receiver,
+        address effectiveTokenOut,
+        uint256 effectiveAmountOut,
+        uint256 srcChainId,
+        bool success
     );
 
     /**
