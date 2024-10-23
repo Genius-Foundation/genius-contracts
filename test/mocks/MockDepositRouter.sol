@@ -14,10 +14,19 @@ contract MockDepositRouter {
         depositContract = MockDepositContract(_depositContract);
     }
 
-    function depositBalance(address token) public {
+    function depositBalance(address token) public payable {
         uint256 balance = IERC20(token).balanceOf(address(this));
         IERC20(token).approve(address(depositContract), balance);
         depositContract.deposit(token, balance);
         IERC20(token).approve(address(depositContract), 0);
+    }
+
+    function depositBalances(address[] memory tokens) public payable {
+        for (uint256 i = 0; i < tokens.length; i++) {
+            uint256 balance = IERC20(tokens[i]).balanceOf(address(this));
+            IERC20(tokens[i]).approve(address(depositContract), balance);
+            depositContract.deposit(tokens[i], balance);
+            IERC20(tokens[i]).approve(address(depositContract), 0);
+        }
     }
 }

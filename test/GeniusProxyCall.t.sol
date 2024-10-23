@@ -627,10 +627,588 @@ contract GeniusProxyCallTest is Test {
             abi.encodeWithSelector(GeniusErrors.InvalidCaller.selector)
         );
 
-        PROXYCALL.approveTokenExecute(address(USDC), address(DEX_ROUTER), swapData);
+        PROXYCALL.approveTokenExecute(
+            address(USDC),
+            address(DEX_ROUTER),
+            swapData
+        );
         vm.stopPrank();
 
         assertEq(USDC.balanceOf(address(PROXYCALL)), BASE_PROXY_USDC_BALANCE);
+    }
+
+    function testApproveTokensAndExecute() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+        PROXYCALL.approveTokensAndExecute(
+            tokens,
+            address(DEX_ROUTER),
+            swapData
+        );
+        vm.stopPrank();
+
+        assertEq(WETH.balanceOf(USER), BASE_ROUTER_WETH_BALANCE / 2);
+    }
+
+    function testApproveTokensAndExecuteCanBeCalledBySelf() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        address[] memory targets = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        uint256[] memory values = new uint256[](1);
+
+        targets[0] = address(PROXYCALL);
+        data[0] = abi.encodeWithSelector(
+            PROXYCALL.approveTokensAndExecute.selector,
+            tokens,
+            address(DEX_ROUTER),
+            abi.encodeWithSelector(
+                DEX_ROUTER.swapTo.selector,
+                address(USDC),
+                address(WETH),
+                BASE_PROXY_USDC_BALANCE,
+                address(USER)
+            )
+        );
+        values[0] = 0;
+
+        bytes memory transactions = _encodeTransactions(targets, values, data);
+
+        vm.startPrank(CALLER);
+        PROXYCALL.execute(address(PROXYCALL), transactions);
+        vm.stopPrank();
+
+        assertEq(WETH.balanceOf(USER), BASE_ROUTER_WETH_BALANCE / 2);
+    }
+
+    function testRevertApproveTokensAndExecuteIfTargetAddress0() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.NonAddress0.selector)
+        );
+        PROXYCALL.approveTokensAndExecute(tokens, address(0), swapData);
+        vm.stopPrank();
+    }
+
+    function testRevertApproveTokensAndExecuteIfTargetNotContract() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.TargetIsNotContract.selector)
+        );
+        PROXYCALL.approveTokensAndExecute(tokens, USER, swapData);
+        vm.stopPrank();
+    }
+
+    function testRevertApproveTokensAndExecuteIfExternalCallFailed() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE + 1 ether, // Try to swap more than available
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.ExternalCallFailed.selector,
+                address(DEX_ROUTER)
+            )
+        );
+        PROXYCALL.approveTokensAndExecute(
+            tokens,
+            address(DEX_ROUTER),
+            swapData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevertApproveTokensAndExecuteIfUnauthorizedCaller() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(USER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidCaller.selector)
+        );
+        PROXYCALL.approveTokensAndExecute(
+            tokens,
+            address(DEX_ROUTER),
+            swapData
+        );
+        vm.stopPrank();
+    }
+
+    function testApprovalsAreResetAfterExecution() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+        PROXYCALL.approveTokensAndExecute(
+            tokens,
+            address(DEX_ROUTER),
+            swapData
+        );
+        vm.stopPrank();
+
+        // Check that approvals were reset to 0
+        assertEq(USDC.allowance(address(PROXYCALL), address(DEX_ROUTER)), 0);
+        assertEq(WETH.allowance(address(PROXYCALL), address(DEX_ROUTER)), 0);
+    }
+
+    function testTransferTokenAndExecute() public {
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT_ROUTER.depositBalance.selector,
+            address(USDC)
+        );
+
+        vm.startPrank(CALLER);
+        PROXYCALL.transferTokenAndExecute(
+            address(USDC),
+            address(MOCK_DEPOSIT_ROUTER),
+            depositData
+        );
+        vm.stopPrank();
+
+        // Verify the token was transferred and the deposit was successful
+        assertEq(
+            USDC.balanceOf(address(MOCK_DEPOSIT)),
+            BASE_PROXY_USDC_BALANCE
+        );
+        assertEq(USDC.balanceOf(address(PROXYCALL)), 0);
+    }
+
+    function testTransferTokenAndExecuteCanBeCalledBySelf() public {
+        address[] memory targets = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        uint256[] memory values = new uint256[](1);
+
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT_ROUTER.depositBalance.selector,
+            address(USDC)
+        );
+
+        targets[0] = address(PROXYCALL);
+        data[0] = abi.encodeWithSelector(
+            PROXYCALL.transferTokenAndExecute.selector,
+            address(USDC),
+            address(MOCK_DEPOSIT_ROUTER),
+            depositData
+        );
+        values[0] = 0;
+
+        bytes memory transactions = _encodeTransactions(targets, values, data);
+
+        vm.startPrank(CALLER);
+        PROXYCALL.execute(address(PROXYCALL), transactions);
+        vm.stopPrank();
+
+        assertEq(
+            USDC.balanceOf(address(MOCK_DEPOSIT)),
+            BASE_PROXY_USDC_BALANCE
+        );
+        assertEq(USDC.balanceOf(address(PROXYCALL)), 0);
+    }
+
+    function testRevertTransferTokenAndExecuteIfTargetAddress0() public {
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT.deposit.selector,
+            address(USDC),
+            BASE_PROXY_USDC_BALANCE
+        );
+
+        vm.startPrank(CALLER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.NonAddress0.selector)
+        );
+        PROXYCALL.transferTokenAndExecute(
+            address(USDC),
+            address(0),
+            depositData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevertTransferTokenAndExecuteIfTargetNotContract() public {
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT.deposit.selector,
+            address(USDC),
+            BASE_PROXY_USDC_BALANCE
+        );
+
+        vm.startPrank(CALLER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.TargetIsNotContract.selector)
+        );
+        PROXYCALL.transferTokenAndExecute(address(USDC), USER, depositData);
+        vm.stopPrank();
+    }
+
+    function testRevertTransferTokenAndExecuteIfExternalCallFailed() public {
+        // Try to deposit more than the contract has
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT.deposit.selector,
+            address(USDC),
+            BASE_PROXY_USDC_BALANCE + 1 ether
+        );
+
+        vm.startPrank(CALLER);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.ExternalCallFailed.selector,
+                address(MOCK_DEPOSIT)
+            )
+        );
+        PROXYCALL.transferTokenAndExecute(
+            address(USDC),
+            address(MOCK_DEPOSIT),
+            depositData
+        );
+        vm.stopPrank();
+
+        assertEq(USDC.balanceOf(address(PROXYCALL)), BASE_PROXY_USDC_BALANCE);
+    }
+
+    function testTransferTokenAndExecuteWithValue() public {
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT_ROUTER.depositBalance.selector,
+            address(USDC)
+        );
+
+        vm.deal(CALLER, 1 ether);
+
+        vm.startPrank(CALLER);
+        PROXYCALL.transferTokenAndExecute{value: 1 ether}(
+            address(USDC),
+            address(MOCK_DEPOSIT_ROUTER),
+            depositData
+        );
+        vm.stopPrank();
+
+        assertEq(
+            USDC.balanceOf(address(MOCK_DEPOSIT)),
+            BASE_PROXY_USDC_BALANCE
+        );
+        assertEq(USDC.balanceOf(address(PROXYCALL)), 0);
+        assertEq(address(MOCK_DEPOSIT_ROUTER).balance, 1 ether);
+    }
+
+    function testTransferTokensAndExecute() public {
+        // Set up test tokens array
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        // Give some WETH to ProxyCall for testing multiple tokens
+        deal(address(WETH), address(PROXYCALL), 10 ether);
+
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT_ROUTER.depositBalances.selector,
+            tokens
+        );
+
+        vm.startPrank(CALLER);
+        PROXYCALL.transferTokensAndExecute(
+            tokens,
+            address(MOCK_DEPOSIT_ROUTER),
+            depositData
+        );
+        vm.stopPrank();
+
+        // Verify the tokens were transferred and the deposit was successful
+        assertEq(
+            USDC.balanceOf(address(MOCK_DEPOSIT)),
+            BASE_PROXY_USDC_BALANCE,
+            "USDC should be transferred to deposit contract"
+        );
+        assertEq(
+            WETH.balanceOf(address(MOCK_DEPOSIT)),
+            10 ether,
+            "WETH should be transferred to deposit contract"
+        );
+        assertEq(
+            USDC.balanceOf(address(PROXYCALL)),
+            0,
+            "PROXYCALL should have 0 USDC balance"
+        );
+        assertEq(
+            WETH.balanceOf(address(PROXYCALL)),
+            0,
+            "PROXYCALL should have 0 WETH balance"
+        );
+    }
+
+    function testTransferTokensAndExecuteWithEmptyBalance() public {
+        // Set up test tokens array with a token that has 0 balance
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH); // PROXYCALL has 0 WETH balance
+
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT_ROUTER.depositBalance.selector,
+            address(USDC)
+        );
+
+        vm.startPrank(CALLER);
+        PROXYCALL.transferTokensAndExecute(
+            tokens,
+            address(MOCK_DEPOSIT_ROUTER),
+            depositData
+        );
+        vm.stopPrank();
+
+        // Verify only non-zero balances were transferred
+        assertEq(
+            USDC.balanceOf(address(MOCK_DEPOSIT)),
+            BASE_PROXY_USDC_BALANCE,
+            "USDC should be transferred to deposit contract"
+        );
+        assertEq(
+            WETH.balanceOf(address(MOCK_DEPOSIT)),
+            0,
+            "No WETH should be transferred when balance is 0"
+        );
+    }
+
+    function testTransferTokensAndExecuteCanBeCalledBySelf() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        // Give some WETH to ProxyCall for testing
+        deal(address(WETH), address(PROXYCALL), 1 ether);
+
+        address[] memory targets = new address[](1);
+        bytes[] memory data = new bytes[](1);
+        uint256[] memory values = new uint256[](1);
+
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT_ROUTER.depositBalances.selector,
+            tokens
+        );
+
+        targets[0] = address(PROXYCALL);
+        data[0] = abi.encodeWithSelector(
+            PROXYCALL.transferTokensAndExecute.selector,
+            tokens,
+            address(MOCK_DEPOSIT_ROUTER),
+            depositData
+        );
+        values[0] = 0;
+
+        bytes memory transactions = _encodeTransactions(targets, values, data);
+
+        vm.startPrank(CALLER);
+        PROXYCALL.execute(address(PROXYCALL), transactions);
+        vm.stopPrank();
+
+        assertEq(
+            USDC.balanceOf(address(MOCK_DEPOSIT)),
+            BASE_PROXY_USDC_BALANCE,
+            "USDC should be transferred to deposit contract"
+        );
+        assertEq(
+            WETH.balanceOf(address(MOCK_DEPOSIT)),
+            1 ether,
+            "WETH should be transferred to deposit contract"
+        );
+        assertEq(USDC.balanceOf(address(PROXYCALL)), 0);
+        assertEq(WETH.balanceOf(address(PROXYCALL)), 0);
+    }
+
+    function testTransferTokensAndExecuteWithValue() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        // Give some WETH to ProxyCall for testing
+        deal(address(WETH), address(PROXYCALL), 1 ether);
+
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT_ROUTER.depositBalances.selector,
+            tokens
+        );
+
+        vm.deal(CALLER, 1 ether);
+
+        vm.startPrank(CALLER);
+        PROXYCALL.transferTokensAndExecute{value: 1 ether}(
+            tokens,
+            address(MOCK_DEPOSIT_ROUTER),
+            depositData
+        );
+        vm.stopPrank();
+
+        assertEq(
+            USDC.balanceOf(address(MOCK_DEPOSIT)),
+            BASE_PROXY_USDC_BALANCE,
+            "USDC should be transferred to deposit contract"
+        );
+        assertEq(
+            WETH.balanceOf(address(MOCK_DEPOSIT)),
+            1 ether,
+            "WETH should be transferred to deposit contract"
+        );
+        assertEq(USDC.balanceOf(address(PROXYCALL)), 0);
+        assertEq(WETH.balanceOf(address(PROXYCALL)), 0);
+        assertEq(
+            address(MOCK_DEPOSIT_ROUTER).balance,
+            1 ether,
+            "ETH value should be transferred"
+        );
+    }
+
+    function testRevertTransferTokensAndExecuteIfTargetAddress0() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT.deposit.selector,
+            address(USDC),
+            BASE_PROXY_USDC_BALANCE
+        );
+
+        vm.startPrank(CALLER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.NonAddress0.selector)
+        );
+        PROXYCALL.transferTokensAndExecute(tokens, address(0), depositData);
+        vm.stopPrank();
+    }
+
+    function testRevertTransferTokensAndExecuteIfTargetNotContract() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT.deposit.selector,
+            address(USDC),
+            BASE_PROXY_USDC_BALANCE
+        );
+
+        vm.startPrank(CALLER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.TargetIsNotContract.selector)
+        );
+        PROXYCALL.transferTokensAndExecute(tokens, USER, depositData);
+        vm.stopPrank();
+    }
+
+    function testRevertTransferTokensAndExecuteIfExternalCallFailed() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        // Try to deposit more than the contract has
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT.deposit.selector,
+            address(USDC),
+            BASE_PROXY_USDC_BALANCE + 1 ether
+        );
+
+        vm.startPrank(CALLER);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.ExternalCallFailed.selector,
+                address(MOCK_DEPOSIT)
+            )
+        );
+        PROXYCALL.transferTokensAndExecute(
+            tokens,
+            address(MOCK_DEPOSIT),
+            depositData
+        );
+        vm.stopPrank();
+
+        // Verify no tokens were transferred
+        assertEq(
+            USDC.balanceOf(address(PROXYCALL)),
+            BASE_PROXY_USDC_BALANCE,
+            "PROXYCALL should retain USDC balance after failed call"
+        );
+    }
+
+    function testRevertTransferTokensAndExecuteIfUnauthorizedCaller() public {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(USDC);
+        tokens[1] = address(WETH);
+
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT_ROUTER.depositBalance.selector,
+            address(USDC)
+        );
+
+        vm.startPrank(USER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidCaller.selector)
+        );
+        PROXYCALL.transferTokensAndExecute(
+            tokens,
+            address(MOCK_DEPOSIT_ROUTER),
+            depositData
+        );
+        vm.stopPrank();
     }
 
     function _encodeTransactions(

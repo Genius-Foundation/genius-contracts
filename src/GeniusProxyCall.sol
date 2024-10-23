@@ -170,7 +170,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         address[] memory tokens,
         address target,
         bytes calldata data
-    ) external payable override {
+    ) external payable override onlyCallerOrSelf {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
 
@@ -196,14 +196,13 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         address token,
         address target,
         bytes calldata data
-    ) external payable {
+    ) external payable onlyCallerOrSelf {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
-
-        IERC20(token).safeTransfer(
-            target,
-            IERC20(token).balanceOf(address(this))
-        );
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        if (balance != 0) {
+            IERC20(token).safeTransfer(target, balance);
+        }
         (bool _success, ) = target.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(target);
     }
@@ -212,22 +211,25 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         address[] memory tokens,
         address target,
         bytes calldata data
-    ) external payable {
+    ) external payable onlyCallerOrSelf {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
 
         uint256 tokensLength = tokens.length;
         for (uint i; i < tokensLength; i++) {
-            IERC20(tokens[i]).safeTransfer(
-                target,
-                IERC20(tokens[i]).balanceOf(address(this))
-            );
+            uint256 balance = IERC20(tokens[i]).balanceOf(address(this));
+
+            if (balance > 0) {
+                IERC20(tokens[i]).safeTransfer(target, balance);
+            }
         }
         (bool _success, ) = target.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(target);
     }
 
-    function multiSend(bytes memory transactions) external payable {
+    function multiSend(
+        bytes memory transactions
+    ) external payable {
         if (address(this) != msg.sender)
             revert GeniusErrors.InvalidCallerMulticall();
         _multiSend(transactions);
