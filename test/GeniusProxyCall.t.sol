@@ -449,6 +449,190 @@ contract GeniusProxyCallTest is Test {
         vm.stopPrank();
     }
 
+    function testApproveTokenExecuteAndVerify() public {
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+        uint256 amountOut = PROXYCALL.approveTokenExecuteAndVerify(
+            address(USDC),
+            address(DEX_ROUTER),
+            swapData,
+            address(WETH),
+            BASE_ROUTER_WETH_BALANCE / 2,
+            address(USER)
+        );
+
+        assertEq(amountOut, BASE_ROUTER_WETH_BALANCE / 2);
+    }
+
+    function testRevertApproveTokenExecuteAndVerifyIfFailedSwap() public {
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE + 1 ether,
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.ExternalCallFailed.selector,
+                address(DEX_ROUTER)
+            )
+        );
+
+        PROXYCALL.approveTokenExecuteAndVerify(
+            address(USDC),
+            address(DEX_ROUTER),
+            swapData,
+            address(WETH),
+            BASE_ROUTER_WETH_BALANCE / 2,
+            address(USER)
+        );
+
+        vm.stopPrank();
+        assertEq(USDC.balanceOf(address(PROXYCALL)), BASE_PROXY_USDC_BALANCE);
+    }
+
+    function testRevertApproveTokenExecuteAndVerifyIfUnexpectedAmountOut()
+        public
+    {
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidAmountOut.selector,
+                BASE_ROUTER_WETH_BALANCE / 2,
+                BASE_ROUTER_WETH_BALANCE / 2 + 1 ether
+            )
+        );
+
+        PROXYCALL.approveTokenExecuteAndVerify(
+            address(USDC),
+            address(DEX_ROUTER),
+            swapData,
+            address(WETH),
+            BASE_ROUTER_WETH_BALANCE / 2 + 1 ether,
+            address(USER)
+        );
+        vm.stopPrank();
+
+        assertEq(USDC.balanceOf(address(PROXYCALL)), BASE_PROXY_USDC_BALANCE);
+    }
+
+    function testRevertApproveTokenExecuteAndVerifyIfWrongCaller() public {
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(USER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidCaller.selector)
+        );
+
+        PROXYCALL.approveTokenExecuteAndVerify(
+            address(USDC),
+            address(DEX_ROUTER),
+            swapData,
+            address(WETH),
+            BASE_ROUTER_WETH_BALANCE / 2 + 1 ether,
+            address(USER)
+        );
+        vm.stopPrank();
+
+        assertEq(USDC.balanceOf(address(PROXYCALL)), BASE_PROXY_USDC_BALANCE);
+    }
+
+    function testApproveTokenExecute() public {
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+        PROXYCALL.approveTokenExecute(
+            address(USDC),
+            address(DEX_ROUTER),
+            swapData
+        );
+        vm.stopPrank();
+
+        assertEq(USDC.balanceOf(address(DEX_ROUTER)), BASE_PROXY_USDC_BALANCE);
+    }
+
+    function testRevertApproveTokenExecuteIfFailedSwap() public {
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE + 1 ether,
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.ExternalCallFailed.selector,
+                address(DEX_ROUTER)
+            )
+        );
+
+        PROXYCALL.approveTokenExecute(
+            address(USDC),
+            address(DEX_ROUTER),
+            swapData
+        );
+
+        vm.stopPrank();
+        assertEq(USDC.balanceOf(address(PROXYCALL)), BASE_PROXY_USDC_BALANCE);
+    }
+
+    function testRevertApproveTokenExecuteWrongCaller() public {
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            BASE_PROXY_USDC_BALANCE,
+            address(USER)
+        );
+
+        vm.startPrank(USER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidCaller.selector)
+        );
+
+        PROXYCALL.approveTokenExecute(address(USDC), address(DEX_ROUTER), swapData);
+        vm.stopPrank();
+
+        assertEq(USDC.balanceOf(address(PROXYCALL)), BASE_PROXY_USDC_BALANCE);
+    }
+
     function _encodeTransactions(
         address[] memory targets,
         uint256[] memory values,
