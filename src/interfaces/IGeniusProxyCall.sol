@@ -35,7 +35,7 @@ interface IGeniusProxyCall {
         address tokenOut,
         uint256 minAmountOut,
         address expectedTokenReceiver
-    ) external payable;
+    ) external payable returns (uint256 amountOut);
 
     function approveTokenExecute(
         address token,

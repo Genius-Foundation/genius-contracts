@@ -74,16 +74,17 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
             bool success
         )
     {
-        bool _success = true;
         bool isSwap = swapTarget != address(0);
         bool isCall = callTarget != address(0);
 
+        uint256 stablecoinBalance = IERC20(stablecoin).balanceOf(address(this));
+        effectiveAmountOut = stablecoinBalance;
+        effectiveTokenOut = stablecoin;
+        success = true;
+
         if (!isCall && !isSwap) {
-            uint256 stablecoinBalance = IERC20(stablecoin).balanceOf(
-                address(this)
-            );
             IERC20(stablecoin).safeTransfer(receiver, stablecoinBalance);
-            return (stablecoin, stablecoinBalance, true);
+            return (stablecoin, stablecoinBalance, success);
         }
 
         if (isSwap) {
@@ -94,15 +95,16 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
                 swapData,
                 tokenOut,
                 minAmountOut,
-                isCall ? callTarget : receiver
+                isCall ? address(this) : receiver
             );
-            (_success, ) = address(this).call(wrappedSwapData);
-            if (!_success) {
-                uint256 stablecoinBalance = IERC20(stablecoin).balanceOf(
-                    address(this)
-                );
+            bytes memory returnData;
+            (success, returnData) = address(this).call(wrappedSwapData);
+            if (success) {
+                effectiveTokenOut = tokenOut;
+                effectiveAmountOut = abi.decode(returnData, (uint256));
+            } else {
                 IERC20(stablecoin).safeTransfer(receiver, stablecoinBalance);
-                return (stablecoin, stablecoinBalance, false);
+                return (stablecoin, stablecoinBalance, success);
             }
         }
 
@@ -124,7 +126,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
                     callData
                 );
             }
-            (_success, ) = address(this).call(wrappedCallData);
+            (success, ) = address(this).call(wrappedCallData);
         }
 
         uint256 balance = IERC20(tokenOut).balanceOf(address(this));
@@ -132,7 +134,6 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         if (balance > 0) {
             IERC20(tokenOut).safeTransfer(receiver, balance);
         }
-        return (tokenOut, balance, _success);
     }
 
     function approveTokenExecuteAndVerify(
@@ -142,12 +143,19 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         address tokenOut,
         uint256 minAmountOut,
         address expectedTokenReceiver
-    ) external payable override onlyCallerOrSelf {
+    ) external payable override onlyCallerOrSelf returns (uint256) {
+        uint256 balancePreSwap = IERC20(tokenOut).balanceOf(
+            expectedTokenReceiver
+        );
         _approveTokenAndExecute(token, target, data);
 
-        uint256 balance = IERC20(tokenOut).balanceOf(expectedTokenReceiver);
-        if (balance < minAmountOut)
-            revert GeniusErrors.InvalidAmountOut(balance, minAmountOut);
+        uint256 balancePostSwap = IERC20(tokenOut).balanceOf(
+            expectedTokenReceiver
+        );
+        uint256 amountOut = balancePostSwap - balancePreSwap;
+        if (amountOut < minAmountOut)
+            revert GeniusErrors.InvalidAmountOut(amountOut, minAmountOut);
+        else return amountOut;
     }
 
     function approveTokenExecute(
