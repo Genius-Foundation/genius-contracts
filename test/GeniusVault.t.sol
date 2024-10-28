@@ -20,7 +20,7 @@ contract GeniusVaultTest is Test {
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
-    uint256 sourceChainId = 106; // avalanche
+    uint256 sourceChainId = block.chainid; // avalanche
     uint256 sourcePoolId = 1;
     uint256 targetPoolId = 1;
 
@@ -616,6 +616,34 @@ contract GeniusVaultTest is Test {
             abi.encodeWithSelector(
                 GeniusErrors.InvalidDestChainId.selector,
                 uint16(block.chainid)
+            )
+        );
+
+        VAULT.createOrder(order);
+    }
+
+    function testCreateOrderWithTargetChainIdOrTokenNotSupported() public {
+        vm.startPrank(OWNER);
+        VAULT.setTargetChainMinFee(address(USDC), destChainId, 0);
+        vm.stopPrank();
+
+        vm.startPrank(address(ORCHESTRATOR));
+        order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1000 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: block.chainid,
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: VAULT.addressToBytes32(address(USDC))
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.TokenOrTargetChainNotSupported.selector
             )
         );
 
