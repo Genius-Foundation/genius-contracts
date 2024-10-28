@@ -43,6 +43,8 @@ abstract contract GeniusVaultCore is
     uint256 public totalStakedAssets;
     uint256 public rebalanceThreshold;
 
+    mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
+
     mapping(address => uint256) public supportedBridges;
     mapping(bytes32 => OrderStatus) public orderStatus;
 
@@ -65,6 +67,14 @@ abstract contract GeniusVaultCore is
     modifier onlyOrchestrator() {
         if (!hasRole(ORCHESTRATOR_ROLE, msg.sender))
             revert GeniusErrors.IsNotOrchestrator();
+        _;
+    }
+
+    modifier onlyOrchestratorOrAdmin() {
+        if (
+            !hasRole(ORCHESTRATOR_ROLE, msg.sender) &&
+            !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)
+        ) revert GeniusErrors.IsNotOrchestratorNorAdmin();
         _;
     }
 
@@ -352,9 +362,29 @@ abstract contract GeniusVaultCore is
         _setProxyCall(_proxyCall);
     }
 
+    function setTargetChainMinFee(
+        address _token,
+        uint256 _targetChainId,
+        uint256 _minFee
+    ) external override onlyAdmin {
+        _setTargetChainMinFee(_token, _targetChainId, _minFee);
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
+
+    function _setTargetChainMinFee(
+        address _token,
+        uint256 _targetChainId,
+        uint256 _minFee
+    ) internal {
+        if (_targetChainId == block.chainid)
+            revert GeniusErrors.InvalidDestChainId(_targetChainId);
+
+        targetChainMinFee[_token][_targetChainId] = _minFee;
+        emit TargetChainMinFeeChanged(_token, _targetChainId, _minFee);
+    }
 
     function _setProxyCall(address _proxyCall) internal {
         if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();

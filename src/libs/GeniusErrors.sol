@@ -29,6 +29,8 @@ library GeniusErrors {
 
     error IsNotOrchestrator();
 
+    error IsNotOrchestratorNorAdmin();
+
     /**
      * @dev Error thrown when an invalid admin address is encountered.
      */
@@ -251,4 +253,6 @@ library GeniusErrors {
     error TargetIsNotContract();
 
     error InvalidCaller();
+
+    error TokenOrTargetChainNotSupported();
 }

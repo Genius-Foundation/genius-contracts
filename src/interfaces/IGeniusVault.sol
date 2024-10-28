@@ -139,6 +139,19 @@ interface IGeniusVault {
     event ProxyCallChanged(address newProxyCall);
 
     /**
+     * @notice Emitted when the minimum fees for a target chain has changed
+     * note: if the min fees are set to 0, the chain or token are not supported
+     * @param token the address of the token used as a fee
+     * @param targetChainId The id of the target chain
+     * @param newMinFee The new minimum fee for the target chain
+     */
+    event TargetChainMinFeeChanged(
+        address token,
+        uint256 targetChainId,
+        uint256 newMinFee
+    );
+
+    /**
      * @notice Returns the total balance of the vault.
      * @return The total balance of the vault.
      */
@@ -223,6 +236,19 @@ interface IGeniusVault {
      * @param _proxyCall The new proxy call contract address
      */
     function setProxyCall(address _proxyCall) external;
+
+    /**
+     * @notice Sets the minimum fees for a target chain has changed
+     * note: if the min fees are set to 0, the chain or token are not supported
+     * @param _token the address of the token used for the fees
+     * @param _targetChainId The id of the target chain
+     * @param _minFee The new minimum fee for the target chain
+     */
+    function setTargetChainMinFee(
+        address _token,
+        uint256 _targetChainId,
+        uint256 _minFee
+    ) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.

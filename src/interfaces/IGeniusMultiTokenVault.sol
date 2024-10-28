@@ -7,7 +7,7 @@ import {IGeniusVault} from "./IGeniusVault.sol";
 /**
  * @title IGeniusMultiTokenVault
  * @author looter
- * 
+ *
  * @notice The GeniusMultiTokenVault contract facilitates cross-chain
  *         liquidity management and swaps, utilizing multiple sources of liquidity.
  */
@@ -19,13 +19,6 @@ interface IGeniusMultiTokenVault is IGeniusVault {
     function tokenBalance(address token) external view returns (uint256);
 
     /**
-     * @notice Manages (adds or removes) a token from the list of supported tokens.
-     * @param token The address of the token to be managed.
-     * @param isSupported True to add the token, false to remove it.
-     */
-    function setTokenSupported(address token, bool isSupported) external;
-
-        /**
      * @notice Swaps a specified amount of tokens or native currency to stablecoins.
      * @param token The address of the token to be swapped. Pass 0x0 for native currency.
      * @param amount The amount of tokens (or native) to be swapped.
@@ -40,23 +33,10 @@ interface IGeniusMultiTokenVault is IGeniusVault {
     ) external;
 
     /**
-     * @notice Checks if a token is supported by the GeniusMultiTokenVault contract.
-     * @param token The address of the token to check.
-     * @return boolean indicating whether the token is supported or not.
-     */
-    function isTokenSupported(address token) external view returns (bool);
-
-    event TokenSupported(address indexed token, bool indexed supported);
-
-        /**
      * @notice Emitted when a swap is executed.
      * @param token The address of the token that was swapped.
      * @param amount The amount of tokens that were swapped.
      * @param stableDelta The amount of stablecoins that were swapped.
      */
-    event SwapExecuted(
-        address token,
-        uint256 amount,
-        uint256 stableDelta
-    );
+    event SwapExecuted(address token, uint256 amount, uint256 stableDelta);
 }

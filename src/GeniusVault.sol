@@ -6,7 +6,8 @@ import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 contract GeniusVault is GeniusVaultCore {
-    uint256 public unclaimedFees; // The total amount of fees that are available to be claimed
+    uint256 public feesCollected;
+    uint256 public feesClaimed;
 
     constructor() {
         _disableInitializers();
@@ -35,16 +36,22 @@ contract GeniusVault is GeniusVaultCore {
     function createOrder(
         Order memory order
     ) external payable virtual override whenNotPaused {
+        address tokenIn = address(STABLECOIN);
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.NonAddress0();
         if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
-        if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
+        if (order.tokenIn != addressToBytes32(tokenIn))
             revert GeniusErrors.InvalidTokenIn();
         if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
         if (order.destChainId == _currentChainId())
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
         if (order.srcChainId != _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+
+        uint256 minFee = targetChainMinFee[tokenIn][order.destChainId];
+        if (minFee == 0) revert GeniusErrors.TokenOrTargetChainNotSupported();
+        if (order.fee < minFee)
+            revert GeniusErrors.InsufficientFees(order.fee, minFee, tokenIn);
 
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
@@ -57,7 +64,7 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn
         );
 
-        unclaimedFees += order.fee;
+        feesCollected += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit OrderCreated(
@@ -71,24 +78,28 @@ contract GeniusVault is GeniusVaultCore {
         );
     }
 
+    function claimableFees() public view returns (uint256) {
+        return feesCollected - feesClaimed;
+    }
+
     /**
      * @dev See {IGeniusVault-claimFees}.
      */
     function claimFees(
         uint256 amount,
         address token
-    ) external virtual override onlyOrchestrator whenNotPaused {
+    ) external virtual override onlyOrchestratorOrAdmin whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > unclaimedFees)
+        if (amount > claimableFees())
             revert GeniusErrors.InsufficientFees(
                 amount,
-                unclaimedFees,
+                claimableFees(),
                 address(STABLECOIN)
             );
         if (token != address(STABLECOIN))
             revert GeniusErrors.InvalidToken(token);
 
-        unclaimedFees -= amount;
+        feesClaimed -= amount;
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         emit FeesClaimed(address(STABLECOIN), amount);
@@ -102,6 +113,6 @@ contract GeniusVault is GeniusVaultCore {
             ? totalStakedAssets - reduction
             : 0;
 
-        return minBalance + unclaimedFees;
+        return minBalance + claimableFees();
     }
 }
