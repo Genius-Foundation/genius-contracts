@@ -19,8 +19,8 @@ contract GeniusVaultOrders is Test {
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
-    uint16 sourceChainId = 1; // ethereum
-    uint16 targetChainId = 43114; // current
+    uint256 sourceChainId = block.chainid; // ethereum
+    uint256 targetChainId = 42;
 
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address OWNER;
@@ -59,9 +59,7 @@ contract GeniusVaultOrders is Test {
             address(USDC),
             OWNER,
             address(PROXYCALL),
-            7_500,
-            30,
-            300
+            7_500
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -71,6 +69,7 @@ contract GeniusVaultOrders is Test {
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
 
         DEX_ROUTER = new MockDEXRouter();
+        VAULT.setTargetChainMinFee(address(USDC), targetChainId, 1 ether);
 
         vm.stopPrank();
 
@@ -95,16 +94,14 @@ contract GeniusVaultOrders is Test {
     function testRemoveLiquiditySwap() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
-        uint32 timestamp = uint32(block.timestamp + 200);
 
         IGeniusVault.Order memory order = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: sourceChainId, // Use the current chain ID
-            destChainId: targetChainId,
-            fillDeadline: timestamp,
+            srcChainId: targetChainId, // Use the current chain ID
+            destChainId: block.chainid,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 50_000_000 ether,
@@ -140,7 +137,7 @@ contract GeniusVaultOrders is Test {
             "Executor balance should be 999 USDC"
         );
         assertEq(
-            VAULT.unclaimedFees(),
+            VAULT.claimableFees(),
             0 ether,
             "Total unclaimed fees should be 0 ether"
         );
@@ -161,16 +158,14 @@ contract GeniusVaultOrders is Test {
     {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
-        uint32 timestamp = uint32(block.timestamp + 200);
 
         IGeniusVault.Order memory order = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: sourceChainId, // Use the current chain ID
-            destChainId: targetChainId,
-            fillDeadline: timestamp,
+            srcChainId: targetChainId, // Use the current chain ID
+            destChainId: block.chainid,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 51_000_000 ether,

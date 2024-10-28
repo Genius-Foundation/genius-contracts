@@ -21,8 +21,6 @@ contract GeniusVaultTest is Test {
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
     uint256 sourceChainId = 106; // avalanche
-    uint256 targetChainId = 101; // ethereum
-
     uint256 sourcePoolId = 1;
     uint256 targetPoolId = 1;
 
@@ -87,7 +85,6 @@ contract GeniusVaultTest is Test {
             receiver: RECEIVER,
             srcChainId: 43, // Wrong source chain
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -101,7 +98,6 @@ contract GeniusVaultTest is Test {
             receiver: RECEIVER,
             srcChainId: uint16(block.chainid),
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -122,6 +118,7 @@ contract GeniusVaultTest is Test {
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
+        VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
 
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 
@@ -152,7 +149,7 @@ contract GeniusVaultTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(Pausable.EnforcedPause.selector)
         );
-        VAULT.rebalanceLiquidity(0.5 ether, targetChainId, address(USDC), data);
+        VAULT.rebalanceLiquidity(0.5 ether, destChainId, address(USDC), data);
         vm.stopPrank();
     }
 
@@ -197,7 +194,6 @@ contract GeniusVaultTest is Test {
             receiver: RECEIVER,
             srcChainId: uint16(block.chainid),
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -230,14 +226,7 @@ contract GeniusVaultTest is Test {
     function testRevertWhenAlreadyInitialized() public {
         vm.startPrank(OWNER);
         vm.expectRevert();
-        VAULT.initialize(
-            address(USDC),
-            OWNER,
-            address(PROXYCALL),
-            7_500,
-            30,
-            300
-        );
+        VAULT.initialize(address(USDC), OWNER, address(PROXYCALL), 7_500);
     }
 
     function testSetRebalanceThreshold() public {
@@ -265,7 +254,6 @@ contract GeniusVaultTest is Test {
             trader: VAULT.addressToBytes32(TRADER),
             srcChainId: 42,
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             receiver: RECEIVER,
@@ -325,7 +313,6 @@ contract GeniusVaultTest is Test {
             trader: VAULT.addressToBytes32(TRADER),
             srcChainId: 42,
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             receiver: RECEIVER,
@@ -482,7 +469,7 @@ contract GeniusVaultTest is Test {
         );
         VAULT.rebalanceLiquidity(
             amountToRemove,
-            targetChainId,
+            destChainId,
             address(USDC),
             stableTransferData
         );
@@ -520,7 +507,7 @@ contract GeniusVaultTest is Test {
         );
     }
 
-    function testcreateOrderOrderCreation() public {
+    function testOrderCreation() public {
         vm.startPrank(address(ORCHESTRATOR));
         deal(address(USDC), address(ORCHESTRATOR), 1_000 ether);
         USDC.approve(address(VAULT), 1_000 ether);
@@ -546,7 +533,6 @@ contract GeniusVaultTest is Test {
             receiver: RECEIVER,
             srcChainId: 42,
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -578,7 +564,6 @@ contract GeniusVaultTest is Test {
             receiver: RECEIVER,
             srcChainId: 42,
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -600,7 +585,6 @@ contract GeniusVaultTest is Test {
             receiver: RECEIVER,
             srcChainId: block.chainid,
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(WETH)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -622,7 +606,6 @@ contract GeniusVaultTest is Test {
             receiver: RECEIVER,
             srcChainId: 42,
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -637,97 +620,5 @@ contract GeniusVaultTest is Test {
         );
 
         VAULT.createOrder(order);
-    }
-
-    function testcreateOrderWithPastDeadline() public {
-        vm.startPrank(address(ORCHESTRATOR));
-
-        order = IGeniusVault.Order({
-            seed: keccak256("order"),
-            amountIn: 1000 ether,
-            trader: VAULT.addressToBytes32(TRADER),
-            receiver: RECEIVER,
-            srcChainId: block.chainid,
-            destChainId: destChainId,
-            fillDeadline: block.timestamp - 1,
-            tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: 1 ether,
-            minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
-        });
-
-        vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.InvalidDeadline.selector)
-        );
-
-        VAULT.createOrder(order);
-    }
-
-    function testfillOrderAfterDeadline() public {
-        vm.startPrank(address(ORCHESTRATOR));
-        deal(address(USDC), address(VAULT), 1_000 ether);
-
-        order = IGeniusVault.Order({
-            seed: keccak256("order"),
-            amountIn: 1_000 ether,
-            trader: VAULT.addressToBytes32(TRADER),
-            receiver: RECEIVER,
-            srcChainId: 42,
-            destChainId: uint32(block.chainid),
-            fillDeadline: uint32(block.timestamp + 100),
-            tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: 1 ether,
-            minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
-        });
-
-        // Advance time past the fillDeadline
-        vm.warp(block.timestamp + 200);
-
-        bytes memory data = abi.encodeWithSelector(
-            USDC.transfer.selector,
-            address(this),
-            997 ether
-        );
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                GeniusErrors.DeadlinePassed.selector,
-                uint32(block.timestamp + 100)
-            )
-        );
-        VAULT.fillOrder(order, address(USDC), data, address(0), "");
-    }
-
-    function testCannotAddOrderWithDeadlineAboveMaxOrderTime() public {
-        uint32 currentTimestamp = uint32(block.timestamp);
-        uint32 invalidDeadline = currentTimestamp +
-            uint32(VAULT.maxOrderTime()) +
-            1;
-
-        vm.startPrank(address(ORCHESTRATOR));
-        deal(address(USDC), address(ORCHESTRATOR), 1_000 ether);
-        USDC.approve(address(VAULT), 1_000 ether);
-
-        order = IGeniusVault.Order({
-            seed: keccak256("invalidDeadlineOrder"),
-            amountIn: 1_000 ether,
-            trader: VAULT.addressToBytes32(TRADER),
-            receiver: RECEIVER,
-            srcChainId: uint16(block.chainid),
-            destChainId: destChainId,
-            fillDeadline: invalidDeadline,
-            tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: 1 ether,
-            minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
-        });
-
-        vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.InvalidDeadline.selector)
-        );
-
-        VAULT.createOrder(order);
-        vm.stopPrank();
     }
 }

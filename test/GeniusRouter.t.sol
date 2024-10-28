@@ -92,6 +92,7 @@ contract GeniusRouterTest is Test {
 
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_ROUTER));
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_VAULT));
+        GENIUS_VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
 
         RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
         TOKEN_OUT = GENIUS_VAULT.addressToBytes32(address(USDC));
@@ -137,7 +138,6 @@ contract GeniusRouterTest is Test {
             BASE_ROUTER_USDC_BALANCE / 2,
             block.chainid,
             destChainId,
-            block.timestamp + 200,
             fee
         );
 
@@ -149,7 +149,6 @@ contract GeniusRouterTest is Test {
             data,
             USER,
             destChainId,
-            block.timestamp + 200,
             fee,
             RECEIVER,
             minAmountOut,
@@ -204,7 +203,6 @@ contract GeniusRouterTest is Test {
             BASE_ROUTER_USDC_BALANCE / 2,
             block.chainid,
             destChainId,
-            block.timestamp + 200,
             fee
         );
 
@@ -215,7 +213,6 @@ contract GeniusRouterTest is Test {
             address(DEX_ROUTER),
             data,
             destChainId,
-            block.timestamp + 200,
             fee,
             RECEIVER,
             minAmountOut,
@@ -313,7 +310,6 @@ contract GeniusRouterTest is Test {
             (BASE_ROUTER_USDC_BALANCE * 75) / 100,
             block.chainid,
             destChainId,
-            block.timestamp + 200,
             fee
         );
 
@@ -327,7 +323,6 @@ contract GeniusRouterTest is Test {
             transactions,
             USER,
             destChainId,
-            block.timestamp + 200,
             fee,
             RECEIVER,
             minAmountOut,
@@ -371,7 +366,6 @@ contract GeniusRouterTest is Test {
             data,
             USER,
             destChainId,
-            block.timestamp + 200,
             fee,
             RECEIVER,
             minAmountOut,
@@ -379,48 +373,7 @@ contract GeniusRouterTest is Test {
         );
     }
 
-    function testSwapAndCreateOrderWithExpiredDeadline() public {
-        address[] memory tokensIn = new address[](1);
-        uint256[] memory amountsIn = new uint256[](1);
-
-        tokensIn[0] = address(DAI);
-        amountsIn[0] = BASE_USER_DAI_BALANCE;
-
-        bytes memory data = abi.encodeWithSelector(
-            DEX_ROUTER.swapTo.selector,
-            address(DAI),
-            address(USDC),
-            BASE_USER_DAI_BALANCE,
-            address(GENIUS_ROUTER)
-        );
-
-        uint256 fee = 1 ether;
-        uint256 minAmountOut = 49 ether;
-
-        vm.startPrank(USER);
-
-        DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.InvalidDeadline.selector)
-        );
-        GENIUS_ROUTER.swapAndCreateOrder(
-            bytes32(uint256(1)),
-            tokensIn,
-            amountsIn,
-            address(DEX_ROUTER),
-            data,
-            USER,
-            destChainId,
-            block.timestamp - 1, // Expired deadline
-            fee,
-            RECEIVER,
-            minAmountOut,
-            TOKEN_OUT
-        );
-    }
-
-    function testSwapAndCreateOrderWithZeroFee() public {
+    function testRevertSwapAndCreateOrderWithZeroFee() public {
         address[] memory tokensIn = new address[](1);
         uint256[] memory amountsIn = new uint256[](1);
 
@@ -442,16 +395,13 @@ contract GeniusRouterTest is Test {
 
         DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
 
-        vm.expectEmit(address(GENIUS_VAULT));
-        emit IGeniusVault.OrderCreated(
-            bytes32(uint256(1)),
-            RECEIVER,
-            TOKEN_IN,
-            BASE_ROUTER_USDC_BALANCE / 2,
-            block.chainid,
-            destChainId,
-            block.timestamp + 200,
-            fee
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InsufficientFees.selector,
+                fee,
+                1 ether,
+                address(USDC)
+            )
         );
 
         GENIUS_ROUTER.swapAndCreateOrder(
@@ -462,16 +412,10 @@ contract GeniusRouterTest is Test {
             data,
             USER,
             destChainId,
-            block.timestamp + 200,
             fee,
             RECEIVER,
             minAmountOut,
             TOKEN_OUT
-        );
-
-        assertEq(
-            USDC.balanceOf(address(GENIUS_VAULT)),
-            BASE_ROUTER_USDC_BALANCE / 2
         );
     }
 
@@ -511,7 +455,6 @@ contract GeniusRouterTest is Test {
             data,
             USER,
             block.chainid, // Same as current chain ID
-            block.timestamp + 200,
             fee,
             RECEIVER,
             minAmountOut,
@@ -544,7 +487,6 @@ contract GeniusRouterTest is Test {
             "",
             USER,
             destChainId,
-            block.timestamp + 200,
             fee,
             RECEIVER,
             minAmountOut,
@@ -579,7 +521,6 @@ contract GeniusRouterTest is Test {
             data,
             USER,
             destChainId,
-            block.timestamp + 200,
             fee,
             RECEIVER,
             minAmountOut,
@@ -620,7 +561,6 @@ contract GeniusRouterTest is Test {
             data,
             USER,
             destChainId,
-            block.timestamp + 200,
             fee,
             bytes32(0), // Invalid receiver
             minAmountOut,
@@ -661,7 +601,6 @@ contract GeniusRouterTest is Test {
             data,
             USER,
             destChainId,
-            block.timestamp + 200,
             fee,
             RECEIVER,
             minAmountOut,

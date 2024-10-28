@@ -110,6 +110,7 @@ contract GeniusSponsoredOrdersTest is Test {
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_ROUTER));
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_VAULT));
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GAS_TANK));
+        GENIUS_VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
 
         vm.stopPrank();
 
@@ -152,7 +153,6 @@ contract GeniusSponsoredOrdersTest is Test {
             data,
             USER,
             destChainId,
-            block.timestamp + 200,
             bridgeFee,
             RECEIVER,
             minAmountOut,
@@ -198,7 +198,6 @@ contract GeniusSponsoredOrdersTest is Test {
             BASE_ROUTER_USDC_BALANCE / 2,
             block.chainid,
             destChainId,
-            block.timestamp + 200,
             bridgeFee
         );
 

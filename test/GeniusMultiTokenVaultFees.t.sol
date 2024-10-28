@@ -97,6 +97,10 @@ contract GeniusMultiTokenVaultFees is Test {
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
+        VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
+        VAULT.setTargetChainMinFee(address(WETH), destChainId, 1 ether);
+        VAULT.setTargetChainMinFee(address(USDT), destChainId, 1 ether);
+
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 
         deal(address(USDC), TRADER, 1_000 ether);
@@ -115,7 +119,6 @@ contract GeniusMultiTokenVaultFees is Test {
             trader: VAULT.addressToBytes32(TRADER),
             srcChainId: block.chainid,
             destChainId: 42,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             receiver: RECEIVER,
@@ -138,7 +141,7 @@ contract GeniusMultiTokenVaultFees is Test {
         );
 
         assertEq(
-            VAULT.supportedTokenFees(address(USDC)),
+            VAULT.claimableFees(address(USDC)),
             1 ether,
             "Total unclaimed fees should be 1 ether"
         );
@@ -170,7 +173,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: block.chainid, // Use the current chain ID
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -194,7 +196,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 0, // Use the current chain ID
             destChainId: block.chainid,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 3 ether,
             minAmountOut: 0,
@@ -229,7 +230,7 @@ contract GeniusMultiTokenVaultFees is Test {
             "Executor balance should be 999 ether"
         );
         assertEq(
-            VAULT.supportedTokenFees(address(USDC)),
+            VAULT.claimableFees(address(USDC)),
             1 ether,
             "Total unclaimed fees should still be 1 ether"
         );
@@ -260,7 +261,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: block.chainid, // Use the current chain ID
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -277,7 +277,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: destChainId, // Use the current chain ID
             destChainId: block.chainid,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 0,
             minAmountOut: 0,
@@ -314,7 +313,7 @@ contract GeniusMultiTokenVaultFees is Test {
             "Executor balance should be 0"
         );
         assertEq(
-            VAULT.supportedTokenFees(address(USDC)),
+            VAULT.claimableFees(address(USDC)),
             1 ether,
             "Total unclaimed fees should still be 1 ether"
         );
@@ -347,7 +346,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"),
             srcChainId: block.chainid, // Use the current chain ID
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -360,7 +358,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"),
             srcChainId: block.chainid, // Use the current chain ID
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDT)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -373,7 +370,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"),
             srcChainId: block.chainid,
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(WETH)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -401,17 +397,17 @@ contract GeniusMultiTokenVaultFees is Test {
         );
 
         assertEq(
-            VAULT.supportedTokenFees(address(USDC)),
+            VAULT.claimableFees(address(USDC)),
             1 ether,
             "USDC unclaimed fees should be 1 ether"
         );
         assertEq(
-            VAULT.supportedTokenFees(address(WETH)),
+            VAULT.claimableFees(address(WETH)),
             1 ether,
             "WETH unclaimed fees should be 1 ether"
         );
         assertEq(
-            VAULT.supportedTokenFees(address(USDT)),
+            VAULT.claimableFees(address(USDT)),
             1 ether,
             "USDT unclaimed fees should be 1 ether"
         );
