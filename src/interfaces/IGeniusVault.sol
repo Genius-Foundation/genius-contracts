@@ -18,8 +18,7 @@ interface IGeniusVault {
     enum OrderStatus {
         Nonexistant,
         Created,
-        Filled,
-        Reverted
+        Filled
     }
 
     /**
@@ -33,7 +32,6 @@ interface IGeniusVault {
      * @param minAmountOut The minimum amount of output tokens.
      * @param srcChainId The source chain ID.
      * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
      * @param fee The fees paid for the order
      */
     struct Order {
@@ -46,7 +44,6 @@ interface IGeniusVault {
         uint256 minAmountOut;
         uint256 srcChainId;
         uint256 destChainId;
-        uint256 fillDeadline;
         uint256 fee;
     }
 
@@ -84,7 +81,6 @@ interface IGeniusVault {
      * @param amountIn The amount of input tokens.
      * @param srcChainId The source chain ID.
      * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
      */
     event OrderCreated(
         bytes32 indexed seed,
@@ -93,7 +89,6 @@ interface IGeniusVault {
         uint256 amountIn,
         uint256 srcChainId,
         uint256 indexed destChainId,
-        uint256 fillDeadline,
         uint256 fee
     );
 
@@ -118,28 +113,6 @@ interface IGeniusVault {
     );
 
     /**
-     * @notice Emitted on the source chain when an order is filled.
-     * @param seed The unique seed of the order.
-     * @param trader The address of the trader.
-     * @param tokenIn The address of the input token.
-     * @param amountIn The amount of input tokens.
-     * @param srcChainId The source chain ID.
-     * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
-     */
-    event OrderFilled(
-        bytes32 indexed seed,
-        bytes32 indexed trader,
-        bytes32 receiver,
-        bytes32 tokenIn,
-        uint256 amountIn,
-        uint256 srcChainId,
-        uint256 indexed destChainId,
-        uint256 fillDeadline,
-        uint256 fee
-    );
-
-    /**
      * @notice Emitted when liquidity is removed for rebalancing.
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
@@ -154,28 +127,10 @@ interface IGeniusVault {
     event FeesClaimed(address indexed token, uint256 amount);
 
     /**
-     * @notice Emitted when the max order time is changed.
-     * @param newMaxOrderTime The new maximum order time.
-     */
-    event MaxOrderTimeChanged(uint256 newMaxOrderTime);
-
-    /**
-     * @notice Emitted when the order revert buffer is changed.
-     * @param newOrderRevertBuffer The new order revert buffer time.
-     */
-    event OrderRevertBufferChanged(uint256 newOrderRevertBuffer);
-
-    /**
      * @notice Emitted when the rebalance threshold is changed.
      * @param newThreshold The new rebalance threshold.
      */
     event RebalanceThresholdChanged(uint256 newThreshold);
-
-    /**
-     * @notice Emitted when the cross-chain fee is changed.
-     * @param newFee The new cross-chain fee.
-     */
-    event CrosschainFeeChanged(uint256 newFee);
 
     /**
      * @notice Emitted when the proxy call address is changed.
@@ -264,18 +219,6 @@ interface IGeniusVault {
     function setRebalanceThreshold(uint256 threshold) external;
 
     /**
-     * @notice Sets the order revert buffer.
-     * @param _orderRevertBuffer The new order revert buffer.
-     */
-    function setOrderRevertBuffer(uint256 _orderRevertBuffer) external;
-
-    /**
-     * @notice Sets the max order time.
-     * @param _maxOrderTime The new max order time.
-     */
-    function setMaxOrderTime(uint256 _maxOrderTime) external;
-
-    /**
      * @notice Set the proxy call contract address
      * @param _proxyCall The new proxy call contract address
      */
@@ -297,6 +240,11 @@ interface IGeniusVault {
      * @return The bytes32 hash of the order.
      */
     function orderHash(Order memory order) external pure returns (bytes32);
+
+    function calldataToSeed(
+        address target,
+        bytes memory data
+    ) external pure returns (bytes32);
 
     /**
      * @notice Returns the total amount of staked assets in the vault.
@@ -321,8 +269,6 @@ interface IGeniusVault {
      * @param _input address to convert
      */
     function addressToBytes32(address _input) external pure returns (bytes32);
-
-    function maxOrderTime() external view returns (uint256);
 
     /**
      * @notice Returns the address of the stablecoin used in the vault.

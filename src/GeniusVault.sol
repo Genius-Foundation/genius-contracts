@@ -19,17 +19,13 @@ contract GeniusVault is GeniusVaultCore {
         address _stablecoin,
         address _admin,
         address _multicall,
-        uint256 _rebalanceThreshold,
-        uint256 _orderRevertBuffer,
-        uint256 _maxOrderTime
+        uint256 _rebalanceThreshold
     ) external initializer {
         GeniusVaultCore._initialize(
             _stablecoin,
             _admin,
             _multicall,
-            _rebalanceThreshold,
-            _orderRevertBuffer,
-            _maxOrderTime
+            _rebalanceThreshold
         );
     }
 
@@ -47,10 +43,6 @@ contract GeniusVault is GeniusVaultCore {
         if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
         if (order.destChainId == _currentChainId())
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
-        if (
-            order.fillDeadline <= _currentTimeStamp() ||
-            order.fillDeadline > _currentTimeStamp() + maxOrderTime
-        ) revert GeniusErrors.InvalidDeadline();
         if (order.srcChainId != _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
@@ -75,7 +67,6 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn,
             order.srcChainId,
             order.destChainId,
-            order.fillDeadline,
             order.fee
         );
     }

@@ -17,33 +17,6 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
  *         and the GeniusVault contract.
  */
 interface IGeniusRouter {
-    function swapAndCreateOrderDynamicDeadline(
-        bytes32 seed,
-        address[] calldata tokensIn,
-        uint256[] calldata amountsIn,
-        address target,
-        bytes calldata data,
-        address owner,
-        uint256 destChainId,
-        uint256 fee,
-        bytes32 receiver,
-        uint256 minAmountOut,
-        bytes32 tokenOut
-    ) external payable;
-
-    function swapAndCreateOrderPermit2DynamicDeadline(
-        bytes32 seed,
-        IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata permitSignature,
-        address target,
-        bytes calldata data,
-        uint256 destChainId,
-        uint256 fee,
-        bytes32 receiver,
-        uint256 minAmountOut,
-        bytes32 tokenOut
-    ) external payable;
-
     function swapAndCreateOrder(
         bytes32 seed,
         address[] calldata tokensIn,
@@ -52,7 +25,6 @@ interface IGeniusRouter {
         bytes calldata data,
         address owner,
         uint256 destChainId,
-        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -66,7 +38,6 @@ interface IGeniusRouter {
         address target,
         bytes calldata data,
         uint256 destChainId,
-        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -78,7 +49,6 @@ interface IGeniusRouter {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         uint256 destChainId,
-        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,

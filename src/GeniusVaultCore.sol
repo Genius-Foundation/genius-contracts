@@ -40,8 +40,6 @@ abstract contract GeniusVaultCore is
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
     // Mutable state variables
-    uint256 public maxOrderTime;
-    uint256 public orderRevertBuffer;
     uint256 public totalStakedAssets;
     uint256 public rebalanceThreshold;
 
@@ -81,9 +79,7 @@ abstract contract GeniusVaultCore is
         address _stablecoin,
         address _admin,
         address _multicall,
-        uint256 _rebalanceThreshold,
-        uint256 _orderRevertBuffer,
-        uint256 _maxOrderTime
+        uint256 _rebalanceThreshold
     ) internal onlyInitializing {
         if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
         if (_admin == address(0)) revert GeniusErrors.NonAddress0();
@@ -95,8 +91,6 @@ abstract contract GeniusVaultCore is
         STABLECOIN = IERC20(_stablecoin);
         PROXYCALL = IGeniusProxyCall(_multicall);
         _setRebalanceThreshold(_rebalanceThreshold);
-        _setOrderRevertBuffer(_orderRevertBuffer);
-        _setMaxOrderTime(_maxOrderTime);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
@@ -189,8 +183,6 @@ abstract contract GeniusVaultCore is
             revert GeniusErrors.OrderAlreadyFilled(orderHash_);
         if (order.destChainId != _currentChainId())
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
-        if (order.fillDeadline < _currentTimeStamp())
-            revert GeniusErrors.DeadlinePassed(order.fillDeadline);
         if (order.srcChainId == _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
         _isAmountValid(order.amountIn - order.fee, availableAssets());
@@ -199,9 +191,7 @@ abstract contract GeniusVaultCore is
         bool isCall = callTarget != address(0);
 
         if (isCall) {
-            bytes32 reconstructedSeed = keccak256(
-                abi.encode(callTarget, callData)
-            );
+            bytes32 reconstructedSeed = calldataToSeed(callTarget, callData);
             if (reconstructedSeed != order.seed)
                 revert GeniusErrors.InvalidSeed();
         }
@@ -250,24 +240,6 @@ abstract contract GeniusVaultCore is
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                      ADMIN FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
-
-    /**
-     * @dev See {IGeniusVault-setMaxOrderTime}.
-     */
-    function setMaxOrderTime(
-        uint256 _maxOrderTime
-    ) external override onlyAdmin {
-        _setMaxOrderTime(_maxOrderTime);
-    }
-
-    /**
-     * @dev See {IGeniusVault-setOrderRevertBuffer}.
-     */
-    function setOrderRevertBuffer(
-        uint256 _orderRevertBuffer
-    ) external override onlyAdmin {
-        _setOrderRevertBuffer(_orderRevertBuffer);
-    }
 
     /**
      * @dev See {IGeniusVault-setRebalanceThreshold}.
@@ -319,10 +291,14 @@ abstract contract GeniusVaultCore is
         return _availableAssets(_totalAssets, _neededLiquidity);
     }
 
+    // TODO: Try creating sub internal functions to check gas cost
+
     /**
      * @dev See {IGeniusVault-orderHash}.
      */
-    function orderHash(Order memory order) public pure returns (bytes32) {
+    function orderHash(
+        Order memory order
+    ) public pure override returns (bytes32) {
         return
             keccak256(
                 abi.encodePacked(
@@ -335,10 +311,19 @@ abstract contract GeniusVaultCore is
                     order.minAmountOut,
                     order.srcChainId,
                     order.destChainId,
-                    order.fillDeadline,
                     order.fee
                 )
             );
+    }
+
+    /**
+     * @dev See {IGeniusVault-calldataToSeed}.
+     */
+    function calldataToSeed(
+        address target,
+        bytes memory data
+    ) public pure override returns (bytes32) {
+        return keccak256(abi.encodePacked(target, keccak256(data)));
     }
 
     /**
@@ -370,16 +355,6 @@ abstract contract GeniusVaultCore is
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
-
-    function _setMaxOrderTime(uint256 _maxOrderTime) internal {
-        maxOrderTime = _maxOrderTime;
-        emit MaxOrderTimeChanged(_maxOrderTime);
-    }
-
-    function _setOrderRevertBuffer(uint256 _orderRevertBuffer) internal {
-        orderRevertBuffer = _orderRevertBuffer;
-        emit OrderRevertBufferChanged(_orderRevertBuffer);
-    }
 
     function _setProxyCall(address _proxyCall) internal {
         if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();

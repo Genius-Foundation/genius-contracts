@@ -54,17 +54,13 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         address _admin,
         address _multicall,
         uint256 _rebalanceThreshold,
-        uint256 _orderRevertBuffer,
-        uint256 _maxOrderTime,
         address[] memory tokens
     ) external initializer {
         GeniusVaultCore._initialize(
             _stablecoin,
             _admin,
             _multicall,
-            _rebalanceThreshold,
-            _orderRevertBuffer,
-            _maxOrderTime
+            _rebalanceThreshold
         );
 
         supportedTokens[address(STABLECOIN)] = true;
@@ -97,10 +93,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             revert GeniusErrors.InvalidToken(tokenIn);
         if (order.destChainId == _currentChainId())
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
-        if (
-            order.fillDeadline <= _currentTimeStamp() ||
-            order.fillDeadline > _currentTimeStamp() + maxOrderTime
-        ) revert GeniusErrors.InvalidDeadline();
         if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
 
         bytes32 _orderHash = orderHash(order);
@@ -132,7 +124,6 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             order.amountIn,
             order.srcChainId,
             order.destChainId,
-            order.fillDeadline,
             order.fee
         );
     }

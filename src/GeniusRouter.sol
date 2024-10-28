@@ -42,62 +42,6 @@ contract GeniusRouter is IGeniusRouter {
         STABLECOIN.approve(address(VAULT), type(uint256).max);
     }
 
-    function swapAndCreateOrderDynamicDeadline(
-        bytes32 seed,
-        address[] calldata tokensIn,
-        uint256[] calldata amountsIn,
-        address target,
-        bytes calldata data,
-        address owner,
-        uint256 destChainId,
-        uint256 fee,
-        bytes32 receiver,
-        uint256 minAmountOut,
-        bytes32 tokenOut
-    ) external payable override {
-        swapAndCreateOrder(
-            seed,
-            tokensIn,
-            amountsIn,
-            target,
-            data,
-            owner,
-            destChainId,
-            block.timestamp + VAULT.maxOrderTime(),
-            fee,
-            receiver,
-            minAmountOut,
-            tokenOut
-        );
-    }
-
-    function swapAndCreateOrderPermit2DynamicDeadline(
-        bytes32 seed,
-        IAllowanceTransfer.PermitBatch calldata permitBatch,
-        bytes calldata permitSignature,
-        address target,
-        bytes calldata data,
-        uint256 destChainId,
-        uint256 fee,
-        bytes32 receiver,
-        uint256 minAmountOut,
-        bytes32 tokenOut
-    ) external payable override {
-        swapAndCreateOrderPermit2(
-            seed,
-            permitBatch,
-            permitSignature,
-            target,
-            data,
-            destChainId,
-            block.timestamp + VAULT.maxOrderTime(),
-            fee,
-            receiver,
-            minAmountOut,
-            tokenOut
-        );
-    }
-
     /**
      * @dev See {IGeniusRouter-swapAndCreateOrder}.
      */
@@ -109,7 +53,6 @@ contract GeniusRouter is IGeniusRouter {
         bytes calldata data,
         address owner,
         uint256 destChainId,
-        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -149,7 +92,6 @@ contract GeniusRouter is IGeniusRouter {
             amountIn: delta,
             minAmountOut: minAmountOut,
             destChainId: destChainId,
-            fillDeadline: fillDeadline,
             srcChainId: block.chainid,
             fee: fee
         });
@@ -167,7 +109,6 @@ contract GeniusRouter is IGeniusRouter {
         address target,
         bytes calldata data,
         uint256 destChainId,
-        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -201,7 +142,6 @@ contract GeniusRouter is IGeniusRouter {
             amountIn: delta,
             minAmountOut: minAmountOut,
             destChainId: destChainId,
-            fillDeadline: fillDeadline,
             srcChainId: block.chainid,
             fee: fee
         });
@@ -217,7 +157,6 @@ contract GeniusRouter is IGeniusRouter {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         uint256 destChainId,
-        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -242,7 +181,6 @@ contract GeniusRouter is IGeniusRouter {
             amountIn: delta,
             minAmountOut: minAmountOut,
             destChainId: destChainId,
-            fillDeadline: fillDeadline,
             srcChainId: block.chainid,
             fee: fee
         });
