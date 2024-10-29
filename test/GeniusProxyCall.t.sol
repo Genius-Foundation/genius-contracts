@@ -261,16 +261,15 @@ contract GeniusProxyCallTest is Test {
 
     function testCallNoSwapAndCall() public {
         bytes memory callData = abi.encodeWithSelector(
-            MOCK_DEPOSIT.deposit.selector,
-            address(USDC),
-            BASE_PROXY_USDC_BALANCE
+            MOCK_DEPOSIT_ROUTER.depositBalance.selector,
+            address(USDC)
         );
 
         vm.startPrank(CALLER);
         (address effTOut, uint256 effAOut, bool success) = PROXYCALL.call(
             USER,
             address(0),
-            address(MOCK_DEPOSIT),
+            address(MOCK_DEPOSIT_ROUTER),
             address(USDC),
             address(USDC),
             BASE_PROXY_USDC_BALANCE,

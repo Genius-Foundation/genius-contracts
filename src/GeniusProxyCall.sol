@@ -109,23 +109,13 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         }
 
         if (isCall) {
-            bytes memory wrappedCallData;
+            bytes memory wrappedCallData = abi.encodeWithSelector(
+                IGeniusProxyCall.transferTokenAndExecute.selector,
+                tokenOut,
+                callTarget,
+                callData
+            );
 
-            if (isSwap) {
-                wrappedCallData = abi.encodeWithSelector(
-                    IGeniusProxyCall.transferTokenAndExecute.selector,
-                    tokenOut,
-                    callTarget,
-                    callData
-                );
-            } else {
-                wrappedCallData = abi.encodeWithSelector(
-                    IGeniusProxyCall.approveTokenExecute.selector,
-                    tokenOut,
-                    callTarget,
-                    callData
-                );
-            }
             (success, ) = address(this).call(wrappedCallData);
         }
 
@@ -227,9 +217,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         if (!_success) revert GeniusErrors.ExternalCallFailed(target);
     }
 
-    function multiSend(
-        bytes memory transactions
-    ) external payable {
+    function multiSend(bytes memory transactions) external payable {
         if (address(this) != msg.sender)
             revert GeniusErrors.InvalidCallerMulticall();
         _multiSend(transactions);
