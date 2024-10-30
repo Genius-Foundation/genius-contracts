@@ -20,7 +20,7 @@ contract DeployOptimismGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
         address[] memory feeTokens = new address[](1);
-        feeTokens[0] = 0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA; // USDC
+        feeTokens[0] = stableAddress; // USDC
 
         uint256[] memory minFeeAmounts = new uint256[](1);
         minFeeAmounts[0] = 100000; // $0.1

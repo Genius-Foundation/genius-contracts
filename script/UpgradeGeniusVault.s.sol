@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Script, console} from "forge-std/Script.sol";
 import {ITransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 
-import {GeniusVault} from "../../src/GeniusVault.sol";
+import {GeniusVault} from "../src/GeniusVault.sol";
 
 contract UpgradeGeniusVault is Script {
     function run() external {
@@ -16,10 +16,15 @@ contract UpgradeGeniusVault is Script {
 
         // Deploy new implementation
         GeniusVault newImplementation = new GeniusVault();
-        console.log("New GeniusVault implementation deployed at:", address(newImplementation));
+        console.log(
+            "New GeniusVault implementation deployed at:",
+            address(newImplementation)
+        );
 
         // Upgrade proxy to new implementation
-        ITransparentUpgradeableProxy proxy = ITransparentUpgradeableProxy(payable(geniusVaultProxy));
+        ITransparentUpgradeableProxy proxy = ITransparentUpgradeableProxy(
+            payable(geniusVaultProxy)
+        );
         proxy.upgradeToAndCall(address(newImplementation), "");
         console.log("GeniusVault proxy upgraded to new implementation");
 
