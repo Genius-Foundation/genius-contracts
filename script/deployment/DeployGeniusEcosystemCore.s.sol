@@ -29,7 +29,10 @@ contract DeployGeniusEcosystemCore is Script {
         address _permit2Address,
         address _stableAddress,
         address _owner,
-        address[] memory orchestrators
+        address[] memory orchestrators,
+        uint256[] memory targetNetworks,
+        address[] memory feeTokens,
+        uint256[] memory minFeeAmounts
     ) internal {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
@@ -44,9 +47,7 @@ contract DeployGeniusEcosystemCore is Script {
             _stableAddress,
             _owner,
             address(geniusMulticall),
-            7_500,
-            30,
-            300
+            7_500
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -69,6 +70,14 @@ contract DeployGeniusEcosystemCore is Script {
         // Add orchestrators
         for (uint256 i = 0; i < orchestrators.length; i++) {
             geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
+        }
+
+        for (uint256 i = 0; i < targetNetworks.length; i++) {
+            geniusVault.setTargetChainMinFee(
+                feeTokens[i],
+                targetNetworks[i],
+                minFeeAmounts[i]
+            );
         }
 
         console.log("GeniusProxyCall deployed at: ", address(geniusMulticall));

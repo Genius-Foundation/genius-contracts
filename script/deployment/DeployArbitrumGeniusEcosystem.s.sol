@@ -19,6 +19,26 @@ contract DeployArbitrumGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        _run(permit2Address, stableAddress, owner, orchestrators);
+        address[] memory feeTokens = new address[](2);
+        feeTokens[0] = 0x7F5c764cBc14f9669B88837ca1490cCa17c31607; // USDC
+        feeTokens[1] = 0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA; // USDC
+
+        uint256[] memory minFeeAmounts = new uint256[](2);
+        minFeeAmounts[0] = 100000; // $0.1
+        minFeeAmounts[1] = 100000; // $0.1
+
+        uint256[] memory targetNetworks = new uint256[](2);
+        targetNetworks[0] = 10; // OPTIMISM
+        targetNetworks[1] = 8453; // BASE
+
+        _run(
+            permit2Address,
+            stableAddress,
+            owner,
+            orchestrators,
+            targetNetworks,
+            feeTokens,
+            minFeeAmounts
+        );
     }
 }
