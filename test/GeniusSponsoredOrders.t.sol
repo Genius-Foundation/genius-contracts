@@ -2,7 +2,7 @@
 pragma solidity ^0.8.4;
 
 import {Test, console} from "forge-std/Test.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {PermitSignature} from "./utils/SigUtils.sol";
@@ -31,7 +31,7 @@ contract GeniusSponsoredOrdersTest is Test {
     IEIP712 public PERMIT2;
     PermitSignature public sigUtils;
 
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     GeniusRouter public GENIUS_ROUTER;
     GeniusVault public GENIUS_VAULT;
     GeniusGasTank public GAS_TANK;
@@ -64,7 +64,7 @@ contract GeniusSponsoredOrdersTest is Test {
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
 
-        MULTICALL = new GeniusMulticall();
+        PROXYCALL = new GeniusProxyCall(ADMIN, new address[](0));
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
@@ -79,7 +79,7 @@ contract GeniusSponsoredOrdersTest is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             ADMIN,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -91,23 +91,28 @@ contract GeniusSponsoredOrdersTest is Test {
         GENIUS_ROUTER = new GeniusRouter(
             address(PERMIT2),
             address(GENIUS_VAULT),
-            address(MULTICALL)
+            address(PROXYCALL)
         );
 
         RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
         TOKEN_OUT = GENIUS_VAULT.addressToBytes32(address(USDC));
         TOKEN_IN = TOKEN_OUT;
 
-        address[] memory allowedTargets = new address[](1);
-        allowedTargets[0] = address(GENIUS_ROUTER);
-
         GAS_TANK = new GeniusGasTank(
             ADMIN,
             payable(FEE_RECIPIENT),
             address(PERMIT2),
-            address(MULTICALL),
-            allowedTargets
+            address(PROXYCALL)
         );
+
+        vm.startPrank(ADMIN);
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_ROUTER));
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_VAULT));
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GAS_TANK));
+        GENIUS_VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
+
+        vm.stopPrank();
 
         deal(address(USDC), address(DEX_ROUTER), BASE_ROUTER_USDC_BALANCE);
         deal(address(DAI), USER, BASE_USER_DAI_BALANCE);
@@ -128,59 +133,31 @@ contract GeniusSponsoredOrdersTest is Test {
         tokensIn[0] = address(DAI);
         amountsIn[0] = BASE_USER_DAI_BALANCE - sponsorFee;
 
-        address[] memory targets = new address[](2);
-        bytes[] memory data = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        targets[0] = address(DAI);
-        data[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(DEX_ROUTER),
-            BASE_USER_DAI_BALANCE - sponsorFee
-        );
-        targets[1] = address(DEX_ROUTER);
-        data[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(DAI),
             address(USDC),
             BASE_USER_DAI_BALANCE - sponsorFee,
             address(GENIUS_ROUTER)
         );
-        values[0] = 0;
-        values[1] = 0;
 
         uint256 bridgeFee = 1 ether;
         uint256 minAmountOut = 49 ether;
 
-        address[] memory gasTankTargets = new address[](2);
-        bytes[] memory gasTankData = new bytes[](2);
-        uint256[] memory gasTankValues = new uint256[](2);
-
-        gasTankTargets[0] = address(DAI);
-        gasTankData[0] = abi.encodeWithSelector(
-            DAI.approve.selector,
-            address(GENIUS_ROUTER),
-            BASE_USER_DAI_BALANCE
-        );
-        gasTankTargets[1] = address(GENIUS_ROUTER);
-        gasTankData[1] = abi.encodeWithSelector(
+        bytes memory gasTankData = abi.encodeWithSelector(
             GENIUS_ROUTER.swapAndCreateOrder.selector,
             bytes32(uint256(1)),
             tokensIn,
             amountsIn,
-            targets,
+            address(DEX_ROUTER),
             data,
-            values,
             USER,
             destChainId,
-            block.timestamp + 200,
             bridgeFee,
             RECEIVER,
             minAmountOut,
             TOKEN_OUT
         );
-        gasTankValues[0] = 0;
-        gasTankValues[1] = 0;
 
         IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
             .PermitDetails({
@@ -201,9 +178,8 @@ contract GeniusSponsoredOrdersTest is Test {
         ) = _generatePermitBatchSignature(detailsArray);
 
         bytes memory sponsorSignature = _generateSignature(
-            gasTankTargets,
+            address(GENIUS_ROUTER),
             gasTankData,
-            gasTankValues,
             permitBatch,
             GAS_TANK.nonces(USER),
             address(DAI),
@@ -222,24 +198,22 @@ contract GeniusSponsoredOrdersTest is Test {
             BASE_ROUTER_USDC_BALANCE / 2,
             block.chainid,
             destChainId,
-            block.timestamp + 200,
             bridgeFee
         );
 
         vm.expectEmit(address(GAS_TANK));
-        emit IGeniusGasTank.TransactionsSponsored(
+        emit IGeniusGasTank.OrderedTransactionsSponsored(
             SENDER,
             USER,
+            address(GENIUS_ROUTER),
             address(DAI),
             sponsorFee,
-            0,
-            2
+            0
         );
 
-        GAS_TANK.sponsorTransactions(
-            gasTankTargets,
+        GAS_TANK.sponsorOrderedTransactions(
+            address(GENIUS_ROUTER),
             gasTankData,
-            gasTankValues,
             permitBatch,
             permitSignature,
             USER,
@@ -281,9 +255,8 @@ contract GeniusSponsoredOrdersTest is Test {
     }
 
     function _generateSignature(
-        address[] memory targets,
-        bytes[] memory data,
-        uint256[] memory values,
+        address target,
+        bytes memory data,
         IAllowanceTransfer.PermitBatch memory permitBatch,
         uint256 nonce,
         address feeToken,
@@ -293,9 +266,8 @@ contract GeniusSponsoredOrdersTest is Test {
     ) internal view returns (bytes memory) {
         bytes32 messageHash = keccak256(
             abi.encode(
-                targets,
+                target,
                 data,
-                values,
                 permitBatch,
                 nonce,
                 feeToken,

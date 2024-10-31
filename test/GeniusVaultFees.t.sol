@@ -10,7 +10,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
@@ -34,7 +34,7 @@ contract GeniusVaultFees is Test {
 
     GeniusVault public VAULT;
 
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -49,7 +49,7 @@ contract GeniusVaultFees is Test {
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
-        MULTICALL = new GeniusMulticall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER, OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -58,16 +58,17 @@ contract GeniusVaultFees is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
-            7_500,
-            30,
-            300
+            address(PROXYCALL),
+            7_500
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
         DEX_ROUTER = new MockDEXRouter();
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
+        VAULT.setTargetChainMinFee(address(USDC), targetChainId, 1 ether);
 
         vm.stopPrank();
 
@@ -81,6 +82,7 @@ contract GeniusVaultFees is Test {
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
+        VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 
         deal(address(USDC), TRADER, 1_000 ether);
@@ -99,7 +101,6 @@ contract GeniusVaultFees is Test {
             seed: keccak256("order"),
             srcChainId: block.chainid,
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -125,7 +126,7 @@ contract GeniusVaultFees is Test {
             "Total staked assets should be 0"
         );
         assertEq(
-            VAULT.unclaimedFees(),
+            VAULT.claimableFees(),
             1 ether,
             "Total unclaimed fees should be 0 ether"
         );
@@ -144,7 +145,6 @@ contract GeniusVaultFees is Test {
     function testAddLiquidityAndRemoveLiquidity() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
-        uint32 timestamp = uint32(block.timestamp + 200);
 
         IGeniusVault.Order memory orderToFill = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
@@ -152,8 +152,7 @@ contract GeniusVaultFees is Test {
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 43114, // Use the current chain ID
-            destChainId: 1,
-            fillDeadline: timestamp,
+            destChainId: destChainId,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -170,7 +169,6 @@ contract GeniusVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 0 ether,
             minAmountOut: 0,
@@ -187,19 +185,13 @@ contract GeniusVaultFees is Test {
             )
         );
 
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-
-        // Target is stablecoin
-        targets[0] = address(USDC);
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
             1_000 ether
         );
 
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(USDC), data, address(0), "");
 
         order = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
@@ -208,21 +200,18 @@ contract GeniusVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
-        targets[0] = address(USDC);
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
+        data = abi.encodeWithSelector(
             USDC.transfer.selector,
             TRADER,
             999 ether
         );
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(USDC), data, address(0), "");
         vm.stopPrank();
 
         // Add assertions to check the state after removing liquidity
@@ -242,7 +231,7 @@ contract GeniusVaultFees is Test {
             "Total staked assets should still be 0"
         );
         assertEq(
-            VAULT.unclaimedFees(),
+            VAULT.claimableFees(),
             1 ether,
             "Total unclaimed fees should still be 1 ether"
         );
@@ -261,7 +250,6 @@ contract GeniusVaultFees is Test {
     function testAddLiquidityAndRemoveLiquidityWithoutExternalCall() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
-        uint32 timestamp = uint32(block.timestamp + 200);
 
         IGeniusVault.Order memory orderToFill = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
@@ -269,8 +257,7 @@ contract GeniusVaultFees is Test {
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 43114, // Use the current chain ID
-            destChainId: 1,
-            fillDeadline: timestamp,
+            destChainId: destChainId,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -287,7 +274,6 @@ contract GeniusVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 0 ether,
             minAmountOut: 0,
@@ -304,10 +290,7 @@ contract GeniusVaultFees is Test {
             )
         );
 
-        address[] memory targets = new address[](0);
-        bytes[] memory calldatas = new bytes[](0);
-
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(0), "", address(0), "");
 
         order = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
@@ -316,14 +299,13 @@ contract GeniusVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(0), "", address(0), "");
         vm.stopPrank();
 
         // Add assertions to check the state after removing liquidity
@@ -343,7 +325,7 @@ contract GeniusVaultFees is Test {
             "Total staked assets should still be 0"
         );
         assertEq(
-            VAULT.unclaimedFees(),
+            VAULT.claimableFees(),
             1 ether,
             "Total unclaimed fees should still be 0 ether"
         );
@@ -359,11 +341,10 @@ contract GeniusVaultFees is Test {
         );
     }
 
-    function testRemoveTooMuchLiquidity() public {
+    function testFailedSwapTx() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
 
-        uint32 timestamp = uint32(block.timestamp + 200);
         IGeniusVault.Order memory orderToFill = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
@@ -371,7 +352,6 @@ contract GeniusVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 43114, // Use the current chain ID
             destChainId: 1,
-            fillDeadline: timestamp,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -392,45 +372,30 @@ contract GeniusVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 1, // Use the current chain ID
             destChainId: uint16(block.chainid),
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                GeniusErrors.ExternalCallFailed.selector,
-                address(USDC),
-                0
-            )
-        );
-
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-
-        // Target is stablecoin
-        targets[0] = address(USDC);
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
             1000 ether
         );
 
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(USDC), data, address(0), "");
 
         // Add assertions to check the state after removing liquidity
         assertEq(
             USDC.balanceOf(address(VAULT)),
-            1_000 ether,
-            "GeniusVault balance should be 1,000 ether"
+            1 ether,
+            "GeniusVault balance should be 1 ether"
         );
         assertEq(
-            USDC.balanceOf(address(ORCHESTRATOR)),
-            0,
-            "Executor balance should be 0"
+            USDC.balanceOf(address(TRADER)),
+            999 ether,
+            "TRADER balance should be 999 ether"
         );
         assertEq(
             VAULT.totalStakedAssets(),
@@ -438,7 +403,7 @@ contract GeniusVaultFees is Test {
             "Total staked assets should still be 0"
         );
         assertEq(
-            VAULT.unclaimedFees(),
+            VAULT.claimableFees(),
             1 ether,
             "Total unclaimed fees should still be 1 ether"
         );

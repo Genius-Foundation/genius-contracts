@@ -10,7 +10,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
@@ -35,7 +35,7 @@ contract GeniusMultiTokenVaultFees is Test {
 
     GeniusMultiTokenVault public VAULT;
 
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -52,7 +52,7 @@ contract GeniusMultiTokenVaultFees is Test {
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
         USDT = ERC20(0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7); // USDT on Avalanche (example)
 
-        MULTICALL = new GeniusMulticall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER, OWNER);
         GeniusMultiTokenVault implementation = new GeniusMultiTokenVault();
@@ -71,7 +71,7 @@ contract GeniusMultiTokenVaultFees is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300,
@@ -82,6 +82,8 @@ contract GeniusMultiTokenVaultFees is Test {
 
         VAULT = GeniusMultiTokenVault(address(proxy));
         DEX_ROUTER = new MockDEXRouter();
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
 
         vm.stopPrank();
 
@@ -95,6 +97,10 @@ contract GeniusMultiTokenVaultFees is Test {
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
+        VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
+        VAULT.setTargetChainMinFee(address(WETH), destChainId, 1 ether);
+        VAULT.setTargetChainMinFee(address(USDT), destChainId, 1 ether);
+
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 
         deal(address(USDC), TRADER, 1_000 ether);
@@ -113,7 +119,6 @@ contract GeniusMultiTokenVaultFees is Test {
             trader: VAULT.addressToBytes32(TRADER),
             srcChainId: block.chainid,
             destChainId: 42,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             receiver: RECEIVER,
@@ -136,7 +141,7 @@ contract GeniusMultiTokenVaultFees is Test {
         );
 
         assertEq(
-            VAULT.supportedTokenFees(address(USDC)),
+            VAULT.claimableFees(address(USDC)),
             1 ether,
             "Total unclaimed fees should be 1 ether"
         );
@@ -168,7 +173,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: block.chainid, // Use the current chain ID
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -192,7 +196,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: 0, // Use the current chain ID
             destChainId: block.chainid,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 3 ether,
             minAmountOut: 0,
@@ -200,16 +203,6 @@ contract GeniusMultiTokenVaultFees is Test {
         });
 
         // Create dummy targets, calldata, and values arrays to call fillOrder
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-
-        // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
-            USDC.transfer.selector,
-            address(this),
-            997 ether
-        );
-        // Value is 0
 
         console.log("Removing liquidity");
         console.log(
@@ -223,7 +216,7 @@ contract GeniusMultiTokenVaultFees is Test {
 
         // Remove liquidity
         vm.startPrank(address(ORCHESTRATOR));
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(0), "", address(0), "");
 
         // Add assertions to check the state after removing liquidity
         assertEq(
@@ -237,7 +230,7 @@ contract GeniusMultiTokenVaultFees is Test {
             "Executor balance should be 999 ether"
         );
         assertEq(
-            VAULT.supportedTokenFees(address(USDC)),
+            VAULT.claimableFees(address(USDC)),
             1 ether,
             "Total unclaimed fees should still be 1 ether"
         );
@@ -268,7 +261,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: block.chainid, // Use the current chain ID
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -285,22 +277,14 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"), // This should be the correct order ID
             srcChainId: destChainId, // Use the current chain ID
             destChainId: block.chainid,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 0,
             minAmountOut: 0,
             tokenOut: bytes32(uint256(1))
         });
 
-        // Create an Order struct for removing liquidity
-
-        address[] memory targets = new address[](1);
-        bytes[] memory calldatas = new bytes[](1);
-
-        // Target is stablecoin
-        targets[0] = address(USDC);
         // Create calldata to transfer the stablecoin to this contract
-        calldatas[0] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             address(this),
             1_000 ether
@@ -315,7 +299,7 @@ contract GeniusMultiTokenVaultFees is Test {
                 1_000 ether
             )
         );
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(USDC), data, address(0), "");
 
         // Add assertions to check the state after removing liquidity
         assertEq(
@@ -329,7 +313,7 @@ contract GeniusMultiTokenVaultFees is Test {
             "Executor balance should be 0"
         );
         assertEq(
-            VAULT.supportedTokenFees(address(USDC)),
+            VAULT.claimableFees(address(USDC)),
             1 ether,
             "Total unclaimed fees should still be 1 ether"
         );
@@ -362,7 +346,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"),
             srcChainId: block.chainid, // Use the current chain ID
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -375,7 +358,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"),
             srcChainId: block.chainid, // Use the current chain ID
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(USDT)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -388,7 +370,6 @@ contract GeniusMultiTokenVaultFees is Test {
             seed: keccak256("order"),
             srcChainId: block.chainid,
             destChainId: destChainId,
-            fillDeadline: uint32(block.timestamp + 200),
             tokenIn: VAULT.addressToBytes32(address(WETH)),
             fee: 1 ether,
             minAmountOut: 0,
@@ -416,17 +397,17 @@ contract GeniusMultiTokenVaultFees is Test {
         );
 
         assertEq(
-            VAULT.supportedTokenFees(address(USDC)),
+            VAULT.claimableFees(address(USDC)),
             1 ether,
             "USDC unclaimed fees should be 1 ether"
         );
         assertEq(
-            VAULT.supportedTokenFees(address(WETH)),
+            VAULT.claimableFees(address(WETH)),
             1 ether,
             "WETH unclaimed fees should be 1 ether"
         );
         assertEq(
-            VAULT.supportedTokenFees(address(USDT)),
+            VAULT.claimableFees(address(USDT)),
             1 ether,
             "USDT unclaimed fees should be 1 ether"
         );

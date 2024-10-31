@@ -29,6 +29,8 @@ library GeniusErrors {
 
     error IsNotOrchestrator();
 
+    error IsNotOrchestratorNorAdmin();
+
     /**
      * @dev Error thrown when an invalid admin address is encountered.
      */
@@ -162,9 +164,8 @@ library GeniusErrors {
     /**
      * @dev Error thrown when an external call fails.
      * @param target The address of the target contract.
-     * @param index The index of the function that was called.
      */
-    error ExternalCallFailed(address target, uint256 index);
+    error ExternalCallFailed(address target);
 
     /**
      * @dev Error thrown when there is insufficient native balance.
@@ -246,4 +247,12 @@ library GeniusErrors {
     error NoStablecoinBalanceIncrease();
 
     error InvalidSignature();
+
+    error InvalidCallerMulticall();
+
+    error TargetIsNotContract();
+
+    error InvalidCaller();
+
+    error TokenOrTargetChainNotSupported();
 }

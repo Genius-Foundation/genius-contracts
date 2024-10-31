@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {Script, console} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {GeniusMulticall} from "../../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../../src/GeniusProxyCall.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
 import {GeniusActions} from "../../src/GeniusActions.sol";
 import {GeniusRouter} from "../../src/GeniusRouter.sol";
@@ -23,20 +23,22 @@ contract DeployGeniusEcosystemCore is Script {
     GeniusVault public geniusVault;
     GeniusRouter public geniusRouter;
     GeniusGasTank public geniusGasTank;
-    GeniusMulticall public geniusMulticall;
+    GeniusProxyCall public geniusMulticall;
 
     function _run(
         address _permit2Address,
         address _stableAddress,
         address _owner,
         address[] memory orchestrators,
-        address[] memory allowedTargets
+        uint256[] memory targetNetworks,
+        address[] memory feeTokens,
+        uint256[] memory minFeeAmounts
     ) internal {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         // geniusActions = new GeniusActions(admin);
 
-        geniusMulticall = new GeniusMulticall();
+        geniusMulticall = new GeniusProxyCall(_owner, new address[](0));
 
         GeniusVault implementation = new GeniusVault();
 
@@ -45,9 +47,7 @@ contract DeployGeniusEcosystemCore is Script {
             _stableAddress,
             _owner,
             address(geniusMulticall),
-            7_500,
-            30,
-            300
+            7_500
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -64,8 +64,7 @@ contract DeployGeniusEcosystemCore is Script {
             _owner,
             payable(_owner),
             _permit2Address,
-            address(geniusMulticall),
-            allowedTargets
+            address(geniusMulticall)
         );
 
         // Add orchestrators
@@ -73,7 +72,15 @@ contract DeployGeniusEcosystemCore is Script {
             geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
         }
 
-        console.log("GeniusMulticall deployed at: ", address(geniusMulticall));
+        for (uint256 i = 0; i < targetNetworks.length; i++) {
+            geniusVault.setTargetChainMinFee(
+                feeTokens[i],
+                targetNetworks[i],
+                minFeeAmounts[i]
+            );
+        }
+
+        console.log("GeniusProxyCall deployed at: ", address(geniusMulticall));
         console.log("GeniusVault deployed at: ", address(geniusVault));
         console.log("GeniusRouter deployed at: ", address(geniusRouter));
         console.log("GeniusGasTank deployed at: ", address(geniusGasTank));

@@ -19,12 +19,26 @@ contract DeployBSCGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        address[] memory targets = new address[](4);
-        targets[0] = 0x9333C74BDd1E118634fE5664ACA7a9710b108Bab;
-        targets[1] = 0x2c34A2Fb1d0b4f55de51E1d0bDEfaDDce6b7cDD6;
-        targets[2] = 0x89b8AA89FDd0507a99d334CBe3C808fAFC7d850E;
-        targets[3] = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5;
+        address[] memory feeTokens = new address[](2);
+        feeTokens[0] = stableAddress; // USDC
+        feeTokens[1] = stableAddress; // USDC
 
-        _run(permit2Address, stableAddress, owner, orchestrators, targets);
+        uint256[] memory minFeeAmounts = new uint256[](2);
+        minFeeAmounts[0] = 100000; // $0.1
+        minFeeAmounts[1] = 100000; // $0.1
+
+        uint256[] memory targetNetworks = new uint256[](2);
+        targetNetworks[0] = 10; // OPTIMISM
+        targetNetworks[1] = 8453; // BASE
+
+        _run(
+            permit2Address,
+            stableAddress,
+            owner,
+            orchestrators,
+            targetNetworks,
+            feeTokens,
+            minFeeAmounts
+        );
     }
 }

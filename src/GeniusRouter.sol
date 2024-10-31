@@ -8,7 +8,7 @@ import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusRouter} from "./interfaces/IGeniusRouter.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
-import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
+import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 
 /**
  * @title GeniusRouter
@@ -27,16 +27,16 @@ contract GeniusRouter is IGeniusRouter {
     IERC20 public immutable override STABLECOIN;
     IGeniusVault public immutable VAULT;
     IAllowanceTransfer public immutable PERMIT2;
-    IGeniusMulticall public immutable MULTICALL;
+    IGeniusProxyCall public immutable PROXYCALL;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    constructor(address permit2, address vault, address multicall) {
+    constructor(address permit2, address vault, address proxycall) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IGeniusVault(vault);
-        MULTICALL = IGeniusMulticall(multicall);
+        PROXYCALL = IGeniusProxyCall(proxycall);
 
         STABLECOIN = VAULT.STABLECOIN();
         STABLECOIN.approve(address(VAULT), type(uint256).max);
@@ -49,29 +49,37 @@ contract GeniusRouter is IGeniusRouter {
         bytes32 seed,
         address[] calldata tokensIn,
         uint256[] calldata amountsIn,
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         address owner,
         uint256 destChainId,
-        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
-    ) external payable override {
+    ) public payable override {
         if (tokensIn.length == 0) revert GeniusErrors.EmptyArray();
         if (tokensIn.length != amountsIn.length)
             revert GeniusErrors.ArrayLengthsMismatch();
 
-        for (uint256 i = 0; i < tokensIn.length; i++)
-            IERC20(tokensIn[i]).safeTransferFrom(
-                msg.sender,
-                address(MULTICALL),
-                amountsIn[i]
-            );
+        for (uint256 i = 0; i < tokensIn.length; i++) {
+            if (msg.sender != address(PROXYCALL)) {
+                IERC20(tokensIn[i]).safeTransferFrom(
+                    msg.sender,
+                    address(PROXYCALL),
+                    amountsIn[i]
+                );
+            }
+        }
 
-        MULTICALL.aggregateWithValues(targets, data, values);
+        if (target == address(PROXYCALL))
+            PROXYCALL.execute{value: msg.value}(target, data);
+        else
+            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+                tokensIn,
+                target,
+                data
+            );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
@@ -84,7 +92,6 @@ contract GeniusRouter is IGeniusRouter {
             amountIn: delta,
             minAmountOut: minAmountOut,
             destChainId: destChainId,
-            fillDeadline: fillDeadline,
             srcChainId: block.chainid,
             fee: fee
         });
@@ -99,21 +106,30 @@ contract GeniusRouter is IGeniusRouter {
         bytes32 seed,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
-        address[] calldata targets,
-        bytes[] calldata data,
-        uint256[] calldata values,
+        address target,
+        bytes calldata data,
         uint256 destChainId,
-        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
-    ) external payable override {
+    ) public payable override {
         address owner = msg.sender;
 
-        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
+        address[] memory tokensIn = _permitAndBatchTransfer(
+            permitBatch,
+            permitSignature,
+            owner
+        );
 
-        MULTICALL.aggregateWithValues(targets, data, values);
+        if (target == address(PROXYCALL))
+            PROXYCALL.execute{value: msg.value}(target, data);
+        else
+            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+                tokensIn,
+                target,
+                data
+            );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
@@ -126,7 +142,6 @@ contract GeniusRouter is IGeniusRouter {
             amountIn: delta,
             minAmountOut: minAmountOut,
             destChainId: destChainId,
-            fillDeadline: fillDeadline,
             srcChainId: block.chainid,
             fee: fee
         });
@@ -142,7 +157,6 @@ contract GeniusRouter is IGeniusRouter {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         uint256 destChainId,
-        uint256 fillDeadline,
         uint256 fee,
         bytes32 receiver,
         uint256 minAmountOut,
@@ -167,7 +181,6 @@ contract GeniusRouter is IGeniusRouter {
             amountIn: delta,
             minAmountOut: minAmountOut,
             destChainId: destChainId,
-            fillDeadline: fillDeadline,
             srcChainId: block.chainid,
             fee: fee
         });
@@ -179,7 +192,8 @@ contract GeniusRouter is IGeniusRouter {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address owner
-    ) private {
+    ) private returns (address[] memory tokensIn) {
+        tokensIn = new address[](permitBatch.details.length);
         if (permitBatch.spender != address(this))
             revert GeniusErrors.InvalidSpender();
 
@@ -190,9 +204,10 @@ contract GeniusRouter is IGeniusRouter {
                 permitBatch.details.length
             );
         for (uint i; i < permitBatch.details.length; i++) {
+            tokensIn[i] = permitBatch.details[i].token;
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
-                to: address(MULTICALL),
+                to: address(PROXYCALL),
                 amount: permitBatch.details[i].amount,
                 token: permitBatch.details[i].token
             });

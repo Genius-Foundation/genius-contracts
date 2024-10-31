@@ -10,7 +10,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -19,8 +19,8 @@ contract GeniusVaultOrders is Test {
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
-    uint16 sourceChainId = 1; // ethereum
-    uint16 targetChainId = 43114; // current
+    uint256 sourceChainId = block.chainid; // ethereum
+    uint256 targetChainId = 42;
 
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address OWNER;
@@ -33,7 +33,7 @@ contract GeniusVaultOrders is Test {
 
     GeniusVault public VAULT;
 
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -49,7 +49,7 @@ contract GeniusVaultOrders is Test {
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         TOKEN1 = new MockERC20("Token1", "TK1", 18);
 
-        MULTICALL = new GeniusMulticall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER, OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -58,17 +58,18 @@ contract GeniusVaultOrders is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
-            7_500,
-            30,
-            300
+            address(PROXYCALL),
+            7_500
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
 
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
+
         DEX_ROUTER = new MockDEXRouter();
+        VAULT.setTargetChainMinFee(address(USDC), targetChainId, 1 ether);
 
         vm.stopPrank();
 
@@ -93,16 +94,14 @@ contract GeniusVaultOrders is Test {
     function testRemoveLiquiditySwap() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
-        uint32 timestamp = uint32(block.timestamp + 200);
 
         IGeniusVault.Order memory order = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: sourceChainId, // Use the current chain ID
-            destChainId: targetChainId,
-            fillDeadline: timestamp,
+            srcChainId: targetChainId, // Use the current chain ID
+            destChainId: block.chainid,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 50_000_000 ether,
@@ -112,20 +111,7 @@ contract GeniusVaultOrders is Test {
         // Remove liquidity
         vm.startPrank(address(ORCHESTRATOR));
 
-        address[] memory targets = new address[](2);
-        bytes[] memory calldatas = new bytes[](2);
-
-        // Executor authorizes the Router to spend USDC
-        targets[0] = address(USDC);
-        calldatas[0] = abi.encodeWithSelector(
-            ERC20.approve.selector,
-            address(DEX_ROUTER),
-            order.amountIn - order.fee
-        );
-
-        // Executor swaps USDC for TOKEN1
-        targets[1] = address(DEX_ROUTER);
-        calldatas[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(USDC),
             address(TOKEN1),
@@ -133,7 +119,7 @@ contract GeniusVaultOrders is Test {
             TRADER
         );
 
-        VAULT.fillOrder(order, targets, calldatas);
+        VAULT.fillOrder(order, address(DEX_ROUTER), data, address(0), "");
         vm.stopPrank();
 
         bytes32 hash = VAULT.orderHash(order);
@@ -151,7 +137,7 @@ contract GeniusVaultOrders is Test {
             "Executor balance should be 999 USDC"
         );
         assertEq(
-            VAULT.unclaimedFees(),
+            VAULT.claimableFees(),
             0 ether,
             "Total unclaimed fees should be 0 ether"
         );
@@ -167,19 +153,19 @@ contract GeniusVaultOrders is Test {
         );
     }
 
-    function testRemoveLiquiditySwapShouldRevertIfAmountOutTooSmall() public {
+    function testRemoveLiquiditySwapShouldTransferUsdcIfAmountOutTooSmall()
+        public
+    {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
-        uint32 timestamp = uint32(block.timestamp + 200);
 
         IGeniusVault.Order memory order = IGeniusVault.Order({
             trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: sourceChainId, // Use the current chain ID
-            destChainId: targetChainId,
-            fillDeadline: timestamp,
+            srcChainId: targetChainId, // Use the current chain ID
+            destChainId: block.chainid,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
             minAmountOut: 51_000_000 ether,
@@ -189,39 +175,29 @@ contract GeniusVaultOrders is Test {
         // Remove liquidity
         vm.startPrank(address(ORCHESTRATOR));
 
-        address[] memory targets = new address[](2);
-        bytes[] memory calldatas = new bytes[](2);
-        uint256[] memory values = new uint256[](2);
-
-        // Executor authorizes the Router to spend USDC
-        targets[0] = address(USDC);
-        calldatas[0] = abi.encodeWithSelector(
-            ERC20.approve.selector,
-            address(DEX_ROUTER),
-            order.amountIn - order.fee
-        );
-        values[0] = 0;
-
-        // Executor swaps USDC for TOKEN1
-        targets[1] = address(DEX_ROUTER);
-        calldatas[1] = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             DEX_ROUTER.swapTo.selector,
             address(USDC),
             address(TOKEN1),
             order.amountIn - order.fee,
             TRADER
         );
-        values[1] = 0;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                GeniusErrors.InvalidAmountOut.selector,
-                50_000_000 ether,
-                51_000_000 ether
-            )
+        uint256 balanceBefore = USDC.balanceOf(TRADER);
+
+        VAULT.fillOrder(order, address(DEX_ROUTER), data, address(0), "");
+        vm.stopPrank();
+
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            1 ether,
+            "GeniusVault balance should be 1 ether (only fees left)"
         );
 
-        VAULT.fillOrder(order, targets, calldatas);
-        vm.stopPrank();
+        assertEq(
+            USDC.balanceOf(TRADER) - balanceBefore,
+            999 ether,
+            "Executor balance should be 999 USDC"
+        );
     }
 }

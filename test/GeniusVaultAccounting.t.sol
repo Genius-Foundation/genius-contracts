@@ -8,7 +8,7 @@ import {PermitSignature} from "./utils/SigUtils.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {GeniusVault} from "../src/GeniusVault.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 
@@ -26,7 +26,7 @@ contract GeniusVaultAccounting is Test {
 
     // ============ Internal Contracts ============
     GeniusVault public VAULT;
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     // ============ Constants ============
@@ -127,7 +127,7 @@ contract GeniusVaultAccounting is Test {
         OWNER = address(0x1);
         TRADER = address(0x2);
         ORCHESTRATOR = address(0x3);
-        MULTICALL = new GeniusMulticall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER);
 
@@ -138,7 +138,7 @@ contract GeniusVaultAccounting is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -147,6 +147,9 @@ contract GeniusVaultAccounting is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
+
         DEX_ROUTER = new MockDEXRouter();
 
         permit2 = IEIP712(permit2Address);

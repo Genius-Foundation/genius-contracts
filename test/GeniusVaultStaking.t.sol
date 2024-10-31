@@ -7,7 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockUSDC} from "./mocks/mockUSDC.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract GeniusVaultStakingTest is Test {
@@ -17,22 +17,22 @@ contract GeniusVaultStakingTest is Test {
 
     MockUSDC public usdc;
     GeniusVault public geniusVault;
-    GeniusMulticall public multicall;
+    GeniusProxyCall public PROXYCALL;
 
     function setUp() public {
         trader = makeAddr("trader");
         usdc = new MockUSDC();
 
-        multicall = new GeniusMulticall();
+        PROXYCALL = new GeniusProxyCall(owner, new address[](0));
 
-        vm.prank(owner);
+        vm.startPrank(owner);
         GeniusVault implementation = new GeniusVault();
 
         bytes memory data = abi.encodeWithSelector(
             GeniusVault.initialize.selector,
             address(usdc),
             owner,
-            address(multicall),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -42,8 +42,10 @@ contract GeniusVaultStakingTest is Test {
 
         geniusVault = GeniusVault(address(proxy));
 
-        vm.prank(owner);
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(geniusVault));
+
         usdc.mint(trader, 1_000 ether);
+        vm.stopPrank();
     }
 
     function testSelfDeposit() public {
