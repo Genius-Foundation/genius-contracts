@@ -10,7 +10,7 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-import {IGeniusMulticall} from "./interfaces/IGeniusMulticall.sol";
+import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 
@@ -34,16 +34,16 @@ abstract contract GeniusVaultCore is
 
     // Immutable state variables (not actually immutable due to upgradeability)
     IERC20 public STABLECOIN;
-    IGeniusMulticall public MULTICALL;
+    IGeniusProxyCall public PROXYCALL;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
     // Mutable state variables
-    uint256 public maxOrderTime;
-    uint256 public orderRevertBuffer;
     uint256 public totalStakedAssets;
     uint256 public rebalanceThreshold;
+
+    mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
 
     mapping(address => uint256) public supportedBridges;
     mapping(bytes32 => OrderStatus) public orderStatus;
@@ -70,6 +70,14 @@ abstract contract GeniusVaultCore is
         _;
     }
 
+    modifier onlyOrchestratorOrAdmin() {
+        if (
+            !hasRole(ORCHESTRATOR_ROLE, msg.sender) &&
+            !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)
+        ) revert GeniusErrors.IsNotOrchestratorNorAdmin();
+        _;
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                      INITIALIZATION                       ║
     // ╚═══════════════════════════════════════════════════════════╝
@@ -81,9 +89,7 @@ abstract contract GeniusVaultCore is
         address _stablecoin,
         address _admin,
         address _multicall,
-        uint256 _rebalanceThreshold,
-        uint256 _orderRevertBuffer,
-        uint256 _maxOrderTime
+        uint256 _rebalanceThreshold
     ) internal onlyInitializing {
         if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
         if (_admin == address(0)) revert GeniusErrors.NonAddress0();
@@ -93,13 +99,33 @@ abstract contract GeniusVaultCore is
         __Pausable_init();
 
         STABLECOIN = IERC20(_stablecoin);
-        MULTICALL = IGeniusMulticall(_multicall);
+        PROXYCALL = IGeniusProxyCall(_multicall);
         _setRebalanceThreshold(_rebalanceThreshold);
-        _setOrderRevertBuffer(_orderRevertBuffer);
-        _setMaxOrderTime(_maxOrderTime);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
+    }
+
+    /**
+     * @dev See {IGeniusVault-rebalanceLiquidity}.
+     */
+    function rebalanceLiquidity(
+        uint256 amountIn,
+        uint256 dstChainId,
+        address target,
+        bytes calldata data
+    ) external payable virtual override onlyOrchestrator whenNotPaused {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        _isAmountValid(amountIn, availableAssets());
+
+        _transferERC20(address(STABLECOIN), address(PROXYCALL), amountIn);
+        PROXYCALL.approveTokenExecute{value: msg.value}(
+            address(STABLECOIN),
+            target,
+            data
+        );
+
+        emit RebalancedLiquidity(amountIn, dstChainId);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -115,13 +141,12 @@ abstract contract GeniusVaultCore is
     ) external override whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
-        STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
+        totalStakedAssets += amount;
 
+        STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
         _mint(receiver, amount);
 
         emit StakeDeposit(msg.sender, receiver, amount);
-
-        totalStakedAssets += amount;
     }
 
     /**
@@ -153,27 +178,78 @@ abstract contract GeniusVaultCore is
         STABLECOIN.safeTransfer(receiver, amount);
     }
 
+    /**
+     * @dev See {IGeniusVault-fillOrder}.
+     */
+    function fillOrder(
+        Order memory order,
+        address swapTarget,
+        bytes memory swapData,
+        address callTarget,
+        bytes memory callData
+    ) external virtual override nonReentrant onlyOrchestrator whenNotPaused {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
+            revert GeniusErrors.OrderAlreadyFilled(orderHash_);
+        if (order.destChainId != _currentChainId())
+            revert GeniusErrors.InvalidDestChainId(order.destChainId);
+        if (order.srcChainId == _currentChainId())
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+        _isAmountValid(order.amountIn - order.fee, availableAssets());
+        if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
+        bool isSwap = swapTarget != address(0);
+        bool isCall = callTarget != address(0);
+
+        if (isCall) {
+            bytes32 reconstructedSeed = calldataToSeed(callTarget, callData);
+            if (reconstructedSeed != order.seed)
+                revert GeniusErrors.InvalidSeed();
+        }
+
+        orderStatus[orderHash_] = OrderStatus.Filled;
+        address receiver = bytes32ToAddress(order.receiver);
+        address effectiveTokenOut = address(STABLECOIN);
+        uint256 effectiveAmountOut = order.amountIn - order.fee;
+        bool success = true;
+
+        if (!isCall && !isSwap) {
+            _transferERC20(
+                address(STABLECOIN),
+                receiver,
+                order.amountIn - order.fee
+            );
+        } else {
+            IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
+            IERC20(address(STABLECOIN)).safeTransfer(
+                address(PROXYCALL),
+                order.amountIn - order.fee
+            );
+            (effectiveTokenOut, effectiveAmountOut, success) = PROXYCALL.call(
+                receiver,
+                swapTarget,
+                callTarget,
+                address(STABLECOIN),
+                address(tokenOut),
+                order.minAmountOut,
+                swapData,
+                callData
+            );
+        }
+
+        emit OrderFilled(
+            order.seed,
+            order.trader,
+            order.receiver,
+            effectiveTokenOut,
+            effectiveAmountOut,
+            order.destChainId,
+            success
+        );
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                      ADMIN FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
-
-    /**
-     * @dev See {IGeniusVault-setMaxOrderTime}.
-     */
-    function setMaxOrderTime(
-        uint256 _maxOrderTime
-    ) external override onlyAdmin {
-        _setMaxOrderTime(_maxOrderTime);
-    }
-
-    /**
-     * @dev See {IGeniusVault-setOrderRevertBuffer}.
-     */
-    function setOrderRevertBuffer(
-        uint256 _orderRevertBuffer
-    ) external override onlyAdmin {
-        _setOrderRevertBuffer(_orderRevertBuffer);
-    }
 
     /**
      * @dev See {IGeniusVault-setRebalanceThreshold}.
@@ -213,26 +289,52 @@ abstract contract GeniusVaultCore is
         return STABLECOIN.balanceOf(address(this));
     }
 
+    function minLiquidity() public view virtual override returns (uint256);
+
+    /**
+     * @dev See {IGeniusVault-availableAssets}.
+     */
+    function availableAssets() public view returns (uint256) {
+        uint256 _totalAssets = stablecoinBalance();
+        uint256 _neededLiquidity = minLiquidity();
+
+        return _availableAssets(_totalAssets, _neededLiquidity);
+    }
+
+    // TODO: Try creating sub internal functions to check gas cost
+
     /**
      * @dev See {IGeniusVault-orderHash}.
      */
     function orderHash(
         Order memory order
     ) public pure override returns (bytes32) {
-        return keccak256(abi.encode(order));
+        return
+            keccak256(
+                abi.encodePacked(
+                    order.seed,
+                    order.trader,
+                    order.receiver,
+                    order.tokenIn,
+                    order.tokenOut,
+                    order.amountIn,
+                    order.minAmountOut,
+                    order.srcChainId,
+                    order.destChainId,
+                    order.fee
+                )
+            );
     }
 
     /**
-     * @notice Returns the current state of the assets in the GeniusVault contract.
-     * @return balanceStablecoin The total number of assets in the vault.
-     * @return availableAssets The number of assets available for use.
-     * @return totalStakedAssets The total number of assets currently staked in the vault.
+     * @dev See {IGeniusVault-calldataToSeed}.
      */
-    function allAssets()
-        external
-        view
-        virtual
-        returns (uint256, uint256, uint256);
+    function calldataToSeed(
+        address target,
+        bytes memory data
+    ) public pure override returns (bytes32) {
+        return keccak256(abi.encodePacked(target, keccak256(data)));
+    }
 
     /**
      * @dev See {IGeniusVault-bytes32ToAddress}.
@@ -256,18 +358,39 @@ abstract contract GeniusVaultCore is
         return bytes32(uint256(uint160(_input)));
     }
 
+    function setProxyCall(address _proxyCall) external override onlyAdmin {
+        _setProxyCall(_proxyCall);
+    }
+
+    function setTargetChainMinFee(
+        address _token,
+        uint256 _targetChainId,
+        uint256 _minFee
+    ) external override onlyAdmin {
+        _setTargetChainMinFee(_token, _targetChainId, _minFee);
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    function _setMaxOrderTime(uint256 _maxOrderTime) internal {
-        maxOrderTime = _maxOrderTime;
-        emit MaxOrderTimeChanged(_maxOrderTime);
+    function _setTargetChainMinFee(
+        address _token,
+        uint256 _targetChainId,
+        uint256 _minFee
+    ) internal {
+        if (_targetChainId == block.chainid)
+            revert GeniusErrors.InvalidDestChainId(_targetChainId);
+
+        targetChainMinFee[_token][_targetChainId] = _minFee;
+        emit TargetChainMinFeeChanged(_token, _targetChainId, _minFee);
     }
 
-    function _setOrderRevertBuffer(uint256 _orderRevertBuffer) internal {
-        orderRevertBuffer = _orderRevertBuffer;
-        emit OrderRevertBufferChanged(_orderRevertBuffer);
+    function _setProxyCall(address _proxyCall) internal {
+        if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();
+
+        PROXYCALL = IGeniusProxyCall(_proxyCall);
+        emit ProxyCallChanged(_proxyCall);
     }
 
     function _setRebalanceThreshold(uint256 _rebalanceThreshold) internal {

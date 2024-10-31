@@ -18,8 +18,7 @@ interface IGeniusVault {
     enum OrderStatus {
         Nonexistant,
         Created,
-        Filled,
-        Reverted
+        Filled
     }
 
     /**
@@ -33,7 +32,6 @@ interface IGeniusVault {
      * @param minAmountOut The minimum amount of output tokens.
      * @param srcChainId The source chain ID.
      * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
      * @param fee The fees paid for the order
      */
     struct Order {
@@ -46,7 +44,6 @@ interface IGeniusVault {
         uint256 minAmountOut;
         uint256 srcChainId;
         uint256 destChainId;
-        uint256 fillDeadline;
         uint256 fee;
     }
 
@@ -84,7 +81,6 @@ interface IGeniusVault {
      * @param amountIn The amount of input tokens.
      * @param srcChainId The source chain ID.
      * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
      */
     event OrderCreated(
         bytes32 indexed seed,
@@ -93,7 +89,6 @@ interface IGeniusVault {
         uint256 amountIn,
         uint256 srcChainId,
         uint256 indexed destChainId,
-        uint256 fillDeadline,
         uint256 fee
     );
 
@@ -101,66 +96,20 @@ interface IGeniusVault {
      * @notice Emitted on the destination chain when a swap withdrawal occurs.
      * @param seed The unique seed of the order.
      * @param trader The address of the trader.
-     * @param tokenOut The address of the output token.
-     * @param amountOut The amount of output tokens.
+     * @param receiver The address of the receiver.
+     * @param effectiveTokenOut The address of the output token.
+     * @param effectiveAmountOut The amount of output tokens.
      * @param srcChainId The source chain ID.
-     * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
+     * @param success False if any external call failed
      */
     event OrderFilled(
         bytes32 indexed seed,
         bytes32 indexed trader,
-        bytes32 receiver,
-        bytes32 tokenOut,
-        uint256 amountOut,
-        uint256 indexed srcChainId,
-        uint256 destChainId,
-        uint256 fillDeadline
-    );
-
-    /**
-     * @notice Emitted on the source chain when an order is filled.
-     * @param seed The unique seed of the order.
-     * @param trader The address of the trader.
-     * @param tokenIn The address of the input token.
-     * @param amountIn The amount of input tokens.
-     * @param srcChainId The source chain ID.
-     * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
-     */
-    event OrderFilled(
-        bytes32 indexed seed,
-        bytes32 indexed trader,
-        bytes32 receiver,
-        bytes32 tokenIn,
-        uint256 amountIn,
+        bytes32 indexed receiver,
+        address effectiveTokenOut,
+        uint256 effectiveAmountOut,
         uint256 srcChainId,
-        uint256 indexed destChainId,
-        uint256 fillDeadline,
-        uint256 fee
-    );
-
-    /**
-     * @notice Emitted on the source chain when an order is reverted.
-     * @param seed The unique seed of the order.
-     * @param trader The address of the trader.
-     * @param tokenIn The address of the input token.
-     * @param amountIn The amount of input tokens.
-     * @param srcChainId The source chain ID.
-     * @param destChainId The destination chain ID.
-     * @param fillDeadline The deadline for filling the order.
-     * @param fee the fees paid for the order
-     */
-    event OrderReverted(
-        bytes32 indexed seed,
-        bytes32 indexed trader,
-        bytes32 receiver,
-        bytes32 tokenIn,
-        uint256 amountIn,
-        uint256 srcChainId,
-        uint256 indexed destChainId,
-        uint256 fillDeadline,
-        uint256 fee
+        bool success
     );
 
     /**
@@ -168,7 +117,7 @@ interface IGeniusVault {
      * @param amount The amount of funds being bridged.
      * @param chainId The ID of the chain where the funds are being bridged to.
      */
-    event RemovedLiquidity(uint256 amount, uint256 indexed chainId);
+    event RebalancedLiquidity(uint256 amount, uint256 indexed chainId);
 
     /**
      * @notice Emitted when fees are claimed from the Vault contract.
@@ -178,28 +127,29 @@ interface IGeniusVault {
     event FeesClaimed(address indexed token, uint256 amount);
 
     /**
-     * @notice Emitted when the max order time is changed.
-     * @param newMaxOrderTime The new maximum order time.
-     */
-    event MaxOrderTimeChanged(uint256 newMaxOrderTime);
-
-    /**
-     * @notice Emitted when the order revert buffer is changed.
-     * @param newOrderRevertBuffer The new order revert buffer time.
-     */
-    event OrderRevertBufferChanged(uint256 newOrderRevertBuffer);
-
-    /**
      * @notice Emitted when the rebalance threshold is changed.
      * @param newThreshold The new rebalance threshold.
      */
     event RebalanceThresholdChanged(uint256 newThreshold);
 
     /**
-     * @notice Emitted when the cross-chain fee is changed.
-     * @param newFee The new cross-chain fee.
+     * @notice Emitted when the proxy call address is changed.
+     * @param newProxyCall The new proxy call address.
      */
-    event CrosschainFeeChanged(uint256 newFee);
+    event ProxyCallChanged(address newProxyCall);
+
+    /**
+     * @notice Emitted when the minimum fees for a target chain has changed
+     * note: if the min fees are set to 0, the chain or token are not supported
+     * @param token the address of the token used as a fee
+     * @param targetChainId The id of the target chain
+     * @param newMinFee The new minimum fee for the target chain
+     */
+    event TargetChainMinFeeChanged(
+        address token,
+        uint256 targetChainId,
+        uint256 newMinFee
+    );
 
     /**
      * @notice Returns the total balance of the vault.
@@ -239,16 +189,13 @@ interface IGeniusVault {
      * and bridge it to the destination chain.
      * @param amountIn The amount of tokens to remove from the bridge vault.
      * @param dstChainId The chain ID of the destination chain.
-     * @param targets The array of target addresses to call.
-     * @param values The array of values to send along with the function calls.
      * @param data The array of function call data.
      */
-    function removeBridgeLiquidity(
+    function rebalanceLiquidity(
         uint256 amountIn,
         uint256 dstChainId,
-        address[] memory targets,
-        uint256[] calldata values,
-        bytes[] memory data
+        address target,
+        bytes calldata data
     ) external payable;
 
     /**
@@ -265,14 +212,10 @@ interface IGeniusVault {
      */
     function fillOrder(
         Order memory order,
-        address[] memory targets,
-        bytes[] memory data
-    ) external;
-
-    function revertOrder(
-        Order calldata order,
-        address[] memory targets,
-        bytes[] memory data
+        address swapTarget,
+        bytes calldata swapData,
+        address callTarget,
+        bytes calldata callData
     ) external;
 
     /**
@@ -289,16 +232,23 @@ interface IGeniusVault {
     function setRebalanceThreshold(uint256 threshold) external;
 
     /**
-     * @notice Sets the order revert buffer.
-     * @param _orderRevertBuffer The new order revert buffer.
+     * @notice Set the proxy call contract address
+     * @param _proxyCall The new proxy call contract address
      */
-    function setOrderRevertBuffer(uint256 _orderRevertBuffer) external;
+    function setProxyCall(address _proxyCall) external;
 
     /**
-     * @notice Sets the max order time.
-     * @param _maxOrderTime The new max order time.
+     * @notice Sets the minimum fees for a target chain has changed
+     * note: if the min fees are set to 0, the chain or token are not supported
+     * @param _token the address of the token used for the fees
+     * @param _targetChainId The id of the target chain
+     * @param _minFee The new minimum fee for the target chain
      */
-    function setMaxOrderTime(uint256 _maxOrderTime) external;
+    function setTargetChainMinFee(
+        address _token,
+        uint256 _targetChainId,
+        uint256 _minFee
+    ) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.
@@ -316,6 +266,11 @@ interface IGeniusVault {
      * @return The bytes32 hash of the order.
      */
     function orderHash(Order memory order) external pure returns (bytes32);
+
+    function calldataToSeed(
+        address target,
+        bytes memory data
+    ) external pure returns (bytes32);
 
     /**
      * @notice Returns the total amount of staked assets in the vault.

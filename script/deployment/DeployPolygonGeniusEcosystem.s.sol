@@ -19,12 +19,26 @@ contract DeployPolygonGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
-        address[] memory targets = new address[](4);
-        targets[0] = 0xA748D6573acA135aF68F2635BE60CB80278bd855;
-        targets[1] = 0x3B86917369B83a6892f553609F3c2F439C184e31;
-        targets[2] = 0x4E3288c9ca110bCC82bf38F09A7b425c095d92Bf;
-        targets[3] = 0x6131B5fae19EA4f9D964eAc0408E4408b66337b5;
+        address[] memory feeTokens = new address[](2);
+        feeTokens[0] = stableAddress; // USDCu
+        feeTokens[1] = stableAddress; // USDC
 
-        _run(permit2Address, stableAddress, owner, orchestrators, targets);
+        uint256[] memory minFeeAmounts = new uint256[](2);
+        minFeeAmounts[0] = 100000; // $0.1
+        minFeeAmounts[1] = 100000; // $0.1
+
+        uint256[] memory targetNetworks = new uint256[](2);
+        targetNetworks[0] = 10; // OPTIMISM
+        targetNetworks[1] = 8453; // BASE
+
+        _run(
+            permit2Address,
+            stableAddress,
+            owner,
+            orchestrators,
+            targetNetworks,
+            feeTokens,
+            minFeeAmounts
+        );
     }
 }

@@ -10,7 +10,7 @@ import {MockERC20} from "./mocks/MockERC20.sol";
 
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
-import {GeniusMulticall} from "../src/GeniusMulticall.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
 contract GeniusVaultDOSTest is Test {
@@ -32,7 +32,7 @@ contract GeniusVaultDOSTest is Test {
     ERC20 public USDC;
     GeniusVault public VAULT;
     GeniusMultiTokenVault public MULTIVAULT;
-    GeniusMulticall public MULTICALL;
+    GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
     function setUp() public {
@@ -67,7 +67,7 @@ contract GeniusVaultDOSTest is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
 
-        MULTICALL = new GeniusMulticall();
+        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
 
         vm.startPrank(OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -76,7 +76,7 @@ contract GeniusVaultDOSTest is Test {
             GeniusVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300
@@ -91,7 +91,7 @@ contract GeniusVaultDOSTest is Test {
             GeniusMultiTokenVault.initialize.selector,
             address(USDC),
             OWNER,
-            address(MULTICALL),
+            address(PROXYCALL),
             7_500,
             30,
             300,
@@ -107,6 +107,9 @@ contract GeniusVaultDOSTest is Test {
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
+
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
+        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(MULTIVAULT));
 
         vm.stopPrank();
 
@@ -124,11 +127,6 @@ contract GeniusVaultDOSTest is Test {
 
         // Prepare removal of bridge liquidity
         vm.startPrank(ORCHESTRATOR);
-        address[] memory targets = new address[](1);
-        targets[0] = address(USDC);
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
 
         address recipient = makeAddr("recipient");
         uint256 amountToRemove = 500 ether;
@@ -139,16 +137,12 @@ contract GeniusVaultDOSTest is Test {
             amountToRemove
         );
 
-        bytes[] memory data = new bytes[](1);
-        data[0] = transferData;
-
         // This should not revert
-        VAULT.removeBridgeLiquidity(
+        VAULT.rebalanceLiquidity(
             amountToRemove,
             targetChainId,
-            targets,
-            values,
-            data
+            address(USDC),
+            transferData
         );
 
         vm.stopPrank();
@@ -171,29 +165,19 @@ contract GeniusVaultDOSTest is Test {
         deal(address(USDC), address(MULTIVAULT), 500 ether + 100 ether);
 
         vm.startPrank(ORCHESTRATOR);
-        address[] memory targets = new address[](1);
-        targets[0] = address(USDC);
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
-
         address recipient = makeAddr("recipient");
 
-        bytes memory transferData = abi.encodeWithSelector(
+        bytes memory data = abi.encodeWithSelector(
             USDC.transfer.selector,
             recipient,
             500 ether
         );
 
-        bytes[] memory data = new bytes[](1);
-        data[0] = transferData;
-
         // This should now succeed
-        MULTIVAULT.removeBridgeLiquidity(
+        MULTIVAULT.rebalanceLiquidity(
             500 ether,
             targetChainId,
-            targets,
-            values,
+            address(USDC),
             data
         );
 
@@ -222,11 +206,10 @@ contract GeniusVaultDOSTest is Test {
         vm.startPrank(ORCHESTRATOR);
         uint256 excessiveAmount = MULTIVAULT.availableAssets() + 1 ether;
         vm.expectRevert();
-        MULTIVAULT.removeBridgeLiquidity(
+        MULTIVAULT.rebalanceLiquidity(
             excessiveAmount,
             targetChainId,
-            targets,
-            values,
+            address(USDC),
             data
         );
         vm.stopPrank();

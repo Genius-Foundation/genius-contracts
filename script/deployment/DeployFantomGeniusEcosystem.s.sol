@@ -18,12 +18,26 @@ contract DeployFantomGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
 
+        address[] memory feeTokens = new address[](2);
+        feeTokens[0] = stableAddress; // USDC
+        feeTokens[1] = stableAddress; // USDC
+
+        uint256[] memory minFeeAmounts = new uint256[](2);
+        minFeeAmounts[0] = 100000; // $0.1
+        minFeeAmounts[1] = 100000; // $0.1
+
+        uint256[] memory targetNetworks = new uint256[](2);
+        targetNetworks[0] = 10; // OPTIMISM
+        targetNetworks[1] = 8453; // BASE
+
         _run(
             permit2Address,
             stableAddress,
             owner,
             orchestrators,
-            new address[](0)
+            targetNetworks,
+            feeTokens,
+            minFeeAmounts
         );
     }
 }
