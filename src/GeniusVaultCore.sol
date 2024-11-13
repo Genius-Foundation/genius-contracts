@@ -195,8 +195,11 @@ abstract contract GeniusVaultCore is
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
         if (order.srcChainId == _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+        if (order.trader == bytes32(0) || order.receiver == bytes32(0))
+            revert GeniusErrors.InvalidTrader();
+
         _isAmountValid(order.amountIn - order.fee, availableAssets());
-        if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
+
         bool isSwap = swapTarget != address(0);
         bool isCall = callTarget != address(0);
 

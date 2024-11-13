@@ -78,6 +78,9 @@ contract GeniusVault is GeniusVaultCore {
         );
     }
 
+    /**
+     * @notice Fetches the amount of fees that can be claimed
+     */
     function claimableFees() public view returns (uint256) {
         return feesCollected - feesClaimed;
     }
@@ -105,14 +108,12 @@ contract GeniusVault is GeniusVaultCore {
         emit FeesClaimed(address(STABLECOIN), amount);
     }
 
+    /**
+     * @dev See {IGeniusVault-minLiquidity}.
+     */
     function minLiquidity() public view override returns (uint256) {
-        uint256 reduction = totalStakedAssets > 0
-            ? (totalStakedAssets * rebalanceThreshold) / 10_000
-            : 0;
-        uint256 minBalance = totalStakedAssets > reduction
-            ? totalStakedAssets - reduction
-            : 0;
-
+        uint256 reduction = (totalStakedAssets * rebalanceThreshold) / 10_000;
+        uint256 minBalance = totalStakedAssets - reduction;
         return minBalance + claimableFees();
     }
 }

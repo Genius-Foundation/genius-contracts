@@ -267,6 +267,12 @@ interface IGeniusVault {
      */
     function orderHash(Order memory order) external pure returns (bytes32);
 
+    /**
+     * @notice Computes the seed of an order based on the arbitrary call passed
+     * @param target The address of the target contract
+     * @param data The data of the call
+     * @return The seed of the order
+     */
     function calldataToSeed(
         address target,
         bytes memory data

@@ -79,18 +79,17 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (order.destChainId == _currentChainId())
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
-        if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
+        if (order.srcChainId != _currentChainId())
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         uint256 minFee = targetChainMinFee[tokenIn][order.destChainId];
         if (minFee == 0) revert GeniusErrors.TokenOrTargetChainNotSupported();
         if (order.fee < minFee)
             revert GeniusErrors.InsufficientFees(order.fee, minFee, tokenIn);
 
-        bytes32 _orderHash = orderHash(order);
+        bytes32 _orderHash = orderHash(order); 
         if (orderStatus[_orderHash] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId())
-            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         if (tokenIn == NATIVE) {
             if (msg.value != order.amountIn)
