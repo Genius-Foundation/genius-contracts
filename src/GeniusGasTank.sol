@@ -17,7 +17,7 @@ import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
  * @title GeniusGasTank
  * @author @altloot, @samuel_vdu
  *
- * @notice
+ * @notice The GeniusGasTank contract that handles sponsored transactions using Permit2
  */
 contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
     using SafeERC20 for IERC20;
@@ -58,6 +58,9 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         _;
     }
 
+    /**
+     * @dev See {IGeniusGasTank-sponsorOrderedTransactions}.
+     */
     function sponsorOrderedTransactions(
         address target,
         bytes calldata data,
@@ -115,6 +118,9 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
     }
 
+    /**
+     * @dev See {IGeniusGasTank-sponsorUnorderedTransactions}.
+     */
     function sponsorUnorderedTransactions(
         address target,
         bytes calldata data,
@@ -175,6 +181,9 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
     }
 
+    /**
+     * @dev See {IGeniusGasTank-aggregateWithPermit2}.
+     */
     function aggregateWithPermit2(
         address target,
         bytes calldata data,
@@ -214,6 +223,9 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         _setFeeRecipient(_feeRecipient);
     }
 
+    /**
+     * @dev See {IGeniusGasTank-setProxyCall}.
+     */
     function setProxyCall(address _proxyCall) external override onlyAdmin {
         _setProxyCall(_proxyCall);
     }
@@ -232,19 +244,38 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         _unpause();
     }
 
+    /**
+     * @dev internal function to set the fee recipient address
+     *
+     * @param _feeRecipient The new fee recipient address
+     */
     function _setFeeRecipient(address payable _feeRecipient) internal {
         if (_feeRecipient == address(0)) revert GeniusErrors.NonAddress0();
         feeRecipient = _feeRecipient;
         emit FeeRecipientUpdated(_feeRecipient);
     }
 
+    /**
+     * @dev internal function to set the proxy call contract address
+     *
+     * @param _proxyCall The new proxy call contract address
+     */
     function _setProxyCall(address _proxyCall) internal {
         if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();
-        
+
         _grantRole(PAUSER_ROLE, _proxyCall);
         emit FeeRecipientUpdated(_proxyCall);
     }
 
+    /**
+     * @dev internal function to permit and batch transfer tokens
+     *
+     * @param permitBatch the permit batch details
+     * @param permitSignature the signature for the Permit2 transfer
+     * @param owner the owner of the tokens being transferred
+     * @param feeToken the token used to pay the fee
+     * @param feeAmount the amount of fee to be paid
+     */
     function _permitAndBatchTransfer(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
@@ -286,6 +317,13 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
     }
 
+    /**
+     * @dev internal function to verify the signature
+     *
+     * @param messageHash the hash of the message
+     * @param signature the signature to verify
+     * @param signer the signer of the message
+     */
     function _verifySignature(
         bytes32 messageHash,
         bytes memory signature,

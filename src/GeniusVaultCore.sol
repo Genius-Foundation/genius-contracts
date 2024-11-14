@@ -292,6 +292,9 @@ abstract contract GeniusVaultCore is
         return STABLECOIN.balanceOf(address(this));
     }
 
+    /**
+     * @dev See {IGeniusVault-minLiquidity}.
+     */
     function minLiquidity() public view virtual override returns (uint256);
 
     /**
@@ -303,8 +306,6 @@ abstract contract GeniusVaultCore is
 
         return _availableAssets(_totalAssets, _neededLiquidity);
     }
-
-    // TODO: Try creating sub internal functions to check gas cost
 
     /**
      * @dev See {IGeniusVault-orderHash}.
@@ -361,10 +362,16 @@ abstract contract GeniusVaultCore is
         return bytes32(uint256(uint160(_input)));
     }
 
+    /**
+     * @dev See {IGeniusVault-setProxyCall}.
+     */
     function setProxyCall(address _proxyCall) external override onlyAdmin {
         _setProxyCall(_proxyCall);
     }
 
+    /**
+     * @dev See {IGeniusVault-setTargetChainMinFee}.
+     */
     function setTargetChainMinFee(
         address _token,
         uint256 _targetChainId,
@@ -377,6 +384,13 @@ abstract contract GeniusVaultCore is
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
 
+    /**
+     * @dev Internal function to spend an allowance.
+     *
+     * @param _token The address of the token to spend.
+     * @param _targetChainId The target chain ID.
+     * @param _minFee The minimum fee required.
+     */
     function _setTargetChainMinFee(
         address _token,
         uint256 _targetChainId,
@@ -389,6 +403,11 @@ abstract contract GeniusVaultCore is
         emit TargetChainMinFeeChanged(_token, _targetChainId, _minFee);
     }
 
+    /**
+     * @dev Internal function to set the address of the proxy call contract.
+     *
+     * @param _proxyCall The address of the proxy call contract.
+     */
     function _setProxyCall(address _proxyCall) internal {
         if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();
 
@@ -396,6 +415,11 @@ abstract contract GeniusVaultCore is
         emit ProxyCallChanged(_proxyCall);
     }
 
+    /**
+     * @dev Internal to set the rebalance threshold value (on a 10_000 denominator)
+     * 
+     * @param _rebalanceThreshold The new rebalance threshold value.
+     */
     function _setRebalanceThreshold(uint256 _rebalanceThreshold) internal {
         _validatePercentage(_rebalanceThreshold);
 
@@ -450,6 +474,11 @@ abstract contract GeniusVaultCore is
         }
     }
 
+    /**
+     * @dev internal pure function to validate a percentage.
+     * 
+     * @param percentage The percentage to validate.
+     */
     function _validatePercentage(uint256 percentage) internal pure {
         if (percentage > 10_000) revert GeniusErrors.InvalidPercentage();
     }

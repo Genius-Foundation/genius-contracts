@@ -87,7 +87,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (order.fee < minFee)
             revert GeniusErrors.InsufficientFees(order.fee, minFee, tokenIn);
 
-        bytes32 _orderHash = orderHash(order); 
+        bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
 
@@ -198,9 +198,14 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     // ║                       READ FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    function claimableFees(
-        address token
-    ) public view returns (uint256) {
+    /**
+     * @dev function to get the amount of fees that can be claimed
+     *
+     * @param token The token to check for claimable fees
+     *
+     * @return uint256 The amount of fees that can be claimed
+     */
+    function claimableFees(address token) public view returns (uint256) {
         return feesCollected[token] - feesClaimed[token];
     }
 
@@ -217,6 +222,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         }
     }
 
+    /**
+     * @dev See {IGeniusMultiTokenVault-minLiquidity}.
+     */
     function minLiquidity()
         public
         view

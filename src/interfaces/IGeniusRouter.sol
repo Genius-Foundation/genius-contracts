@@ -17,6 +17,21 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
  *         and the GeniusVault contract.
  */
 interface IGeniusRouter {
+    /**
+     * @notice Swaps tokens and creates a cross-chain order using standard token approvals
+     * 
+     * @param seed Unique identifier for the order
+     * @param tokensIn Array of token addresses to be swapped
+     * @param amountsIn Array of amounts corresponding to the tokens
+     * @param target The contract address to execute the swap on
+     * @param data The calldata for executing the swap
+     * @param owner The address that owns the tokens and will create the order
+     * @param destChainId The destination chain ID for the cross-chain order
+     * @param fee The fee to be paid for the cross-chain transaction
+     * @param receiver The receiver address on the destination chain (in bytes32 format)
+     * @param minAmountOut The minimum amount of tokens to receive on the destination chain
+     * @param tokenOut The token to receive on the destination chain (in bytes32 format)
+     */
     function swapAndCreateOrder(
         bytes32 seed,
         address[] calldata tokensIn,
@@ -31,6 +46,20 @@ interface IGeniusRouter {
         bytes32 tokenOut
     ) external payable;
 
+    /**
+     * @notice Swaps tokens and creates a cross-chain order using Permit2 for token approvals
+     * 
+     * @param seed Unique identifier for the order
+     * @param permitBatch The Permit2 batch transfer details
+     * @param permitSignature The signature for the Permit2 transfer
+     * @param target The contract address to execute the swap on
+     * @param data The calldata for executing the swap
+     * @param destChainId The destination chain ID for the cross-chain order
+     * @param fee The fee to be paid for the cross-chain transaction
+     * @param receiver The receiver address on the destination chain (in bytes32 format)
+     * @param minAmountOut The minimum amount of tokens to receive on the destination chain
+     * @param tokenOut The token to receive on the destination chain (in bytes32 format)
+     */
     function swapAndCreateOrderPermit2(
         bytes32 seed,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
@@ -44,6 +73,18 @@ interface IGeniusRouter {
         bytes32 tokenOut
     ) external payable;
 
+    /**
+     * @notice Creates a cross-chain order directly with stablecoins using Permit2
+     * 
+     * @param seed Unique identifier for the order
+     * @param permitBatch The Permit2 batch transfer details (must contain only STABLECOIN)
+     * @param permitSignature The signature for the Permit2 transfer
+     * @param destChainId The destination chain ID for the cross-chain order
+     * @param fee The fee to be paid for the cross-chain transaction
+     * @param receiver The receiver address on the destination chain (in bytes32 format)
+     * @param minAmountOut The minimum amount of tokens to receive on the destination chain
+     * @param tokenOut The token to receive on the destination chain (in bytes32 format)
+     */
     function createOrderPermit2(
         bytes32 seed,
         IAllowanceTransfer.PermitBatch calldata permitBatch,
