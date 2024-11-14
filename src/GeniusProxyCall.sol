@@ -55,6 +55,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         if (!_success) revert GeniusErrors.ExternalCallFailed(target);
     }
 
+    /**
+     * @dev See {IGeniusProxyCall-call}.
+     */
     function call(
         address receiver,
         address swapTarget,
@@ -126,6 +129,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         }
     }
 
+    /**
+     * @dev See {IGeniusProxyCall-approveTokenExecuteAndVerify}.
+     */
     function approveTokenExecuteAndVerify(
         address token,
         address target,
@@ -148,6 +154,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         else return amountOut;
     }
 
+    /**
+     * @dev See {IGeniusProxyCall-approveTokenExecute}.
+     */
     function approveTokenExecute(
         address token,
         address target,
@@ -156,6 +165,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         _approveTokenAndExecute(token, target, data);
     }
 
+    /**
+     * @dev See {IGeniusProxyCall-approveTokensAndExecute}.
+     */
     function approveTokensAndExecute(
         address[] memory tokens,
         address target,
@@ -182,6 +194,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         }
     }
 
+    /**
+     * @dev See {IGeniusProxyCall-transferTokenAndExecute}.
+     */
     function transferTokenAndExecute(
         address token,
         address target,
@@ -197,6 +212,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         if (!_success) revert GeniusErrors.ExternalCallFailed(target);
     }
 
+    /**
+     * @dev See {IGeniusProxyCall-transferTokensAndExecute}.
+     */
     function transferTokensAndExecute(
         address[] memory tokens,
         address target,
@@ -217,12 +235,23 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         if (!_success) revert GeniusErrors.ExternalCallFailed(target);
     }
 
+    /**
+     * @dev See {IGeniusProxyCall-multiSend}.
+     */
     function multiSend(bytes memory transactions) external payable {
         if (address(this) != msg.sender)
             revert GeniusErrors.InvalidCallerMulticall();
         _multiSend(transactions);
     }
 
+    /**
+     * @notice Approves a target contract to spend the maximum amount of a token, 
+     * and then executes an arbitrary call.
+     * 
+     * @param token The token to approve for spending.
+     * @param target The target contract to call.
+     * @param data The data to pass to the target contract.
+     */
     function _approveTokenAndExecute(
         address token,
         address target,
@@ -244,6 +273,11 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         }
     }
 
+    /**
+     * @notice Checks if an address is a contract.
+     * 
+     * @param _addr The address to check if it is a contract.
+     */
     function _isContract(address _addr) private view returns (bool hasCode) {
         uint256 length;
         assembly {
@@ -252,6 +286,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         return length > 0;
     }
 
+    /**
+     * @dev Fallback function to revert native token transfers.
+     */
     receive() external payable {
         revert("Native tokens not accepted directly");
     }
