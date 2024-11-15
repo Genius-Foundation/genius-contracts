@@ -234,10 +234,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         returns (uint256)
     {
         uint256 _totalStaked = totalStakedAssets;
-        uint256 _threshold = rebalanceThreshold;
 
         uint256 reduction = _totalStaked > 0
-            ? (_totalStaked * _threshold) / 10_000
+            ? (_totalStaked * rebalanceThreshold) / 10_000
             : 0;
         uint256 minBalance = _totalStaked > reduction
             ? _totalStaked - reduction

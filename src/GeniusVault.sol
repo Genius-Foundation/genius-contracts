@@ -115,8 +115,7 @@ contract GeniusVault is GeniusVaultCore {
      */
     function minLiquidity() public view override returns (uint256) {
         uint256 _totalStaked = totalStakedAssets;
-        uint256 _threshold = rebalanceThreshold;
-        uint256 reduction = (_totalStaked * _threshold) / 10_000;
+        uint256 reduction = (_totalStaked * rebalanceThreshold) / 10_000;
         uint256 minBalance = _totalStaked - reduction;
         return minBalance + claimableFees();
     }
