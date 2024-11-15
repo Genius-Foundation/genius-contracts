@@ -264,7 +264,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();
 
         _grantRole(PAUSER_ROLE, _proxyCall);
-        emit FeeRecipientUpdated(_proxyCall);
+        emit ProxyCallChanged(_proxyCall);
     }
 
     /**
@@ -311,6 +311,15 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         PERMIT2.transferFrom(transferDetails);
 
         uint256 feeTokenBalance = IERC20(feeToken).balanceOf(address(this));
+
+        if (feeTokenBalance < feeAmount) {
+            revert GeniusErrors.InsufficientBalance(
+                feeToken,
+                feeAmount,
+                feeTokenBalance
+            );
+        }
+
         IERC20(feeToken).safeTransfer(
             address(PROXYCALL),
             feeTokenBalance - feeAmount
