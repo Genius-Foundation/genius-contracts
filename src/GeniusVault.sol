@@ -102,7 +102,7 @@ contract GeniusVault is GeniusVaultCore {
         if (token != address(STABLECOIN))
             revert GeniusErrors.InvalidToken(token);
 
-        feesClaimed -= amount;
+        feesClaimed += amount;
         _transferERC20(address(STABLECOIN), msg.sender, amount);
 
         emit FeesClaimed(address(STABLECOIN), amount);
