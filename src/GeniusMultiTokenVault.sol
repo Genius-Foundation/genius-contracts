@@ -234,15 +234,16 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         override(IGeniusVault, GeniusVaultCore)
         returns (uint256)
     {
-        uint256 reduction = totalStakedAssets > 0
-            ? (totalStakedAssets * rebalanceThreshold) / 10_000
+        uint256 _totalStaked = totalStakedAssets;
+        uint256 _threshold = rebalanceThreshold;
+
+        uint256 reduction = _totalStaked > 0
+            ? (_totalStaked * _threshold) / 10_000
             : 0;
-        uint256 minBalance = totalStakedAssets > reduction
-            ? totalStakedAssets - reduction
+        uint256 minBalance = _totalStaked > reduction
+            ? _totalStaked - reduction
             : 0;
 
-        uint256 result = minBalance + claimableFees(address(STABLECOIN));
-
-        return result;
+        return minBalance + claimableFees(address(STABLECOIN));
     }
 }
