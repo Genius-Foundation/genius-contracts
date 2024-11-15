@@ -95,8 +95,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             if (msg.value != order.amountIn)
                 revert GeniusErrors.InvalidAmount();
         } else {
-            _transferERC20From(
-                tokenIn,
+            IERC20(tokenIn).safeTransferFrom(
                 msg.sender,
                 address(this),
                 order.amountIn
@@ -154,7 +153,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (token == NATIVE) {
             PROXYCALL.execute{value: amount}(target, data);
         } else {
-            _transferERC20(token, address(PROXYCALL), amount);
+            IERC20(token).safeTransfer(address(PROXYCALL), amount);
             PROXYCALL.approveTokenExecute(token, target, data);
         }
 
@@ -191,7 +190,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             (bool success, ) = msg.sender.call{value: amount}("");
             if (!success) revert GeniusErrors.TransferFailed(NATIVE, amount);
         } else {
-            _transferERC20(token, msg.sender, amount);
+            IERC20(token).safeTransfer(msg.sender, amount);
         }
 
         emit FeesClaimed(token, amount);

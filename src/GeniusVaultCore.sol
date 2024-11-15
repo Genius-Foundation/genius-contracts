@@ -118,7 +118,8 @@ abstract contract GeniusVaultCore is
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         _isAmountValid(amountIn, availableAssets());
 
-        _transferERC20(address(STABLECOIN), address(PROXYCALL), amountIn);
+        STABLECOIN.safeTransfer(address(PROXYCALL), amountIn);
+
         PROXYCALL.approveTokenExecute{value: msg.value}(
             address(STABLECOIN),
             target,
@@ -216,14 +217,10 @@ abstract contract GeniusVaultCore is
         bool success = true;
 
         if (!isCall && !isSwap) {
-            _transferERC20(
-                address(STABLECOIN),
-                receiver,
-                order.amountIn - order.fee
-            );
+            STABLECOIN.safeTransfer(receiver, order.amountIn - order.fee);
         } else {
             IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
-            IERC20(address(STABLECOIN)).safeTransfer(
+            STABLECOIN.safeTransfer(
                 address(PROXYCALL),
                 order.amountIn - order.fee
             );
@@ -417,7 +414,7 @@ abstract contract GeniusVaultCore is
 
     /**
      * @dev Internal to set the rebalance threshold value (on a 10_000 denominator)
-     * 
+     *
      * @param _rebalanceThreshold The new rebalance threshold value.
      */
     function _setRebalanceThreshold(uint256 _rebalanceThreshold) internal {
@@ -476,41 +473,11 @@ abstract contract GeniusVaultCore is
 
     /**
      * @dev internal pure function to validate a percentage.
-     * 
+     *
      * @param percentage The percentage to validate.
      */
     function _validatePercentage(uint256 percentage) internal pure {
         if (percentage > 10_000) revert GeniusErrors.InvalidPercentage();
-    }
-
-    /**
-     * @dev Internal function to safeTransfer ERC20 tokens.
-     * @param token The address of the token to transfer.
-     * @param to The address to transfer the tokens to.
-     * @param amount The amount of tokens to transfer.
-     */
-    function _transferERC20(
-        address token,
-        address to,
-        uint256 amount
-    ) internal {
-        IERC20(token).safeTransfer(to, amount);
-    }
-
-    /**
-     * @dev Internal function to safeTransferFrom ERC20 tokens.
-     * @param token The address of the token to transfer.
-     * @param from The address to transfer the tokens from.
-     * @param to The address to transfer the tokens to.
-     * @param amount The amount of tokens to transfer.
-     */
-    function _transferERC20From(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
-        IERC20(token).safeTransferFrom(from, to, amount);
     }
 
     /**

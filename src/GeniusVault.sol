@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 contract GeniusVault is GeniusVaultCore {
+    using SafeERC20 for IERC20;
+
     uint256 public feesCollected;
     uint256 public feesClaimed;
 
@@ -57,12 +60,7 @@ contract GeniusVault is GeniusVaultCore {
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
 
-        _transferERC20From(
-            address(STABLECOIN),
-            msg.sender,
-            address(this),
-            order.amountIn
-        );
+        STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
 
         feesCollected += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;
@@ -106,7 +104,8 @@ contract GeniusVault is GeniusVaultCore {
             revert GeniusErrors.InvalidToken(token);
 
         feesClaimed += amount;
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
+
+        STABLECOIN.safeTransfer(msg.sender, amount);
 
         emit FeesClaimed(address(STABLECOIN), amount);
     }
