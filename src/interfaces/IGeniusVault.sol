@@ -85,10 +85,13 @@ interface IGeniusVault {
     event OrderCreated(
         bytes32 indexed seed,
         bytes32 indexed trader,
+        bytes32 indexed receiver,
         bytes32 tokenIn,
+        bytes32 tokenOut,
         uint256 amountIn,
+        uint256 minAmountOut,
         uint256 srcChainId,
-        uint256 indexed destChainId,
+        uint256 destChainId,
         uint256 fee
     );
 

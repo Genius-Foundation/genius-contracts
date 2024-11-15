@@ -70,8 +70,11 @@ contract GeniusVault is GeniusVaultCore {
         emit OrderCreated(
             order.seed,
             order.trader,
+            order.receiver,
             order.tokenIn,
+            order.tokenOut,
             order.amountIn,
+            order.minAmountOut,
             order.srcChainId,
             order.destChainId,
             order.fee
