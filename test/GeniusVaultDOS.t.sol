@@ -12,8 +12,12 @@ import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
+import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
 
 contract GeniusVaultDOSTest is Test {
+    int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
+    MockV3Aggregator public MOCK_PRICE_FEED;
+
     uint256 avalanche;
     uint16 constant targetChainId = 42;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -46,6 +50,7 @@ contract GeniusVaultDOSTest is Test {
         TRADER = makeAddr("TRADER");
         ORCHESTRATOR = makeAddr("ORCHESTRATOR");
 
+        MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
         DEX_ROUTER = new MockDEXRouter();
         BRIDGE = makeAddr("BRIDGE");
 
@@ -78,8 +83,7 @@ contract GeniusVaultDOSTest is Test {
             OWNER,
             address(PROXYCALL),
             7_500,
-            30,
-            300
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -93,9 +97,7 @@ contract GeniusVaultDOSTest is Test {
             OWNER,
             address(PROXYCALL),
             7_500,
-            30,
-            300,
-            supportedTokens
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxyMulti = new ERC1967Proxy(

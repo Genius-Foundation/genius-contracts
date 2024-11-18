@@ -14,8 +14,12 @@ import {GeniusRouter} from "../src/GeniusRouter.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
+import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
 
 contract GeniusRouterTest is Test {
+    int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
+    MockV3Aggregator public MOCK_PRICE_FEED;
+
     uint256 constant BASE_USER_WETH_BALANCE = 100 ether;
     uint256 constant BASE_USER_DAI_BALANCE = 100 ether;
     uint256 constant BASE_ROUTER_USDC_BALANCE = 100 ether;
@@ -57,6 +61,7 @@ contract GeniusRouterTest is Test {
 
         (USER, USER_PK) = makeAddrAndKey("user");
 
+        MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
         DEX_ROUTER = new MockDEXRouter();
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
@@ -77,8 +82,7 @@ contract GeniusRouterTest is Test {
             ADMIN,
             address(PROXYCALL),
             7_500,
-            30,
-            300
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -134,8 +138,11 @@ contract GeniusRouterTest is Test {
         emit IGeniusVault.OrderCreated(
             bytes32(uint256(1)),
             RECEIVER,
+            RECEIVER,
             TOKEN_IN,
+            TOKEN_OUT,
             BASE_ROUTER_USDC_BALANCE / 2,
+            minAmountOut,
             block.chainid,
             destChainId,
             fee
@@ -199,8 +206,11 @@ contract GeniusRouterTest is Test {
         emit IGeniusVault.OrderCreated(
             bytes32(uint256(1)),
             RECEIVER,
+            RECEIVER,
             TOKEN_IN,
+            TOKEN_OUT,
             BASE_ROUTER_USDC_BALANCE / 2,
+            minAmountOut,
             block.chainid,
             destChainId,
             fee
@@ -306,8 +316,11 @@ contract GeniusRouterTest is Test {
         emit IGeniusVault.OrderCreated(
             bytes32(uint256(1)),
             RECEIVER,
+            RECEIVER,
             TOKEN_IN,
+            TOKEN_OUT,
             (BASE_ROUTER_USDC_BALANCE * 75) / 100,
+            minAmountOut,
             block.chainid,
             destChainId,
             fee

@@ -13,8 +13,11 @@ import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
+import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
 
 contract GeniusVaultTest is Test {
+    int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
+    MockV3Aggregator public MOCK_PRICE_FEED;
     uint256 destChainId = 42;
 
     uint256 avalanche;
@@ -53,6 +56,8 @@ contract GeniusVaultTest is Test {
         RECEIVER = bytes32(uint256(uint160(TRADER)));
         ORCHESTRATOR = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
 
+        MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
+
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
 
@@ -68,8 +73,7 @@ contract GeniusVaultTest is Test {
             OWNER,
             address(PROXYCALL),
             7_500,
-            30,
-            300
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -226,7 +230,13 @@ contract GeniusVaultTest is Test {
     function testRevertWhenAlreadyInitialized() public {
         vm.startPrank(OWNER);
         vm.expectRevert();
-        VAULT.initialize(address(USDC), OWNER, address(PROXYCALL), 7_500);
+        VAULT.initialize(
+            address(USDC),
+            OWNER,
+            address(PROXYCALL),
+            7_500,
+            address(MOCK_PRICE_FEED)
+        );
     }
 
     function testSetRebalanceThreshold() public {

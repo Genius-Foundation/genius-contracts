@@ -9,8 +9,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
 
 contract GeniusVaultStakingTest is Test {
+    int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
+    MockV3Aggregator public MOCK_PRICE_FEED;
     address public permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public owner = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
     address public trader;
@@ -24,6 +27,7 @@ contract GeniusVaultStakingTest is Test {
         usdc = new MockUSDC();
 
         PROXYCALL = new GeniusProxyCall(owner, new address[](0));
+        MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
 
         vm.startPrank(owner);
         GeniusVault implementation = new GeniusVault();
@@ -34,8 +38,7 @@ contract GeniusVaultStakingTest is Test {
             owner,
             address(PROXYCALL),
             7_500,
-            30,
-            300
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);

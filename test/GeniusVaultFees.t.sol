@@ -13,8 +13,11 @@ import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
+import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
 
 contract GeniusVaultFees is Test {
+    int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
+    MockV3Aggregator public MOCK_PRICE_FEED;
     uint32 destChainId = 42;
 
     uint256 avalanche;
@@ -50,6 +53,7 @@ contract GeniusVaultFees is Test {
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
         PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
+        MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
 
         vm.startPrank(OWNER, OWNER);
         GeniusVault implementation = new GeniusVault();
@@ -59,7 +63,8 @@ contract GeniusVaultFees is Test {
             address(USDC),
             OWNER,
             address(PROXYCALL),
-            7_500
+            7_500,
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
