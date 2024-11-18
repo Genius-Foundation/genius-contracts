@@ -165,7 +165,7 @@ abstract contract GeniusVaultCore is
         uint256 amount,
         address receiver,
         address owner
-    ) external override whenNotPaused {
+    ) external override whenNotPaused nonReentrant {
         if (_msgSender() != owner) {
             _spendAllowance(owner, _msgSender(), amount);
         }
@@ -179,7 +179,6 @@ abstract contract GeniusVaultCore is
             );
 
         totalStakedAssets -= amount;
-
         _burn(owner, amount);
 
         emit StakeWithdraw(msg.sender, receiver, owner, amount);

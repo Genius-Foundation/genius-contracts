@@ -149,9 +149,9 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
                 address(this)
             )
         );
+        _verifySignature(messageHash, signature, owner);
 
         seeds[owner][seed] = true;
-        _verifySignature(messageHash, signature, owner);
         address[] memory tokensIn = _permitAndBatchTransfer(
             permitBatch,
             permitSignature,
