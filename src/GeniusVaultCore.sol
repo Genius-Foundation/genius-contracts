@@ -9,6 +9,7 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
@@ -32,14 +33,19 @@ abstract contract GeniusVaultCore is
 {
     using SafeERC20 for IERC20;
 
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
+
+    // Price bounds (8 decimals like Chainlink)
+    uint256 public constant PRICE_LOWER_BOUND = 98_000_000; // 0.98
+    uint256 public constant PRICE_UPPER_BOUND = 102_000_000; // 1.02
+
     // Immutable state variables (not actually immutable due to upgradeability)
     IERC20 public STABLECOIN;
     IGeniusProxyCall public PROXYCALL;
 
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
-
     // Mutable state variables
+    AggregatorV3Interface public stablecoinPriceFeed;
     uint256 public totalStakedAssets;
     uint256 public rebalanceThreshold;
 
@@ -89,7 +95,8 @@ abstract contract GeniusVaultCore is
         address _stablecoin,
         address _admin,
         address _multicall,
-        uint256 _rebalanceThreshold
+        uint256 _rebalanceThreshold,
+        address _priceFeed
     ) internal onlyInitializing {
         if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
         if (_admin == address(0)) revert GeniusErrors.NonAddress0();
@@ -101,6 +108,7 @@ abstract contract GeniusVaultCore is
         STABLECOIN = IERC20(_stablecoin);
         PROXYCALL = IGeniusProxyCall(_multicall);
         _setRebalanceThreshold(_rebalanceThreshold);
+        _setPriceFeed(_priceFeed);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
@@ -118,7 +126,8 @@ abstract contract GeniusVaultCore is
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         _isAmountValid(amountIn, availableAssets());
 
-        _transferERC20(address(STABLECOIN), address(PROXYCALL), amountIn);
+        STABLECOIN.safeTransfer(address(PROXYCALL), amountIn);
+
         PROXYCALL.approveTokenExecute{value: msg.value}(
             address(STABLECOIN),
             target,
@@ -195,8 +204,11 @@ abstract contract GeniusVaultCore is
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
         if (order.srcChainId == _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+        if (order.trader == bytes32(0) || order.receiver == bytes32(0))
+            revert GeniusErrors.InvalidTrader();
+
         _isAmountValid(order.amountIn - order.fee, availableAssets());
-        if (order.trader == bytes32(0)) revert GeniusErrors.InvalidTrader();
+
         bool isSwap = swapTarget != address(0);
         bool isCall = callTarget != address(0);
 
@@ -213,14 +225,10 @@ abstract contract GeniusVaultCore is
         bool success = true;
 
         if (!isCall && !isSwap) {
-            _transferERC20(
-                address(STABLECOIN),
-                receiver,
-                order.amountIn - order.fee
-            );
+            STABLECOIN.safeTransfer(receiver, order.amountIn - order.fee);
         } else {
             IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
-            IERC20(address(STABLECOIN)).safeTransfer(
+            STABLECOIN.safeTransfer(
                 address(PROXYCALL),
                 order.amountIn - order.fee
             );
@@ -289,6 +297,9 @@ abstract contract GeniusVaultCore is
         return STABLECOIN.balanceOf(address(this));
     }
 
+    /**
+     * @dev See {IGeniusVault-minLiquidity}.
+     */
     function minLiquidity() public view virtual override returns (uint256);
 
     /**
@@ -300,8 +311,6 @@ abstract contract GeniusVaultCore is
 
         return _availableAssets(_totalAssets, _neededLiquidity);
     }
-
-    // TODO: Try creating sub internal functions to check gas cost
 
     /**
      * @dev See {IGeniusVault-orderHash}.
@@ -358,10 +367,23 @@ abstract contract GeniusVaultCore is
         return bytes32(uint256(uint160(_input)));
     }
 
+    /**
+     * @dev See {IGeniusVault-setProxyCall}.
+     */
     function setProxyCall(address _proxyCall) external override onlyAdmin {
         _setProxyCall(_proxyCall);
     }
 
+    /**
+     * @dev See {IGeniusVault-setPriceFeed}.
+     */
+    function setPriceFeed(address _priceFeed) external onlyAdmin {
+        _setPriceFeed(_priceFeed);
+    }
+
+    /**
+     * @dev See {IGeniusVault-setTargetChainMinFee}.
+     */
     function setTargetChainMinFee(
         address _token,
         uint256 _targetChainId,
@@ -374,6 +396,45 @@ abstract contract GeniusVaultCore is
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
 
+    /**
+     * @notice Checks if the stablecoin price is within acceptable bounds
+     * @dev Reverts if price is stale or out of bounds
+     * @return bool True if price is valid
+     */
+    function _verifyStablecoinPrice() internal view returns (bool) {
+        try stablecoinPriceFeed.latestRoundData() returns (
+            uint80 roundId,
+            int256 price,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        ) {
+            startedAt;
+            // Validate price feed response
+            if (price <= 0) revert GeniusErrors.InvalidPrice(price);
+            if (answeredInRound < roundId)
+                revert GeniusErrors.StalePrice(updatedAt);
+
+            uint256 priceUint = uint256(price);
+            if (
+                priceUint < PRICE_LOWER_BOUND || priceUint > PRICE_UPPER_BOUND
+            ) {
+                revert GeniusErrors.PriceOutOfBounds(priceUint);
+            }
+
+            return true;
+        } catch {
+            revert GeniusErrors.PriceFeedError();
+        }
+    }
+
+    /**
+     * @dev Internal function to spend an allowance.
+     *
+     * @param _token The address of the token to spend.
+     * @param _targetChainId The target chain ID.
+     * @param _minFee The minimum fee required.
+     */
     function _setTargetChainMinFee(
         address _token,
         uint256 _targetChainId,
@@ -386,6 +447,11 @@ abstract contract GeniusVaultCore is
         emit TargetChainMinFeeChanged(_token, _targetChainId, _minFee);
     }
 
+    /**
+     * @dev Internal function to set the address of the proxy call contract.
+     *
+     * @param _proxyCall The address of the proxy call contract.
+     */
     function _setProxyCall(address _proxyCall) internal {
         if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();
 
@@ -393,6 +459,23 @@ abstract contract GeniusVaultCore is
         emit ProxyCallChanged(_proxyCall);
     }
 
+    /**
+     * @dev Internal function to set the address of the price feed contract.m
+     *
+     * @param _priceFeed The address of the price feed contract.
+     */
+    function _setPriceFeed(address _priceFeed) internal {
+        if (_priceFeed == address(0)) revert GeniusErrors.NonAddress0();
+
+        stablecoinPriceFeed = AggregatorV3Interface(_priceFeed);
+        emit PriceFeedUpdated(_priceFeed);
+    }
+
+    /**
+     * @dev Internal to set the rebalance threshold value (on a 10_000 denominator)
+     *
+     * @param _rebalanceThreshold The new rebalance threshold value.
+     */
     function _setRebalanceThreshold(uint256 _rebalanceThreshold) internal {
         _validatePercentage(_rebalanceThreshold);
 
@@ -447,38 +530,13 @@ abstract contract GeniusVaultCore is
         }
     }
 
+    /**
+     * @dev internal pure function to validate a percentage.
+     *
+     * @param percentage The percentage to validate.
+     */
     function _validatePercentage(uint256 percentage) internal pure {
         if (percentage > 10_000) revert GeniusErrors.InvalidPercentage();
-    }
-
-    /**
-     * @dev Internal function to safeTransfer ERC20 tokens.
-     * @param token The address of the token to transfer.
-     * @param to The address to transfer the tokens to.
-     * @param amount The amount of tokens to transfer.
-     */
-    function _transferERC20(
-        address token,
-        address to,
-        uint256 amount
-    ) internal {
-        IERC20(token).safeTransfer(to, amount);
-    }
-
-    /**
-     * @dev Internal function to safeTransferFrom ERC20 tokens.
-     * @param token The address of the token to transfer.
-     * @param from The address to transfer the tokens from.
-     * @param to The address to transfer the tokens to.
-     * @param amount The amount of tokens to transfer.
-     */
-    function _transferERC20From(
-        address token,
-        address from,
-        address to,
-        uint256 amount
-    ) internal {
-        IERC20(token).safeTransferFrom(from, to, amount);
     }
 
     /**

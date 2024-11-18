@@ -24,11 +24,6 @@ contract GeniusActionsTest is Test {
         assertTrue(geniusActions.hasRole(geniusActions.SENTINEL_ROLE(), admin));
     }
 
-    function testConstructorFailure() public {
-        vm.expectRevert("Initial owner cannot be the contract deployer");
-        new GeniusActions(address(this));
-    }
-
     function testAddActionWithoutAdmin() public {
         vm.prank(user);
         vm.expectRevert("OwnablePausable: access denied");

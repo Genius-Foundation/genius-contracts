@@ -3,6 +3,10 @@ pragma solidity ^0.8.20;
 
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 
+/**
+ * @title IGeniusGasTank
+ * @notice Interface for the GeniusGasTank contract that handles sponsored transactions using Permit2
+ */
 interface IGeniusGasTank {
     event OrderedTransactionsSponsored(
         address indexed sender,
@@ -30,8 +34,25 @@ interface IGeniusGasTank {
      */
     event ProxyCallChanged(address newProxyCall);
 
+    /**
+     * @notice Returns the current nonce for a given owner address
+     * @param owner The address to check the nonce for
+     * @return The current nonce value
+     */
     function nonces(address owner) external view returns (uint256);
 
+    /**
+     * @notice Executes a sponsored transaction with ordered nonce checking
+     * @param target The contract to execute the call on
+     * @param data The calldata to execute
+     * @param permitBatch The Permit2 batch transfer details
+     * @param permitSignature The signature for the Permit2 transfer
+     * @param owner The owner of the tokens being transferred
+     * @param feeToken The token used to pay the fee
+     * @param feeAmount The amount of fee to be paid
+     * @param deadline The deadline for execution
+     * @param signature The owner's signature authorizing the transaction
+     */
     function sponsorOrderedTransactions(
         address target,
         bytes calldata data,
@@ -44,6 +65,19 @@ interface IGeniusGasTank {
         bytes calldata signature
     ) external payable;
 
+    /**
+     * @notice Executes a sponsored transaction with seed-based replay protection
+     * @param target The contract to execute the call on
+     * @param data The calldata to execute
+     * @param permitBatch The Permit2 batch transfer details
+     * @param permitSignature The signature for the Permit2 transfer
+     * @param owner The owner of the tokens being transferred
+     * @param feeToken The token used to pay the fee
+     * @param feeAmount The amount of fee to be paid
+     * @param deadline The deadline for execution
+     * @param seed Unique identifier to prevent replay attacks
+     * @param signature The owner's signature authorizing the transaction
+     */
     function sponsorUnorderedTransactions(
         address target,
         bytes calldata data,
@@ -57,6 +91,15 @@ interface IGeniusGasTank {
         bytes calldata signature
     ) external payable;
 
+    /**
+     * @notice Executes a direct transaction using Permit2 without sponsorship
+     * @param target The contract to execute the call on
+     * @param data The calldata to execute
+     * @param permitBatch The Permit2 batch transfer details
+     * @param permitSignature The signature for the Permit2 transfer
+     * @param feeToken The token used to pay the fee
+     * @param feeAmount The amount of fee to be paid
+     */
     function aggregateWithPermit2(
         address target,
         bytes calldata data,
@@ -66,6 +109,10 @@ interface IGeniusGasTank {
         uint256 feeAmount
     ) external payable;
 
+    /**
+     * @notice Updates the address that receives transaction fees
+     * @param _feeRecipient The new fee recipient address
+     */
     function setFeeRecipient(address payable _feeRecipient) external;
 
     /**

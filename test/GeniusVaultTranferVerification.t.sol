@@ -12,8 +12,12 @@ import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
 
 contract GeniusVaultTransferVerificationTest is Test {
+    int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
+    MockV3Aggregator public MOCK_PRICE_FEED;
+
     uint256 avalanche;
     uint16 constant targetChainId = 42;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -50,6 +54,7 @@ contract GeniusVaultTransferVerificationTest is Test {
         ORCHESTRATOR = makeAddr("ORCHESTRATOR");
 
         DEX_ROUTER = new MockDEXRouter();
+        MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
         BRIDGE = makeAddr("BRIDGE");
 
         // Deploy mock tokens
@@ -81,8 +86,7 @@ contract GeniusVaultTransferVerificationTest is Test {
             OWNER,
             address(PROXYCALL),
             7_500,
-            30,
-            300
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -96,9 +100,7 @@ contract GeniusVaultTransferVerificationTest is Test {
             OWNER,
             address(PROXYCALL),
             7_500,
-            30,
-            300,
-            supportedTokens
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxyMulti = new ERC1967Proxy(

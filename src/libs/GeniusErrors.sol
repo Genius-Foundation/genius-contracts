@@ -255,4 +255,9 @@ library GeniusErrors {
     error InvalidCaller();
 
     error TokenOrTargetChainNotSupported();
+
+    error PriceOutOfBounds(uint256 price);
+    error StalePrice(uint256 timestamp);
+    error InvalidPrice(int256 price);
+    error PriceFeedError();
 }

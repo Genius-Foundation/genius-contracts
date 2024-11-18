@@ -53,13 +53,15 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         address _stablecoin,
         address _admin,
         address _multicall,
-        uint256 _rebalanceThreshold
+        uint256 _rebalanceThreshold,
+        address _priceFeed
     ) external initializer {
         GeniusVaultCore._initialize(
             _stablecoin,
             _admin,
             _multicall,
-            _rebalanceThreshold
+            _rebalanceThreshold,
+            _priceFeed
         );
     }
 
@@ -79,7 +81,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
         if (order.destChainId == _currentChainId())
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
-        if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
+        if (order.srcChainId != _currentChainId())
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         uint256 minFee = targetChainMinFee[tokenIn][order.destChainId];
         if (minFee == 0) revert GeniusErrors.TokenOrTargetChainNotSupported();
@@ -89,15 +92,15 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         bytes32 _orderHash = orderHash(order);
         if (orderStatus[_orderHash] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
-        if (order.srcChainId != _currentChainId())
-            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         if (tokenIn == NATIVE) {
             if (msg.value != order.amountIn)
                 revert GeniusErrors.InvalidAmount();
         } else {
-            _transferERC20From(
-                tokenIn,
+            if (tokenIn == address(STABLECOIN)) {
+                _verifyStablecoinPrice();
+            }
+            IERC20(tokenIn).safeTransferFrom(
                 msg.sender,
                 address(this),
                 order.amountIn
@@ -110,8 +113,11 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         emit OrderCreated(
             order.seed,
             order.trader,
+            order.receiver,
             order.tokenIn,
+            order.tokenOut,
             order.amountIn,
+            order.minAmountOut,
             order.srcChainId,
             order.destChainId,
             order.fee
@@ -152,7 +158,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (token == NATIVE) {
             PROXYCALL.execute{value: amount}(target, data);
         } else {
-            _transferERC20(token, address(PROXYCALL), amount);
+            IERC20(token).safeTransfer(address(PROXYCALL), amount);
             PROXYCALL.approveTokenExecute(token, target, data);
         }
 
@@ -189,7 +195,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             (bool success, ) = msg.sender.call{value: amount}("");
             if (!success) revert GeniusErrors.TransferFailed(NATIVE, amount);
         } else {
-            _transferERC20(token, msg.sender, amount);
+            IERC20(token).safeTransfer(msg.sender, amount);
         }
 
         emit FeesClaimed(token, amount);
@@ -199,9 +205,14 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     // ║                       READ FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    function claimableFees(
-        address token
-    ) public view returns (uint256) {
+    /**
+     * @dev function to get the amount of fees that can be claimed
+     *
+     * @param token The token to check for claimable fees
+     *
+     * @return uint256 The amount of fees that can be claimed
+     */
+    function claimableFees(address token) public view returns (uint256) {
         return feesCollected[token] - feesClaimed[token];
     }
 
@@ -218,21 +229,24 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         }
     }
 
+    /**
+     * @dev See {IGeniusMultiTokenVault-minLiquidity}.
+     */
     function minLiquidity()
         public
         view
         override(IGeniusVault, GeniusVaultCore)
         returns (uint256)
     {
-        uint256 reduction = totalStakedAssets > 0
-            ? (totalStakedAssets * rebalanceThreshold) / 10_000
+        uint256 _totalStaked = totalStakedAssets;
+
+        uint256 reduction = _totalStaked > 0
+            ? (_totalStaked * rebalanceThreshold) / 10_000
             : 0;
-        uint256 minBalance = totalStakedAssets > reduction
-            ? totalStakedAssets - reduction
+        uint256 minBalance = _totalStaked > reduction
+            ? _totalStaked - reduction
             : 0;
 
-        uint256 result = minBalance + claimableFees(address(STABLECOIN));
-
-        return result;
+        return minBalance + claimableFees(address(STABLECOIN));
     }
 }

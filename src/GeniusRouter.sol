@@ -188,6 +188,13 @@ contract GeniusRouter is IGeniusRouter {
         VAULT.createOrder(order);
     }
 
+    /**
+     * @dev Internal function to permit and batch transfer tokens.
+     *
+     * @param permitBatch The permit batch details
+     * @param permitSignature The permit signature
+     * @param owner The owner of the tokens
+     */
     function _permitAndBatchTransfer(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,

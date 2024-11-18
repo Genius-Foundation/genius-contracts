@@ -85,10 +85,13 @@ interface IGeniusVault {
     event OrderCreated(
         bytes32 indexed seed,
         bytes32 indexed trader,
+        bytes32 indexed receiver,
         bytes32 tokenIn,
+        bytes32 tokenOut,
         uint256 amountIn,
+        uint256 minAmountOut,
         uint256 srcChainId,
-        uint256 indexed destChainId,
+        uint256 destChainId,
         uint256 fee
     );
 
@@ -150,6 +153,12 @@ interface IGeniusVault {
         uint256 targetChainId,
         uint256 newMinFee
     );
+
+    /**
+     * @notice Emitted when the price feed is updated.
+     * @param newPriceFeed The address of the new price feed.
+     */
+    event PriceFeedUpdated(address newPriceFeed);
 
     /**
      * @notice Returns the total balance of the vault.
@@ -267,6 +276,12 @@ interface IGeniusVault {
      */
     function orderHash(Order memory order) external pure returns (bytes32);
 
+    /**
+     * @notice Computes the seed of an order based on the arbitrary call passed
+     * @param target The address of the target contract
+     * @param data The data of the call
+     * @return The seed of the order
+     */
     function calldataToSeed(
         address target,
         bytes memory data

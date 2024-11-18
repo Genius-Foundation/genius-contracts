@@ -11,8 +11,12 @@ import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
+import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
 
 contract GeniusVaultAccounting is Test {
+    int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
+    MockV3Aggregator public MOCK_PRICE_FEED;
+
     // ============ Network ============
     uint256 avalanche;
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
@@ -131,6 +135,9 @@ contract GeniusVaultAccounting is Test {
 
         vm.startPrank(OWNER);
 
+        // Deploy mock price feed
+        MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
+
         // Deploy contracts
         GeniusVault implementation = new GeniusVault();
 
@@ -140,8 +147,7 @@ contract GeniusVaultAccounting is Test {
             OWNER,
             address(PROXYCALL),
             7_500,
-            30,
-            300
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);

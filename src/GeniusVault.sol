@@ -1,41 +1,61 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
+/**
+ * @title GeniusVault
+ * @notice A cross-chain stablecoin bridge with price-based deposit protection
+ * @dev Uses Chainlink price feeds to protect against stablecoin depegs
+ */
 contract GeniusVault is GeniusVaultCore {
+    using SafeERC20 for IERC20;
+
+    // State variables
     uint256 public feesCollected;
     uint256 public feesClaimed;
+
 
     constructor() {
         _disableInitializers();
     }
 
     /**
-     * @notice Initializes the vault
+     * @notice Initializes the vault with required parameters
+     * @param _stablecoin Address of the stablecoin
+     * @param _admin Admin address
+     * @param _multicall Multicall contract address
+     * @param _rebalanceThreshold Rebalance threshold value
+     * @param _priceFeed Chainlink price feed address
      */
     function initialize(
         address _stablecoin,
         address _admin,
         address _multicall,
-        uint256 _rebalanceThreshold
+        uint256 _rebalanceThreshold,
+        address _priceFeed
     ) external initializer {
         GeniusVaultCore._initialize(
             _stablecoin,
             _admin,
             _multicall,
-            _rebalanceThreshold
+            _rebalanceThreshold,
+            _priceFeed
         );
     }
 
     /**
-     * @dev See {IGeniusVault-newOrder}.
+     * @dev See {IGeniusVault-createOrder}.
      */
     function createOrder(
         Order memory order
     ) external payable virtual override whenNotPaused {
+        // Check stablecoin price before accepting the order
+        _verifyStablecoinPrice();
+        
         address tokenIn = address(STABLECOIN);
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.NonAddress0();
@@ -57,12 +77,7 @@ contract GeniusVault is GeniusVaultCore {
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
 
-        _transferERC20From(
-            address(STABLECOIN),
-            msg.sender,
-            address(this),
-            order.amountIn
-        );
+        STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
 
         feesCollected += order.fee;
         orderStatus[orderHash_] = OrderStatus.Created;
@@ -70,14 +85,20 @@ contract GeniusVault is GeniusVaultCore {
         emit OrderCreated(
             order.seed,
             order.trader,
+            order.receiver,
             order.tokenIn,
+            order.tokenOut,
             order.amountIn,
+            order.minAmountOut,
             order.srcChainId,
             order.destChainId,
             order.fee
         );
     }
 
+    /**
+     * @notice Fetches the amount of fees that can be claimed
+     */
     function claimableFees() public view returns (uint256) {
         return feesCollected - feesClaimed;
     }
@@ -99,20 +120,20 @@ contract GeniusVault is GeniusVaultCore {
         if (token != address(STABLECOIN))
             revert GeniusErrors.InvalidToken(token);
 
-        feesClaimed -= amount;
-        _transferERC20(address(STABLECOIN), msg.sender, amount);
+        feesClaimed += amount;
+
+        STABLECOIN.safeTransfer(msg.sender, amount);
 
         emit FeesClaimed(address(STABLECOIN), amount);
     }
 
+    /**
+     * @dev See {IGeniusVault-minLiquidity}.
+     */
     function minLiquidity() public view override returns (uint256) {
-        uint256 reduction = totalStakedAssets > 0
-            ? (totalStakedAssets * rebalanceThreshold) / 10_000
-            : 0;
-        uint256 minBalance = totalStakedAssets > reduction
-            ? totalStakedAssets - reduction
-            : 0;
-
+        uint256 _totalStaked = totalStakedAssets;
+        uint256 reduction = (_totalStaked * rebalanceThreshold) / 10_000;
+        uint256 minBalance = _totalStaked - reduction;
         return minBalance + claimableFees();
     }
 }

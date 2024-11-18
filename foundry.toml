@@ -5,3 +5,7 @@ libs = ["lib"]
 gas_reports = ["*"]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+[invariant]
+runs = 1000          # Number of times to run the invariant test campaign
+depth = 100          # Number of calls per invariant test campaign
+fail_on_revert = true # Whether or not to fail the test if a call reverts

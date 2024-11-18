@@ -13,8 +13,11 @@ import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
+import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
 
 contract GeniusVaultTest is Test {
+    int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
+    MockV3Aggregator public MOCK_PRICE_FEED;
     uint256 destChainId = 42;
 
     uint256 avalanche;
@@ -53,6 +56,8 @@ contract GeniusVaultTest is Test {
         RECEIVER = bytes32(uint256(uint160(TRADER)));
         ORCHESTRATOR = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
 
+        MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
+
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
 
@@ -68,8 +73,7 @@ contract GeniusVaultTest is Test {
             OWNER,
             address(PROXYCALL),
             7_500,
-            30,
-            300
+            address(MOCK_PRICE_FEED)
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -226,7 +230,13 @@ contract GeniusVaultTest is Test {
     function testRevertWhenAlreadyInitialized() public {
         vm.startPrank(OWNER);
         vm.expectRevert();
-        VAULT.initialize(address(USDC), OWNER, address(PROXYCALL), 7_500);
+        VAULT.initialize(
+            address(USDC),
+            OWNER,
+            address(PROXYCALL),
+            7_500,
+            address(MOCK_PRICE_FEED)
+        );
     }
 
     function testSetRebalanceThreshold() public {
@@ -648,5 +658,130 @@ contract GeniusVaultTest is Test {
         );
 
         VAULT.createOrder(order);
+    }
+
+    function testPriceChecksOnCreateOrder() public {
+        deal(address(USDC), TRADER, 5_000 ether);
+
+        vm.startPrank(TRADER);
+        USDC.approve(address(VAULT), 5_000 ether);
+
+        // Test with normal price (1.00 USD)
+        VAULT.createOrder(order);
+
+        // Test with price too high (1.03 USD)
+        MOCK_PRICE_FEED.updatePrice(103_000_000);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.PriceOutOfBounds.selector,
+                103_000_000
+            )
+        );
+        VAULT.createOrder(order);
+
+        // Test with price too low (0.97 USD)
+        MOCK_PRICE_FEED.updatePrice(97_000_000);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.PriceOutOfBounds.selector,
+                97_000_000
+            )
+        );
+        VAULT.createOrder(order);
+
+        vm.stopPrank();
+    }
+
+    function testPriceFeedFailure() public {
+        deal(address(USDC), TRADER, 5_000 ether);
+
+        vm.startPrank(TRADER);
+        USDC.approve(address(VAULT), 5_000 ether);
+
+        // Set invalid price
+        MOCK_PRICE_FEED.updatePrice(-1);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidPrice.selector, -1)
+        );
+        VAULT.createOrder(order);
+
+        vm.stopPrank();
+    }
+
+    function testPriceFeedAdminUpdates() public {
+        deal(address(USDC), TRADER, 5_000 ether);
+
+        // Deploy new mock price feed
+        MockV3Aggregator newPriceFeed = new MockV3Aggregator(
+            INITIAL_STABLECOIN_PRICE
+        );
+
+        // Only admin should be able to update price feed
+        vm.startPrank(TRADER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.IsNotAdmin.selector)
+        );
+        VAULT.setPriceFeed(address(newPriceFeed));
+        vm.stopPrank();
+
+        // Admin can update price feed
+        vm.startPrank(OWNER);
+        VAULT.setPriceFeed(address(newPriceFeed));
+        assertEq(address(VAULT.stablecoinPriceFeed()), address(newPriceFeed));
+        vm.stopPrank();
+
+        // Verify new price feed is working
+        vm.startPrank(TRADER);
+        USDC.approve(address(VAULT), 5_000 ether);
+        VAULT.createOrder(order);
+
+        // Update price on new feed
+        newPriceFeed.updatePrice(103_000_000);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.PriceOutOfBounds.selector,
+                103_000_000
+            )
+        );
+        VAULT.createOrder(order);
+        vm.stopPrank();
+    }
+
+    function testEdgeCasePrices() public {
+        deal(address(USDC), TRADER, 5_000 ether);
+        vm.startPrank(TRADER);
+        USDC.approve(address(VAULT), 5_000 ether);
+
+        // Test exact bounds
+        MOCK_PRICE_FEED.updatePrice(98_000_000); // 0.98 - should work
+        VAULT.createOrder(order);
+
+        order.seed = keccak256("order1");
+
+        MOCK_PRICE_FEED.updatePrice(102_000_000); // 1.02 - should work
+        VAULT.createOrder(order);
+
+        // Test just outside bounds
+        MOCK_PRICE_FEED.updatePrice(97_999_999); // Just below 0.98
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.PriceOutOfBounds.selector,
+                97_999_999
+            )
+        );
+        VAULT.createOrder(order);
+
+        MOCK_PRICE_FEED.updatePrice(102_000_001); // Just above 1.02
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.PriceOutOfBounds.selector,
+                102_000_001
+            )
+        );
+        order.seed = keccak256("order2");
+        VAULT.createOrder(order);
+
+        vm.stopPrank();
     }
 }
