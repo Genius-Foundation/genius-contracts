@@ -6,39 +6,56 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
+/**
+ * @title GeniusVault
+ * @notice A cross-chain stablecoin bridge with price-based deposit protection
+ * @dev Uses Chainlink price feeds to protect against stablecoin depegs
+ */
 contract GeniusVault is GeniusVaultCore {
     using SafeERC20 for IERC20;
 
+    // State variables
     uint256 public feesCollected;
     uint256 public feesClaimed;
+
 
     constructor() {
         _disableInitializers();
     }
 
     /**
-     * @notice Initializes the vault
+     * @notice Initializes the vault with required parameters
+     * @param _stablecoin Address of the stablecoin
+     * @param _admin Admin address
+     * @param _multicall Multicall contract address
+     * @param _rebalanceThreshold Rebalance threshold value
+     * @param _priceFeed Chainlink price feed address
      */
     function initialize(
         address _stablecoin,
         address _admin,
         address _multicall,
-        uint256 _rebalanceThreshold
+        uint256 _rebalanceThreshold,
+        address _priceFeed
     ) external initializer {
         GeniusVaultCore._initialize(
             _stablecoin,
             _admin,
             _multicall,
-            _rebalanceThreshold
+            _rebalanceThreshold,
+            _priceFeed
         );
     }
 
     /**
-     * @dev See {IGeniusVault-newOrder}.
+     * @dev See {IGeniusVault-createOrder}.
      */
     function createOrder(
         Order memory order
     ) external payable virtual override whenNotPaused {
+        // Check stablecoin price before accepting the order
+        _verifyStablecoinPrice();
+        
         address tokenIn = address(STABLECOIN);
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.NonAddress0();

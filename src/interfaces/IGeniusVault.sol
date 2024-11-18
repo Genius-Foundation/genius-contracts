@@ -155,6 +155,12 @@ interface IGeniusVault {
     );
 
     /**
+     * @notice Emitted when the price feed is updated.
+     * @param newPriceFeed The address of the new price feed.
+     */
+    event PriceFeedUpdated(address newPriceFeed);
+
+    /**
      * @notice Returns the total balance of the vault.
      * @return The total balance of the vault.
      */

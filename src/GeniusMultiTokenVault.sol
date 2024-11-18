@@ -53,13 +53,15 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         address _stablecoin,
         address _admin,
         address _multicall,
-        uint256 _rebalanceThreshold
+        uint256 _rebalanceThreshold,
+        address _priceFeed
     ) external initializer {
         GeniusVaultCore._initialize(
             _stablecoin,
             _admin,
             _multicall,
-            _rebalanceThreshold
+            _rebalanceThreshold,
+            _priceFeed
         );
     }
 
@@ -95,6 +97,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             if (msg.value != order.amountIn)
                 revert GeniusErrors.InvalidAmount();
         } else {
+            if (tokenIn == address(STABLECOIN)) {
+                _verifyStablecoinPrice();
+            }
             IERC20(tokenIn).safeTransferFrom(
                 msg.sender,
                 address(this),

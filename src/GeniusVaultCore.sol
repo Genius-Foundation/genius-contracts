@@ -9,6 +9,7 @@ import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/Pau
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
@@ -32,14 +33,19 @@ abstract contract GeniusVaultCore is
 {
     using SafeERC20 for IERC20;
 
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
+
+    // Price bounds (8 decimals like Chainlink)
+    uint256 public constant PRICE_LOWER_BOUND = 98_000_000; // 0.98
+    uint256 public constant PRICE_UPPER_BOUND = 102_000_000; // 1.02
+
     // Immutable state variables (not actually immutable due to upgradeability)
     IERC20 public STABLECOIN;
     IGeniusProxyCall public PROXYCALL;
 
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
-
     // Mutable state variables
+    AggregatorV3Interface public stablecoinPriceFeed;
     uint256 public totalStakedAssets;
     uint256 public rebalanceThreshold;
 
@@ -89,7 +95,8 @@ abstract contract GeniusVaultCore is
         address _stablecoin,
         address _admin,
         address _multicall,
-        uint256 _rebalanceThreshold
+        uint256 _rebalanceThreshold,
+        address _priceFeed
     ) internal onlyInitializing {
         if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
         if (_admin == address(0)) revert GeniusErrors.NonAddress0();
@@ -101,6 +108,7 @@ abstract contract GeniusVaultCore is
         STABLECOIN = IERC20(_stablecoin);
         PROXYCALL = IGeniusProxyCall(_multicall);
         _setRebalanceThreshold(_rebalanceThreshold);
+        _setPriceFeed(_priceFeed);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
@@ -367,6 +375,13 @@ abstract contract GeniusVaultCore is
     }
 
     /**
+     * @dev See {IGeniusVault-setPriceFeed}.
+     */
+    function setPriceFeed(address _priceFeed) external onlyAdmin {
+        _setPriceFeed(_priceFeed);
+    }
+
+    /**
      * @dev See {IGeniusVault-setTargetChainMinFee}.
      */
     function setTargetChainMinFee(
@@ -380,6 +395,38 @@ abstract contract GeniusVaultCore is
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
+
+    /**
+     * @notice Checks if the stablecoin price is within acceptable bounds
+     * @dev Reverts if price is stale or out of bounds
+     * @return bool True if price is valid
+     */
+    function _verifyStablecoinPrice() internal view returns (bool) {
+        try stablecoinPriceFeed.latestRoundData() returns (
+            uint80 roundId,
+            int256 price,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
+        ) {
+            startedAt;
+            // Validate price feed response
+            if (price <= 0) revert GeniusErrors.InvalidPrice(price);
+            if (answeredInRound < roundId)
+                revert GeniusErrors.StalePrice(updatedAt);
+
+            uint256 priceUint = uint256(price);
+            if (
+                priceUint < PRICE_LOWER_BOUND || priceUint > PRICE_UPPER_BOUND
+            ) {
+                revert GeniusErrors.PriceOutOfBounds(priceUint);
+            }
+
+            return true;
+        } catch {
+            revert GeniusErrors.PriceFeedError();
+        }
+    }
 
     /**
      * @dev Internal function to spend an allowance.
@@ -410,6 +457,18 @@ abstract contract GeniusVaultCore is
 
         PROXYCALL = IGeniusProxyCall(_proxyCall);
         emit ProxyCallChanged(_proxyCall);
+    }
+
+    /**
+     * @dev Internal function to set the address of the price feed contract.m
+     *
+     * @param _priceFeed The address of the price feed contract.
+     */
+    function _setPriceFeed(address _priceFeed) internal {
+        if (_priceFeed == address(0)) revert GeniusErrors.NonAddress0();
+
+        stablecoinPriceFeed = AggregatorV3Interface(_priceFeed);
+        emit PriceFeedUpdated(_priceFeed);
     }
 
     /**
