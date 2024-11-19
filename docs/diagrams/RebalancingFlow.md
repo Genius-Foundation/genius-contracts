@@ -1,23 +1,23 @@
 ```mermaid
 sequenceDiagram
     participant Orchestrator as Lit Action (Orchestrator)
-    participant Pool_Source as Pool Source Chain
+    participant Vault_Source as Vault Source Chain
     participant Bridge as Bridge Contract
-    participant Pool_Dest as Pool Destination Chain
+    participant Vault_Dest as Vault Destination Chain
 
-    Orchestrator->>Pool_Source: removeBridgeLiquidity(amountIn, dstChainId, targets, values, data)
-    activate Pool_Source
-    Note over Pool_Source: Check if amount is within available assets
-    Note over Pool_Source: Verify balance remains within threshold
-    Pool_Source->>Bridge: Bridge stablecoins (via targets, values, data)
+    Orchestrator->>Vault_Source: rebalanceLiquidity(amountIn, dstChainId, targets, values, data)
+    activate Vault_Source
+    Note over Vault_Source: Check if amount is within available assets
+    Note over Vault_Source: Verify balance remains within threshold
+    Vault_Source->>Bridge: Bridge stablecoins (via targets, values, data)
     activate Bridge
-    Pool_Source-->>Orchestrator: Emit RemovedLiquidity event
-    deactivate Pool_Source
+    Vault_Source-->>Orchestrator: Emit RemovedLiquidity event
+    deactivate Vault_Source
 
-    Bridge-->>Pool_Dest: Send bridged stablecoins
+    Bridge-->>Vault_Dest: Send bridged stablecoins
     deactivate Bridge
-    activate Pool_Dest
-    Note over Pool_Dest: Receive bridged stablecoins
-    Note over Pool_Dest: Update total assets
-    deactivate Pool_Dest
+    activate Vault_Dest
+    Note over Vault_Dest: Receive bridged stablecoins
+    Note over Vault_Dest: Update total assets
+    deactivate Vault_Dest
 ```

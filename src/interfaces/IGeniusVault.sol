@@ -215,8 +215,15 @@ interface IGeniusVault {
     function createOrder(Order memory order) external payable;
 
     /**
-     * @notice Removes liquidity from the GeniusVault contract
-     * of the destination chain in a cross-chain order flow.
+     * @notice Fill an order on the destination chain
+     *
+     * The swap should have the receiver as the receiver if no arbitrary call
+     * Otherwise, the swap receiver address should be the proxycall contract
+     *
+     * If an arbitrary call is present, the tokenOut balance will be transferred
+     * to the target before executing the call
+     * If an arbitrary call is present, the seed should be keccak256(callTarget,callData)
+     *
      * @param order The Order struct containing the order details.
      */
     function fillOrder(
