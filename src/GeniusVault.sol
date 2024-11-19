@@ -18,7 +18,6 @@ contract GeniusVault is GeniusVaultCore {
     uint256 public feesCollected;
     uint256 public feesClaimed;
 
-
     constructor() {
         _disableInitializers();
     }
@@ -55,12 +54,13 @@ contract GeniusVault is GeniusVaultCore {
     ) external payable virtual override whenNotPaused {
         // Check stablecoin price before accepting the order
         _verifyStablecoinPrice();
-        
+
         address tokenIn = address(STABLECOIN);
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.NonAddress0();
-        if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
-        if (order.tokenIn != addressToBytes32(tokenIn))
+        if (order.amountIn == 0 || order.amountIn <= order.fee)
+            revert GeniusErrors.InvalidAmount();
+        if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
             revert GeniusErrors.InvalidTokenIn();
         if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
         if (order.destChainId == _currentChainId())

@@ -409,8 +409,6 @@ abstract contract GeniusVaultCore is
             uint80 answeredInRound
         ) {
             startedAt;
-            // Validate price feed response
-            if (price <= 0) revert GeniusErrors.InvalidPrice(price);
             if (answeredInRound < roundId)
                 revert GeniusErrors.StalePrice(updatedAt);
 

@@ -702,7 +702,7 @@ contract GeniusVaultTest is Test {
         MOCK_PRICE_FEED.updatePrice(-1);
 
         vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.InvalidPrice.selector, -1)
+            abi.encodeWithSelector(GeniusErrors.PriceOutOfBounds.selector, -1)
         );
         VAULT.createOrder(order);
 

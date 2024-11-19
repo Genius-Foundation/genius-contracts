@@ -78,7 +78,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         address tokenIn = bytes32ToAddress(order.tokenIn);
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.NonAddress0();
-        if (order.amountIn == 0) revert GeniusErrors.InvalidAmount();
+        if (order.amountIn == 0 || order.amountIn <= order.fee) revert GeniusErrors.InvalidAmount();
+        if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
         if (order.destChainId == _currentChainId())
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
         if (order.srcChainId != _currentChainId())
@@ -107,8 +108,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             );
         }
 
-        orderStatus[_orderHash] = OrderStatus.Created;
         feesCollected[tokenIn] += order.fee;
+        orderStatus[_orderHash] = OrderStatus.Created;
 
         emit OrderCreated(
             order.seed,
