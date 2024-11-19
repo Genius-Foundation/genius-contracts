@@ -20,11 +20,11 @@ interface IGeniusProxyCall {
     function execute(address target, bytes calldata data) external payable;
 
     /**
-     * @notice Performs a sequence of operations: optional token swap 
+     * @notice Performs a sequence of operations: optional token swap
      * followed by an optional contract call.
-     * The swap is executed from an function of the contract called as an external function, 
+     * The swap is executed from an function of the contract called as an external function,
      * so if the call revert because the amountOut is too low, the contract will revert the swap.
-     * 
+     *
      * @param receiver The address that will receive any remaining tokens after the operations
      * @param swapTarget The target contract for the swap operation (address(0) if no swap needed)
      * @param callTarget The target contract for the subsequent call (address(0) if no call needed)
@@ -56,7 +56,9 @@ interface IGeniusProxyCall {
 
     /**
      * @notice Approves a token for spending, executes a call, and verifies the output amount
-     * @dev This function handles token approvals and verifies the received amount meets minimum requirements
+     * @dev This function handles token approvals and verifies the expectedTokenReceiver balance changed
+     * of at least minAmountOut, otherwise it reverts the transaction
+     *
      * @param token The token to approve for spending
      * @param target The target contract to call
      * @param data The calldata to pass to the target contract
@@ -76,6 +78,8 @@ interface IGeniusProxyCall {
 
     /**
      * @notice Approves a token for spending and executes a call
+     * If he call fails, the transaction will revert
+     *
      * @dev This function handles token approvals without verifying the output amount
      * @param token The token to approve for spending
      * @param target The target contract to call
