@@ -149,6 +149,7 @@ abstract contract GeniusVaultCore is
         address receiver
     ) external override whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (receiver == address(0)) revert GeniusErrors.NonAddress0(); 
 
         totalStakedAssets += amount;
 
