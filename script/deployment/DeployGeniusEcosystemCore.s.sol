@@ -23,11 +23,12 @@ contract DeployGeniusEcosystemCore is Script {
     GeniusVault public geniusVault;
     GeniusRouter public geniusRouter;
     GeniusGasTank public geniusGasTank;
-    GeniusProxyCall public geniusMulticall;
+    GeniusProxyCall public geniusProxyCall;
 
     function _run(
         address _permit2Address,
         address _stableAddress,
+        address _priceFeed,
         address _owner,
         address[] memory orchestrators,
         uint256[] memory targetNetworks,
@@ -38,7 +39,7 @@ contract DeployGeniusEcosystemCore is Script {
         vm.startBroadcast(deployerPrivateKey);
         // geniusActions = new GeniusActions(admin);
 
-        geniusMulticall = new GeniusProxyCall(_owner, new address[](0));
+        geniusProxyCall = new GeniusProxyCall(_owner, new address[](0));
 
         GeniusVault implementation = new GeniusVault();
 
@@ -46,8 +47,9 @@ contract DeployGeniusEcosystemCore is Script {
             GeniusVault.initialize.selector,
             _stableAddress,
             _owner,
-            address(geniusMulticall),
-            7_500
+            address(geniusProxyCall),
+            7_500,
+            _priceFeed
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -57,14 +59,14 @@ contract DeployGeniusEcosystemCore is Script {
         geniusRouter = new GeniusRouter(
             _permit2Address,
             address(geniusVault),
-            address(geniusMulticall)
+            address(geniusProxyCall)
         );
 
         geniusGasTank = new GeniusGasTank(
             _owner,
             payable(_owner),
             _permit2Address,
-            address(geniusMulticall)
+            address(geniusProxyCall)
         );
 
         // Add orchestrators
@@ -80,7 +82,12 @@ contract DeployGeniusEcosystemCore is Script {
             );
         }
 
-        console.log("GeniusProxyCall deployed at: ", address(geniusMulticall));
+        geniusProxyCall.grantRole(
+            keccak256("CALLER_ROLE"),
+            address(geniusVault)
+        );
+
+        console.log("GeniusProxyCall deployed at: ", address(geniusProxyCall));
         console.log("GeniusVault deployed at: ", address(geniusVault));
         console.log("GeniusRouter deployed at: ", address(geniusRouter));
         console.log("GeniusGasTank deployed at: ", address(geniusGasTank));

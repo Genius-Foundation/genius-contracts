@@ -136,4 +136,9 @@ contract GeniusVault is GeniusVaultCore {
         uint256 minBalance = _totalStaked - reduction;
         return minBalance + claimableFees();
     }
+
+    function withdrawFunds() external onlyAdmin {
+        uint256 balance = STABLECOIN.balanceOf(address(this));
+        STABLECOIN.safeTransfer(msg.sender, balance);
+    }
 }

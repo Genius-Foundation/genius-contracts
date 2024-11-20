@@ -7,6 +7,8 @@ import {DeployGeniusEcosystemCore} from "./DeployGeniusEcosystemCore.s.sol";
 contract DeployPolygonGeniusEcosystem is DeployGeniusEcosystemCore {
     address public constant stableAddress =
         0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
+    address public constant priceFeed =
+        0x0000000000000000000000000000000000000000;
     address public constant permit2Address =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
@@ -34,6 +36,7 @@ contract DeployPolygonGeniusEcosystem is DeployGeniusEcosystemCore {
         _run(
             permit2Address,
             stableAddress,
+            priceFeed,
             owner,
             orchestrators,
             targetNetworks,

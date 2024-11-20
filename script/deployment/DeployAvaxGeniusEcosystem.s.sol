@@ -5,8 +5,12 @@ import {DeployGeniusEcosystemCore} from "./DeployGeniusEcosystemCore.s.sol";
 
 // COMMAND: forge script script/deployment/DeployAvaxGeniusEcosystem.s.sol --rpc-url $AVALANCHE_RPC_URL --broadcast --via-ir
 contract DeployAvaxGeniusEcosystem is DeployGeniusEcosystemCore {
-    address public constant stableAddress = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
-    address public constant permit2Address = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+    address public constant stableAddress =
+        0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
+    address public constant priceFeed =
+        0x0000000000000000000000000000000000000000;
+    address public constant permit2Address =
+        0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
 
     function run() external {
@@ -16,7 +20,7 @@ contract DeployAvaxGeniusEcosystem is DeployGeniusEcosystemCore {
         orchestrators[2] = 0x90B29aF53D2bBb878cAe1952B773A307330393ef;
         orchestrators[3] = 0x7e5E0712c627746a918ae2015e5bfAB51c86dA26;
         orchestrators[4] = 0x5975fBa1186116168C479bb21Bb335f02D504CFB;
-        
+
         address[] memory feeTokens = new address[](2);
         feeTokens[0] = stableAddress; // USDC
         feeTokens[1] = stableAddress; // USDC
@@ -32,6 +36,7 @@ contract DeployAvaxGeniusEcosystem is DeployGeniusEcosystemCore {
         _run(
             permit2Address,
             stableAddress,
+            priceFeed,
             owner,
             orchestrators,
             targetNetworks,
