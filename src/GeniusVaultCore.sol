@@ -51,7 +51,6 @@ abstract contract GeniusVaultCore is
 
     mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
 
-    mapping(address => uint256) public supportedBridges;
     mapping(bytes32 => OrderStatus) public orderStatus;
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -149,7 +148,7 @@ abstract contract GeniusVaultCore is
         address receiver
     ) external override whenNotPaused {
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (receiver == address(0)) revert GeniusErrors.NonAddress0(); 
+        if (receiver == address(0)) revert GeniusErrors.NonAddress0();
 
         totalStakedAssets += amount;
 
