@@ -294,6 +294,71 @@ contract GeniusMulticallTest is Test {
         );
     }
 
+    function testExecuteWithPermit2RemainingFunds() public {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(USDC),
+                amount: uint160(BASE_USER_USDC_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        // Create multicall that only uses part of the permitted tokens
+        bytes[] memory dataArray = new bytes[](2);
+        dataArray[0] = abi.encodeWithSignature(
+            "approve(address,uint256)",
+            address(ROUTER),
+            BASE_USER_USDC_BALANCE / 2 // Only approve half
+        );
+        dataArray[1] = abi.encodeWithSignature(
+            "swapTo(address,address,uint256,address)",
+            address(USDC),
+            address(WETH),
+            BASE_USER_USDC_BALANCE / 2, // Only swap half
+            USER
+        );
+
+        address[] memory targets = new address[](2);
+        targets[0] = address(USDC);
+        targets[1] = address(ROUTER);
+
+        vm.prank(USER);
+        MULTICALL.executeWithPermit2(
+            address(MULTICALL),
+            _encodeTransactions(targets, new uint256[](2), dataArray),
+            permitBatch,
+            permitSignature
+        );
+
+        // Verify remaining USDC was returned to user
+        assertEq(
+            USDC.balanceOf(USER),
+            BASE_USER_USDC_BALANCE / 2,
+            "Remaining USDC not returned to user"
+        );
+        // Verify WETH from swap was received
+        assertEq(
+            WETH.balanceOf(USER),
+            BASE_ROUTER_WETH_BALANCE / 2,
+            "WETH balance mismatch"
+        );
+        // Verify no tokens left in multicall contract
+        assertEq(
+            USDC.balanceOf(address(MULTICALL)),
+            0,
+            "Tokens left in multicall contract"
+        );
+    }
+
     function _generatePermitBatchSignature(
         IAllowanceTransfer.PermitDetails[] memory details
     )
