@@ -122,10 +122,14 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
             (success, ) = address(this).call(wrappedCallData);
         }
 
-        uint256 balance = IERC20(tokenOut).balanceOf(address(this));
+        uint256 balance = IERC20(effectiveTokenOut).balanceOf(address(this));
 
-        if (balance > 0) {
-            IERC20(tokenOut).safeTransfer(receiver, balance);
+        if (balance > 0)
+            IERC20(effectiveTokenOut).safeTransfer(receiver, balance);
+
+        if (stablecoin != effectiveTokenOut) {
+            uint256 balanceStable = IERC20(stablecoin).balanceOf(address(this));
+            IERC20(stablecoin).safeTransfer(receiver, balanceStable);
         }
     }
 
@@ -245,9 +249,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
     }
 
     /**
-     * @notice Approves a target contract to spend the maximum amount of a token, 
+     * @notice Approves a target contract to spend the maximum amount of a token,
      * and then executes an arbitrary call.
-     * 
+     *
      * @param token The token to approve for spending.
      * @param target The target contract to call.
      * @param data The data to pass to the target contract.
@@ -275,7 +279,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
 
     /**
      * @notice Checks if an address is a contract.
-     * 
+     *
      * @param _addr The address to check if it is a contract.
      */
     function _isContract(address _addr) private view returns (bool hasCode) {
