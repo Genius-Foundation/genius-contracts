@@ -519,19 +519,6 @@ abstract contract GeniusVaultCore is
     }
 
     /**
-     * @dev Internal function to update the staked balance.
-     * @param amount The amount to update the balance with.
-     * @param add The operation to perform. 1 for addition, 0 for subtraction.
-     */
-    function _updateStakedBalance(uint256 amount, uint256 add) internal {
-        if (add == 1) {
-            totalStakedAssets += amount;
-        } else {
-            totalStakedAssets -= amount;
-        }
-    }
-
-    /**
      * @dev internal pure function to validate a percentage.
      *
      * @param percentage The percentage to validate.
