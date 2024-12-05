@@ -89,6 +89,10 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         );
 
         _verifySignature(messageHash, signature, owner);
+
+        uint256 currentNonce = nonces[owner];
+        nonces[owner]++;
+
         address[] memory tokensIn = _permitAndBatchTransfer(
             permitBatch,
             permitSignature,
@@ -114,7 +118,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
             target,
             feeToken,
             feeAmount,
-            nonces[owner]++
+            currentNonce
         );
     }
 
