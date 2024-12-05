@@ -22,15 +22,10 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     using SafeERC20 for IERC20;
 
     // ╔═══════════════════════════════════════════════════════════╗
-    // ║                        IMMUTABLES                         ║
-    // ╚═══════════════════════════════════════════════════════════╝
-
-    address public immutable NATIVE = address(0);
-
-    // ╔═══════════════════════════════════════════════════════════╗
     // ║                         VARIABLES                         ║
     // ╚═══════════════════════════════════════════════════════════╝
 
+    address public NATIVE;
     mapping(address token => uint256 amount) public feesCollected;
     mapping(address token => uint256 amount) public feesClaimed;
 
@@ -50,12 +45,14 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
      * @dev See {IGeniusMultiTokenPool-initialize}.
      */
     function initialize(
+        address _native,
         address _stablecoin,
         address _admin,
         address _multicall,
         uint256 _rebalanceThreshold,
         address _priceFeed
     ) external initializer {
+        NATIVE = _native;
         GeniusVaultCore._initialize(
             _stablecoin,
             _admin,

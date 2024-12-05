@@ -96,6 +96,7 @@ contract GeniusVaultTransferVerificationTest is Test {
 
         bytes memory dataMulti = abi.encodeWithSelector(
             GeniusMultiTokenVault.initialize.selector,
+            address(0),
             address(USDC),
             OWNER,
             address(PROXYCALL),

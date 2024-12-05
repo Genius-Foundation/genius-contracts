@@ -73,6 +73,7 @@ contract GeniusMultiTokenVaultFees is Test {
 
         bytes memory data = abi.encodeWithSelector(
             GeniusMultiTokenVault.initialize.selector,
+            address(0),
             address(USDC),
             OWNER,
             address(PROXYCALL),
