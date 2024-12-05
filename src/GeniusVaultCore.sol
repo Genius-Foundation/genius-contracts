@@ -103,6 +103,8 @@ abstract contract GeniusVaultCore is
         __ERC20_init("Genius USD", "gUSD");
         __AccessControl_init();
         __Pausable_init();
+        __ReentrancyGuard_init();
+        __UUPSUpgradeable_init();
 
         STABLECOIN = IERC20(_stablecoin);
         PROXYCALL = IGeniusProxyCall(_multicall);
