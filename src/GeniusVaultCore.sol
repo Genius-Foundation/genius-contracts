@@ -246,12 +246,14 @@ abstract contract GeniusVaultCore is
         }
 
         emit OrderFilled(
-            order.seed,
+            order.srcChainId,
             order.trader,
             order.receiver,
+            order.seed,
+            orderHash_,
             effectiveTokenOut,
             effectiveAmountOut,
-            order.destChainId,
+            order.amountIn - order.fee,
             success
         );
     }

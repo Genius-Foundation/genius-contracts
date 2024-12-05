@@ -91,8 +91,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         if (order.fee < minFee)
             revert GeniusErrors.InsufficientFees(order.fee, minFee, tokenIn);
 
-        bytes32 _orderHash = orderHash(order);
-        if (orderStatus[_orderHash] != OrderStatus.Nonexistant)
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
 
         if (tokenIn == NATIVE) {
@@ -110,18 +110,18 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         }
 
         feesCollected[tokenIn] += order.fee;
-        orderStatus[_orderHash] = OrderStatus.Created;
+        orderStatus[orderHash_] = OrderStatus.Created;
 
         emit OrderCreated(
-            order.seed,
+            order.destChainId,
             order.trader,
             order.receiver,
+            order.seed,
+            orderHash_,
             order.tokenIn,
             order.tokenOut,
             order.amountIn,
             order.minAmountOut,
-            order.srcChainId,
-            order.destChainId,
             order.fee
         );
     }

@@ -75,43 +75,51 @@ interface IGeniusVault {
 
     /**
      * @notice Emitted on the source chain when a swap deposit is made.
-     * @param seed The unique seed of the order.
-     * @param trader The address of the trader.
-     * @param tokenIn The address of the input token.
-     * @param amountIn The amount of input tokens.
-     * @param srcChainId The source chain ID.
      * @param destChainId The destination chain ID.
+     * @param trader The address of the trader.
+     * @param receiver The address of the receiver.
+     * @param seed The seed of the order.
+     * @param orderHash The unique hash of the order.
+     * @param tokenIn The address of the input token.
+     * @param tokenOut The address of the output token.
+     * @param amountIn The amount of input tokens.
+     * @param minAmountOut The minimum amount of output tokens.
+     * @param fee The fees paid for the order
      */
     event OrderCreated(
-        bytes32 indexed seed,
+        uint256 indexed destChainId,
         bytes32 indexed trader,
         bytes32 indexed receiver,
+        bytes32 seed,
+        bytes32 orderHash,
         bytes32 tokenIn,
         bytes32 tokenOut,
         uint256 amountIn,
         uint256 minAmountOut,
-        uint256 srcChainId,
-        uint256 destChainId,
         uint256 fee
     );
 
     /**
      * @notice Emitted on the destination chain when a swap withdrawal occurs.
-     * @param seed The unique seed of the order.
      * @param trader The address of the trader.
      * @param receiver The address of the receiver.
+     * @param seed The seed of the order.
+     * @param orderHash The unique hash of the order.
      * @param effectiveTokenOut The address of the output token.
      * @param effectiveAmountOut The amount of output tokens.
+     * @param amountStablecoinValue The amount of output tokens in stablecoin value.
      * @param srcChainId The source chain ID.
      * @param success False if any external call failed
      */
     event OrderFilled(
-        bytes32 indexed seed,
+        uint256 indexed srcChainId,
         bytes32 indexed trader,
         bytes32 indexed receiver,
+        bytes32 seed,
+        bytes32 orderHash,
         address effectiveTokenOut,
         uint256 effectiveAmountOut,
-        uint256 srcChainId,
+        uint256 amountStablecoinValue,
         bool success
     );
 

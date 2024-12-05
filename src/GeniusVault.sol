@@ -83,15 +83,15 @@ contract GeniusVault is GeniusVaultCore {
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit OrderCreated(
-            order.seed,
+            order.destChainId,
             order.trader,
             order.receiver,
+            order.seed,
+            orderHash_,
             order.tokenIn,
             order.tokenOut,
             order.amountIn,
             order.minAmountOut,
-            order.srcChainId,
-            order.destChainId,
             order.fee
         );
     }

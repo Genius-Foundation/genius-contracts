@@ -192,19 +192,32 @@ contract GeniusSponsoredOrdersTest is Test {
             USER_PK
         );
 
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: bytes32(uint256(1)),
+            trader: RECEIVER,
+            receiver: RECEIVER,
+            tokenIn: TOKEN_IN,
+            tokenOut: TOKEN_OUT,
+            amountIn: BASE_ROUTER_USDC_BALANCE / 2,
+            minAmountOut: minAmountOut,
+            destChainId: destChainId,
+            srcChainId: block.chainid,
+            fee: bridgeFee
+        });
+
         vm.startPrank(SENDER);
 
         vm.expectEmit(address(GENIUS_VAULT));
         emit IGeniusVault.OrderCreated(
+            destChainId,
+            RECEIVER,
+            RECEIVER,
             bytes32(uint256(1)),
-            RECEIVER,
-            RECEIVER,
+            GENIUS_VAULT.orderHash(order),
             TOKEN_IN,
             TOKEN_OUT,
             BASE_ROUTER_USDC_BALANCE / 2,
             minAmountOut,
-            block.chainid,
-            destChainId,
             bridgeFee
         );
 

@@ -130,21 +130,34 @@ contract GeniusRouterTest is Test {
         uint256 fee = 1 ether;
         uint256 minAmountOut = 49 ether;
 
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: bytes32(uint256(1)),
+            trader: RECEIVER,
+            receiver: RECEIVER,
+            amountIn: BASE_ROUTER_USDC_BALANCE / 2,
+            tokenIn: TOKEN_IN,
+            tokenOut: TOKEN_OUT,
+            destChainId: destChainId,
+            srcChainId: block.chainid,
+            minAmountOut: minAmountOut,
+            fee: fee
+        });
+
         vm.startPrank(USER);
 
         DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
 
         vm.expectEmit(address(GENIUS_VAULT));
         emit IGeniusVault.OrderCreated(
+            destChainId,
+            RECEIVER,
+            RECEIVER,
             bytes32(uint256(1)),
-            RECEIVER,
-            RECEIVER,
+            GENIUS_VAULT.orderHash(order),
             TOKEN_IN,
             TOKEN_OUT,
             BASE_ROUTER_USDC_BALANCE / 2,
             minAmountOut,
-            block.chainid,
-            destChainId,
             fee
         );
 
@@ -202,17 +215,30 @@ contract GeniusRouterTest is Test {
 
         DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
 
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: bytes32(uint256(1)),
+            trader: RECEIVER,
+            receiver: RECEIVER,
+            amountIn: BASE_ROUTER_USDC_BALANCE / 2,
+            tokenIn: TOKEN_IN,
+            tokenOut: TOKEN_OUT,
+            destChainId: destChainId,
+            srcChainId: block.chainid,
+            minAmountOut: minAmountOut,
+            fee: fee
+        });
+
         vm.expectEmit(address(GENIUS_VAULT));
         emit IGeniusVault.OrderCreated(
+            destChainId,
+            RECEIVER,
+            RECEIVER,
             bytes32(uint256(1)),
-            RECEIVER,
-            RECEIVER,
+            GENIUS_VAULT.orderHash(order),
             TOKEN_IN,
             TOKEN_OUT,
             BASE_ROUTER_USDC_BALANCE / 2,
             minAmountOut,
-            block.chainid,
-            destChainId,
             fee
         );
 
@@ -312,17 +338,30 @@ contract GeniusRouterTest is Test {
         DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
         WETH.approve(address(GENIUS_ROUTER), type(uint256).max);
 
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: bytes32(uint256(1)),
+            trader: RECEIVER,
+            receiver: RECEIVER,
+            amountIn: (BASE_ROUTER_USDC_BALANCE * 75) / 100,
+            tokenIn: TOKEN_IN,
+            tokenOut: TOKEN_OUT,
+            destChainId: destChainId,
+            srcChainId: block.chainid,
+            minAmountOut: minAmountOut,
+            fee: fee
+        });
+
         vm.expectEmit(address(GENIUS_VAULT));
         emit IGeniusVault.OrderCreated(
+            destChainId,
+            RECEIVER,
+            RECEIVER,
             bytes32(uint256(1)),
-            RECEIVER,
-            RECEIVER,
+            GENIUS_VAULT.orderHash(order),
             TOKEN_IN,
             TOKEN_OUT,
             (BASE_ROUTER_USDC_BALANCE * 75) / 100,
             minAmountOut,
-            block.chainid,
-            destChainId,
             fee
         );
 
