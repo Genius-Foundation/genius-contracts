@@ -50,7 +50,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         address _admin,
         address _multicall,
         uint256 _rebalanceThreshold,
-        address _priceFeed
+        address _priceFeed,
+        uint256 _stablePriceLowerBound,
+        uint256 _stablePriceUpperBound
     ) external initializer {
         NATIVE = _native;
         GeniusVaultCore._initialize(
@@ -58,7 +60,9 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             _admin,
             _multicall,
             _rebalanceThreshold,
-            _priceFeed
+            _priceFeed,
+            _stablePriceLowerBound,
+            _stablePriceUpperBound
         );
     }
 

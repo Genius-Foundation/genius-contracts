@@ -82,7 +82,9 @@ contract GeniusRouterTest is Test {
             ADMIN,
             address(PROXYCALL),
             7_500,
-            address(MOCK_PRICE_FEED)
+            address(MOCK_PRICE_FEED),
+            99_000_000,
+            101_000_000
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);

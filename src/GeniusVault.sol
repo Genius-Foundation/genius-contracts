@@ -35,14 +35,18 @@ contract GeniusVault is GeniusVaultCore {
         address _admin,
         address _multicall,
         uint256 _rebalanceThreshold,
-        address _priceFeed
+        address _priceFeed,
+        uint256 _stablePriceLowerBound,
+        uint256 _stablePriceUpperBound
     ) external initializer {
         GeniusVaultCore._initialize(
             _stablecoin,
             _admin,
             _multicall,
             _rebalanceThreshold,
-            _priceFeed
+            _priceFeed,
+            _stablePriceLowerBound,
+            _stablePriceUpperBound
         );
     }
 

@@ -36,10 +36,6 @@ abstract contract GeniusVaultCore is
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
-    // Price bounds (8 decimals like Chainlink)
-    uint256 public constant PRICE_LOWER_BOUND = 98_000_000; // 0.98
-    uint256 public constant PRICE_UPPER_BOUND = 102_000_000; // 1.02
-
     // Immutable state variables (not actually immutable due to upgradeability)
     IERC20 public STABLECOIN;
     IGeniusProxyCall public PROXYCALL;
@@ -49,8 +45,11 @@ abstract contract GeniusVaultCore is
     uint256 public totalStakedAssets;
     uint256 public rebalanceThreshold;
 
-    mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
+    // Price bounds (8 decimals like Chainlink)
+    uint256 public stablePriceLowerBound;
+    uint256 public stablePriceUpperBound;
 
+    mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
     mapping(bytes32 => OrderStatus) public orderStatus;
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -95,7 +94,9 @@ abstract contract GeniusVaultCore is
         address _admin,
         address _multicall,
         uint256 _rebalanceThreshold,
-        address _priceFeed
+        address _priceFeed,
+        uint256 _stablePriceLowerBound,
+        uint256 _stablePriceUpperBound
     ) internal onlyInitializing {
         if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
         if (_admin == address(0)) revert GeniusErrors.NonAddress0();
@@ -110,6 +111,7 @@ abstract contract GeniusVaultCore is
         PROXYCALL = IGeniusProxyCall(_multicall);
         _setRebalanceThreshold(_rebalanceThreshold);
         _setPriceFeed(_priceFeed);
+        _setStablePriceBounds(_stablePriceLowerBound, _stablePriceUpperBound);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
@@ -395,9 +397,35 @@ abstract contract GeniusVaultCore is
         _setTargetChainMinFee(_token, _targetChainId, _minFee);
     }
 
+    /**
+     * @dev See {IGeniusVault-setStablePriceBounds}.
+     */
+    function setStablePriceBounds(
+        uint256 _lowerBound,
+        uint256 _upperBound
+    ) external override onlyAdmin {
+        _setStablePriceBounds(_lowerBound, _upperBound);
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
+
+    /**
+     * @dev Internal function to set stablecoin price bounds for chainlink price feed checks.
+     *
+     * @param _lowerBound The lower bound for the stablecoin price.
+     * @param _upperBound The upper bound for the stablecoin price.
+     */
+    function _setStablePriceBounds(
+        uint256 _lowerBound,
+        uint256 _upperBound
+    ) internal {
+        stablePriceLowerBound = _lowerBound;
+        stablePriceUpperBound = _upperBound;
+
+        emit StablePriceBoundsChanged(_lowerBound, _upperBound);
+    }
 
     /**
      * @notice Checks if the stablecoin price is within acceptable bounds
@@ -418,7 +446,8 @@ abstract contract GeniusVaultCore is
 
             uint256 priceUint = uint256(price);
             if (
-                priceUint < PRICE_LOWER_BOUND || priceUint > PRICE_UPPER_BOUND
+                priceUint < stablePriceLowerBound ||
+                priceUint > stablePriceUpperBound
             ) {
                 revert GeniusErrors.PriceOutOfBounds(priceUint);
             }

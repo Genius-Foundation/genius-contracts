@@ -47,6 +47,8 @@ interface IGeniusVault {
         uint256 fee;
     }
 
+    event StablePriceBoundsChanged(uint256 lower, uint256 upper);
+
     /**
      * @notice Emitted when assets are staked in the GeniusVault contract.
      * @param caller The address of the caller.
@@ -272,6 +274,16 @@ interface IGeniusVault {
         address _token,
         uint256 _targetChainId,
         uint256 _minFee
+    ) external;
+
+    /**
+     * @notice Sets the stable price bounds for the chainlink price feed checks.
+     * @param _lowerBound The new lower bound for the stable price.
+     * @param _upperBound The new upper bound for the stable price.
+     */
+    function setStablePriceBounds(
+        uint256 _lowerBound,
+        uint256 _upperBound
     ) external;
 
     /**
