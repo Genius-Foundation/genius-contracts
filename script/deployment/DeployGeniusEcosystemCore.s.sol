@@ -88,6 +88,14 @@ contract DeployGeniusEcosystemCore is Script {
             keccak256("CALLER_ROLE"),
             address(geniusVault)
         );
+        geniusProxyCall.grantRole(
+            keccak256("CALLER_ROLE"),
+            address(geniusRouter)
+        );
+        geniusProxyCall.grantRole(
+            keccak256("CALLER_ROLE"),
+            address(geniusGasTank)
+        );
 
         console.log("GeniusProxyCall deployed at: ", address(geniusProxyCall));
         console.log("GeniusVault deployed at: ", address(geniusVault));
