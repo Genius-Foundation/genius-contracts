@@ -78,7 +78,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         address tokenIn = bytes32ToAddress(order.tokenIn);
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.NonAddress0();
-        if (order.amountIn == 0 || order.amountIn <= order.fee) revert GeniusErrors.InvalidAmount();
+        if (order.amountIn == 0 || order.amountIn <= order.fee)
+            revert GeniusErrors.InvalidAmount();
         if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
         if (order.destChainId == _currentChainId())
             revert GeniusErrors.InvalidDestChainId(order.destChainId);
@@ -135,6 +136,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     function swapToStables(
         address token,
         uint256 amount,
+        uint256 minAmountOut,
         address target,
         bytes calldata data
     ) external override onlyOrchestrator whenNotPaused {
@@ -165,8 +167,11 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
 
         uint256 postSwapBalance = stablecoinBalance();
 
-        if (postSwapBalance <= preSwapBalance)
-            revert GeniusErrors.TransferFailed(token, amount);
+        if (postSwapBalance - preSwapBalance >= minAmountOut)
+            revert GeniusErrors.InvalidAmountOut(
+                postSwapBalance - preSwapBalance,
+                minAmountOut
+            );
 
         emit SwapExecuted(token, amount, postSwapBalance - preSwapBalance);
     }

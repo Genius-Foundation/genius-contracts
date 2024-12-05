@@ -28,6 +28,7 @@ interface IGeniusMultiTokenVault is IGeniusVault {
     function swapToStables(
         address token,
         uint256 amount,
+        uint256 minAmountOut,
         address target,
         bytes calldata data
     ) external;
