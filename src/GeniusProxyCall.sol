@@ -129,7 +129,8 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
 
         if (stablecoin != effectiveTokenOut) {
             uint256 balanceStable = IERC20(stablecoin).balanceOf(address(this));
-            IERC20(stablecoin).safeTransfer(receiver, balanceStable);
+            if (balanceStable > 0)
+                IERC20(stablecoin).safeTransfer(receiver, balanceStable);
         }
     }
 
