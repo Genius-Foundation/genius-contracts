@@ -18,7 +18,7 @@ contract DeployGeniusMulticall is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        geniusMulticall = new GeniusMulticall(vm.envAddress("PERMIT2_ADDRESS"));
+        geniusMulticall = new GeniusMulticall();
 
         console.log("GeniusMulticall deployed at: ", address(geniusMulticall));
 
