@@ -199,7 +199,7 @@ abstract contract GeniusVaultCore is
         bytes memory swapData,
         address callTarget,
         bytes memory callData
-    ) external override nonReentrant onlyOrchestrator {
+    ) external override onlyOrchestrator nonReentrant {
         _fillOrder(order, swapTarget, swapData, callTarget, callData);
     }
 
@@ -212,7 +212,7 @@ abstract contract GeniusVaultCore is
         bytes[] memory swapsData,
         address[] memory callsTargets,
         bytes[] memory callsData
-    ) external override onlyOrchestrator {
+    ) external override onlyOrchestrator nonReentrant {
         uint256 ordersLength = orders.length;
         if (
             swapsTargets.length != ordersLength ||
@@ -247,7 +247,7 @@ abstract contract GeniusVaultCore is
         bytes memory swapData,
         address callTarget,
         bytes memory callData
-    ) internal whenNotPaused nonReentrant {
+    ) internal whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.OrderAlreadyFilled(orderHash_);
