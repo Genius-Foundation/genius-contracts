@@ -50,6 +50,7 @@ contract GeniusRouter is IGeniusRouter {
         address[] calldata tokensIn,
         uint256[] calldata amountsIn,
         address target,
+        address addressToApprove,
         bytes calldata data,
         address owner,
         uint256 destChainId,
@@ -75,10 +76,11 @@ contract GeniusRouter is IGeniusRouter {
         if (target == address(PROXYCALL))
             PROXYCALL.execute{value: msg.value}(target, data);
         else
-            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+            PROXYCALL.approveAddressAndExecute{value: msg.value}(
                 tokensIn,
                 target,
-                data
+                data,
+                addressToApprove
             );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
@@ -107,6 +109,7 @@ contract GeniusRouter is IGeniusRouter {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address target,
+        address addressToApprove,
         bytes calldata data,
         uint256 destChainId,
         uint256 fee,
@@ -125,10 +128,11 @@ contract GeniusRouter is IGeniusRouter {
         if (target == address(PROXYCALL))
             PROXYCALL.execute{value: msg.value}(target, data);
         else
-            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+            PROXYCALL.approveAddressAndExecute{value: msg.value}(
                 tokensIn,
                 target,
-                data
+                data,
+                addressToApprove
             );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
