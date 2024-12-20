@@ -92,7 +92,7 @@ interface IGeniusProxyCall {
     ) external payable;
 
     /**
-     * @notice Approves multiple tokens for spending and executes a call
+     * @notice Approves multiple tokens for spending by the target and executes a call
      * @dev This function handles multiple token approvals in a single transaction
      * @param tokens Array of token addresses to approve
      * @param to The target contract to approve tokens for and call
@@ -102,6 +102,21 @@ interface IGeniusProxyCall {
         address[] memory tokens,
         address to,
         bytes calldata data
+    ) external payable;
+
+    /**
+     * @notice Approves a specific non-target address for spending and executes a call
+     * @dev This function approves an address for spending and executes a call
+     * @param tokens Array of token addresses to approve
+     * @param target The target contract to approve tokens for and call
+     * @param data The calldata to pass to the target contract
+     * @param addressToApprove The address to approve for spending
+     */
+    function approveAddressAndExecute(
+        address[] memory tokens,
+        address target,
+        bytes calldata data,
+        address addressToApprove
     ) external payable;
 
     /**

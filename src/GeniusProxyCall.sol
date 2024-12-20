@@ -199,6 +199,34 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         }
     }
 
+    function approveAddressAndExecute(
+        address[] memory tokens,
+        address target,
+        bytes calldata data,
+        address addressToApprove
+    ) external payable override onlyCallerOrSelf {
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
+        if (!_isContract(addressToApprove)) revert GeniusErrors.ApprovalTargetIsNotContract();
+
+        if (target == address(this)) {
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target);
+        } else {
+            uint256 tokensLength = tokens.length;
+            for (uint256 i; i < tokensLength; i++) {
+                IERC20(tokens[i]).approve(addressToApprove, type(uint256).max);
+            }
+
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target);
+
+            for (uint i; i < tokensLength; i++) {
+                IERC20(tokens[i]).approve(addressToApprove, 0);
+            }
+        }
+    }
+
     /**
      * @dev See {IGeniusProxyCall-transferTokenAndExecute}.
      */
