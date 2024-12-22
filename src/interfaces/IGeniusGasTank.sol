@@ -99,7 +99,7 @@ interface IGeniusGasTank {
      * @param permitSignature The signature for the Permit2 transfer
      * @param feeToken The token used to pay the fee
      * @param feeAmount The amount of fee to be paid
-     * @param approvalAddress The address that will approve the transaction
+     * @param toApprove The address that will approve the transaction
      */
     function aggregateWithPermit2(
         address target,
@@ -108,7 +108,7 @@ interface IGeniusGasTank {
         bytes calldata permitSignature,
         address feeToken,
         uint256 feeAmount,
-        address approvalAddress
+        address toApprove
     ) external payable;
 
     /**

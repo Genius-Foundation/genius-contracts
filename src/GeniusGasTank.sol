@@ -195,7 +195,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         bytes calldata permitSignature,
         address feeToken,
         uint256 feeAmount,
-        address addressToApprove
+        address toApprove
     ) external payable override {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
 
@@ -215,7 +215,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
                 tokensIn,
                 target,
                 data,
-                addressToApprove
+                toApprove
             );
         }
     }

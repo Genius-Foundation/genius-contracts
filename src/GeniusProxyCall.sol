@@ -178,53 +178,16 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         address target,
         bytes calldata data
     ) external payable override onlyCallerOrSelf {
-        if (target == address(0)) revert GeniusErrors.NonAddress0();
-        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
-
-        if (target == address(this)) {
-            (bool _success, ) = target.call{value: msg.value}(data);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(target);
-        } else {
-            uint256 tokensLength = tokens.length;
-            for (uint256 i; i < tokensLength; i++) {
-                IERC20(tokens[i]).approve(target, type(uint256).max);
-            }
-
-            (bool _success, ) = target.call{value: msg.value}(data);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(target);
-
-            for (uint i; i < tokensLength; i++) {
-                IERC20(tokens[i]).approve(target, 0);
-            }
-        }
+        _approveAddressAndExecute(tokens, target, data, target);
     }
 
     function approveAddressAndExecute(
         address[] memory tokens,
         address target,
         bytes calldata data,
-        address addressToApprove
+        address toApprove
     ) external payable override onlyCallerOrSelf {
-        if (target == address(0)) revert GeniusErrors.NonAddress0();
-        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
-        if (!_isContract(addressToApprove)) revert GeniusErrors.ApprovalTargetIsNotContract();
-
-        if (target == address(this)) {
-            (bool _success, ) = target.call{value: msg.value}(data);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(target);
-        } else {
-            uint256 tokensLength = tokens.length;
-            for (uint256 i; i < tokensLength; i++) {
-                IERC20(tokens[i]).approve(addressToApprove, type(uint256).max);
-            }
-
-            (bool _success, ) = target.call{value: msg.value}(data);
-            if (!_success) revert GeniusErrors.ExternalCallFailed(target);
-
-            for (uint i; i < tokensLength; i++) {
-                IERC20(tokens[i]).approve(addressToApprove, 0);
-            }
-        }
+        _approveAddressAndExecute(tokens, target, data, toApprove);
     }
 
     /**
@@ -275,6 +238,43 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         if (address(this) != msg.sender)
             revert GeniusErrors.InvalidCallerMulticall();
         _multiSend(transactions);
+    }
+
+    /**
+     * @notice Approves multiple tokens for spending by the address to approve,
+     * and then executes an arbitrary call.
+     *
+     * @param tokens The tokens to approve for spending.
+     * @param target The target contract to call.
+     * @param data The data to pass to the target contract.
+     * @param toApprove The address to approve for the swap.
+     */
+    function _approveAddressAndExecute(
+        address[] memory tokens,
+        address target,
+        bytes calldata data,
+        address toApprove
+    ) internal {        
+        if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
+        if (!_isContract(toApprove)) revert GeniusErrors.ApprovalTargetIsNotContract();
+
+        if (target == address(this)) {
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target);
+        } else {
+            uint256 tokensLength = tokens.length;
+            for (uint256 i; i < tokensLength; i++) {
+                IERC20(tokens[i]).approve(toApprove, type(uint256).max);
+            }
+
+            (bool _success, ) = target.call{value: msg.value}(data);
+            if (!_success) revert GeniusErrors.ExternalCallFailed(target);
+
+            for (uint i; i < tokensLength; i++) {
+                IERC20(tokens[i]).approve(toApprove, 0);
+            }
+        }
     }
 
     /**

@@ -50,7 +50,7 @@ contract GeniusRouter is IGeniusRouter {
         address[] calldata tokensIn,
         uint256[] calldata amountsIn,
         address target,
-        address addressToApprove,
+        address toApprove,
         bytes calldata data,
         address owner,
         uint256 destChainId,
@@ -80,7 +80,7 @@ contract GeniusRouter is IGeniusRouter {
                 tokensIn,
                 target,
                 data,
-                addressToApprove
+                toApprove
             );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
@@ -109,7 +109,7 @@ contract GeniusRouter is IGeniusRouter {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address target,
-        address addressToApprove,
+        address toApprove,
         bytes calldata data,
         uint256 destChainId,
         uint256 fee,
@@ -132,7 +132,7 @@ contract GeniusRouter is IGeniusRouter {
                 tokensIn,
                 target,
                 data,
-                addressToApprove
+                toApprove
             );
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
