@@ -235,6 +235,10 @@ interface IGeniusVault {
      * If an arbitrary call is present, the seed should be keccak256(callTarget,callData)
      *
      * @param order The Order struct containing the order details.
+     * @param swapTarget - Swap exec target (address(0) if no swap)
+     * @param swapData - Swap exec data (0x if no swap)
+     * @param callTarget - Arbitrary call exec target (address(0) if no call)
+     * @param callData  - Arbitrary call exec data (0x if no call)
      */
     function fillOrder(
         Order memory order,
@@ -242,6 +246,25 @@ interface IGeniusVault {
         bytes calldata swapData,
         address callTarget,
         bytes calldata callData
+    ) external;
+
+    /**
+     * @notice Fill multiple orders on the destination chain
+     *
+     * The swap should have the receiver as the receiver if no arbitrary call
+     * Otherwise, the swap receiver address should be the proxycall contract
+     *
+     * If an arbitrary call is present, the tokenOut balance will be transferred
+     * to the target
+     * If an arbitrary call is present, the seed should be keccak256(callTarget,callData)
+     * @param orders The Order struct containing the order details.
+     */
+    function fillOrderBatch(
+        Order[] memory orders,
+        address[] memory swapsTargets,
+        bytes[] memory swapsData,
+        address[] memory callsTargets,
+        bytes[] memory callsData
     ) external;
 
     /**

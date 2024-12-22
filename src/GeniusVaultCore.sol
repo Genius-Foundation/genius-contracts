@@ -199,7 +199,55 @@ abstract contract GeniusVaultCore is
         bytes memory swapData,
         address callTarget,
         bytes memory callData
-    ) external virtual override nonReentrant onlyOrchestrator whenNotPaused {
+    ) external override onlyOrchestrator nonReentrant {
+        _fillOrder(order, swapTarget, swapData, callTarget, callData);
+    }
+
+    /**
+     * @dev See {IGeniusVault-fillOrders}.
+     */
+    function fillOrderBatch(
+        Order[] memory orders,
+        address[] memory swapsTargets,
+        bytes[] memory swapsData,
+        address[] memory callsTargets,
+        bytes[] memory callsData
+    ) external override onlyOrchestrator nonReentrant {
+        uint256 ordersLength = orders.length;
+        if (
+            swapsTargets.length != ordersLength ||
+            swapsData.length != ordersLength ||
+            callsTargets.length != ordersLength ||
+            callsData.length != ordersLength
+        ) revert GeniusErrors.ArrayLengthsMismatch();
+
+        for (uint256 i = 0; i < ordersLength; i++) {
+            _fillOrder(
+                orders[i],
+                swapsTargets[i],
+                swapsData[i],
+                callsTargets[i],
+                callsData[i]
+            );
+        }
+    }
+
+    /**
+     * Fill an order on the target chain
+     *
+     * @param order - Order to fill
+     * @param swapTarget - Swap target (address(0) if no swap)
+     * @param swapData - Swap data (0x if no swap)
+     * @param callTarget - Call target (address(0) if no call)
+     * @param callData  - Call data (0x if no call)
+     */
+    function _fillOrder(
+        Order memory order,
+        address swapTarget,
+        bytes memory swapData,
+        address callTarget,
+        bytes memory callData
+    ) internal whenNotPaused {
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.OrderAlreadyFilled(orderHash_);
