@@ -252,6 +252,8 @@ library GeniusErrors {
 
     error TargetIsNotContract();
 
+    error ApprovalTargetIsNotContract();
+
     error InvalidCaller();
 
     error TokenOrTargetChainNotSupported();

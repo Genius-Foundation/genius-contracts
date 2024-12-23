@@ -916,7 +916,8 @@ contract GeniusGasTankTest is Test {
             permitBatch,
             permitSignature,
             address(DAI),
-            1 ether
+            1 ether,
+            address(ROUTER)
         );
 
         assertEq(
@@ -982,7 +983,8 @@ contract GeniusGasTankTest is Test {
             permitBatch,
             permitSignature,
             address(DAI),
-            1 ether
+            1 ether,
+            address(ROUTER)
         );
 
         vm.stopPrank();

@@ -194,7 +194,8 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address feeToken,
-        uint256 feeAmount
+        uint256 feeAmount,
+        address toApprove
     ) external payable override {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
 
@@ -210,10 +211,11 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         if (target == address(PROXYCALL)) {
             PROXYCALL.execute{value: msg.value}(target, data);
         } else {
-            PROXYCALL.approveTokensAndExecute{value: msg.value}(
+            PROXYCALL.approveAddressAndExecute{value: msg.value}(
                 tokensIn,
                 target,
-                data
+                data,
+                toApprove
             );
         }
     }

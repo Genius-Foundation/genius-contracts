@@ -24,6 +24,7 @@ interface IGeniusRouter {
      * @param tokensIn Array of token addresses to be swapped
      * @param amountsIn Array of amounts corresponding to the tokens
      * @param target The contract address to execute the swap on
+     * @param toApprove The address to approve for the swap
      * @param data The calldata for executing the swap
      * @param owner The address that owns the tokens and will create the order
      * @param destChainId The destination chain ID for the cross-chain order
@@ -37,6 +38,7 @@ interface IGeniusRouter {
         address[] calldata tokensIn,
         uint256[] calldata amountsIn,
         address target,
+        address toApprove,
         bytes calldata data,
         address owner,
         uint256 destChainId,
@@ -53,6 +55,7 @@ interface IGeniusRouter {
      * @param permitBatch The Permit2 batch transfer details
      * @param permitSignature The signature for the Permit2 transfer
      * @param target The contract address to execute the swap on
+     * @param toApprove The address to approve for the swap
      * @param data The calldata for executing the swap
      * @param destChainId The destination chain ID for the cross-chain order
      * @param fee The fee to be paid for the cross-chain transaction
@@ -65,6 +68,7 @@ interface IGeniusRouter {
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
         address target,
+        address toApprove,
         bytes calldata data,
         uint256 destChainId,
         uint256 fee,
