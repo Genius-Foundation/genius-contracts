@@ -9,7 +9,7 @@ import {GeniusMulticall} from "../src/GeniusMulticall.sol";
  * @dev A contract for deploying the GeniusMulticall contract.
  *      Deployment commands:
  *      `source .env` // Load environment variables
- *      POLYGON: forge script script/deployment/Deploy\GeniusMulticall.s.sol:DeployGeniusMulticall --rpc-url $ETHEREUM_RPC_URL --broadcast -vvvv --via-ir
+ *      POLYGON: source .env; forge script script/DeployGeniusMulticall.s.sol:DeployGeniusMulticall --rpc-url $POLYGON_RPC_URL --broadcast -vvvv --via-ir
  */
 contract DeployGeniusMulticall is Script {
     GeniusMulticall public geniusMulticall;
