@@ -245,7 +245,7 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         override(IGeniusVault, GeniusVaultCore)
         returns (uint256)
     {
-        uint256 _totalStaked = totalStakedAssets;
+        uint256 _totalStaked = _convertToStablecoinDecimals(totalStakedAssets);
 
         uint256 reduction = _totalStaked > 0
             ? (_totalStaked * rebalanceThreshold) / 10_000

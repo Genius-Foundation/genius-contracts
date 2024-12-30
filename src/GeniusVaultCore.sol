@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
@@ -154,9 +155,16 @@ abstract contract GeniusVaultCore is
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (receiver == address(0)) revert GeniusErrors.NonAddress0();
 
+        // Convert stablecoin amount to vault tokens
+        uint256 stablecoinAmount = _convertToStablecoinDecimals(amount);
+
         totalStakedAssets += amount;
 
-        STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
+        STABLECOIN.safeTransferFrom(
+            msg.sender,
+            address(this),
+            stablecoinAmount
+        );
         _mint(receiver, amount);
 
         emit StakeDeposit(msg.sender, receiver, amount);
@@ -174,6 +182,9 @@ abstract contract GeniusVaultCore is
             _spendAllowance(owner, _msgSender(), amount);
         }
 
+        // Convert vault amount to stablecoin amount
+        uint256 stablecoinAmount = _convertToStablecoinDecimals(amount);
+
         if (amount > stablecoinBalance()) revert GeniusErrors.InvalidAmount();
         if (amount > totalStakedAssets)
             revert GeniusErrors.InsufficientBalance(
@@ -187,7 +198,7 @@ abstract contract GeniusVaultCore is
 
         emit StakeWithdraw(msg.sender, receiver, owner, amount);
 
-        STABLECOIN.safeTransfer(receiver, amount);
+        STABLECOIN.safeTransfer(receiver, stablecoinAmount);
     }
 
     /**
@@ -620,6 +631,45 @@ abstract contract GeniusVaultCore is
      */
     function _currentTimeStamp() internal view returns (uint256) {
         return block.timestamp;
+    }
+
+    function _convertFromStablecoinDecimals(
+        uint256 amount
+    ) internal view returns (uint256) {
+        uint8 fromDecimals = IERC20Metadata(address(STABLECOIN)).decimals();
+        uint8 toDecimals = decimals();
+        return _convertDecimals(amount, fromDecimals, toDecimals);
+    }
+
+    function _convertToStablecoinDecimals(
+        uint256 amount
+    ) internal view returns (uint256) {
+        uint8 fromDecimals = decimals();
+        uint8 toDecimals = IERC20Metadata(address(STABLECOIN)).decimals();
+        return _convertDecimals(amount, fromDecimals, toDecimals);
+    }
+
+    /**
+     * @dev Converts amount between tokens with different decimals
+     * @param amount The amount to convert
+     * @param fromDecimals The decimals of the token to convert from
+     * @param toDecimals The decimals of the token to convert to
+     * @return The converted amount
+     */
+    function _convertDecimals(
+        uint256 amount,
+        uint8 fromDecimals,
+        uint8 toDecimals
+    ) internal pure returns (uint256) {
+        if (fromDecimals == toDecimals) {
+            return amount;
+        }
+
+        if (fromDecimals > toDecimals) {
+            return amount / (10 ** (fromDecimals - toDecimals));
+        }
+
+        return amount * (10 ** (toDecimals - fromDecimals));
     }
 
     /**

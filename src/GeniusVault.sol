@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
@@ -135,7 +136,7 @@ contract GeniusVault is GeniusVaultCore {
      * @dev See {IGeniusVault-minLiquidity}.
      */
     function minLiquidity() public view override returns (uint256) {
-        uint256 _totalStaked = totalStakedAssets;
+        uint256 _totalStaked = _convertToStablecoinDecimals(totalStakedAssets);
         uint256 reduction = (_totalStaked * rebalanceThreshold) / 10_000;
         uint256 minBalance = _totalStaked - reduction;
         return minBalance + claimableFees();

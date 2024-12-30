@@ -54,19 +54,13 @@ contract GeniusVaultStakingTest is Test {
     }
 
     function testSelfDeposit() public {
-        uint256 initialContractUSDCBalance = usdc.balanceOf(address(this));
-        assertEq(
-            initialContractUSDCBalance,
-            1_000_000 ether,
-            "Initial balance should be 1,000 ether"
-        );
-
         usdc.approve(address(geniusVault), 1_000 ether);
-        geniusVault.stakeDeposit(1_000 ether, address(this));
+        uint256 initialContractBalance = usdc.balanceOf(address(this));
+        geniusVault.stakeDeposit(1_000_000_000, address(this));
 
         assertEq(
             usdc.balanceOf(address(this)),
-            1_000_000 ether - 1_000 ether,
+            initialContractBalance - 1_000 ether,
             "Contract balance should be 999,000 ether"
         );
         assertEq(
@@ -77,7 +71,7 @@ contract GeniusVaultStakingTest is Test {
 
         assertEq(
             geniusVault.totalStakedAssets(),
-            1_000 ether,
+            1_000_000_000,
             "Total staked assets should be 1,000 ether"
         );
         assertEq(
@@ -87,8 +81,8 @@ contract GeniusVaultStakingTest is Test {
         );
         assertEq(
             geniusVault.balanceOf(address(this)),
-            1_000 ether,
-            "User shares should be 1,000 ether"
+            1_000_000_000,
+            "User shares should be 1,000,000,000"
         );
     }
 
@@ -113,7 +107,7 @@ contract GeniusVaultStakingTest is Test {
 
         // Deposit
         vm.prank(trader);
-        geniusVault.stakeDeposit(1_000 ether, trader);
+        geniusVault.stakeDeposit(1_000_000_000, trader);
 
         uint256 traderUSDCBalanceAfter = usdc.balanceOf(trader);
 
@@ -130,7 +124,7 @@ contract GeniusVaultStakingTest is Test {
 
         assertEq(
             geniusVault.totalStakedAssets(),
-            1_000 ether,
+            1_000_000_000,
             "Total staked assets in GeniusVault should be 1,000 USDC"
         );
         assertEq(
@@ -140,24 +134,19 @@ contract GeniusVaultStakingTest is Test {
         );
         assertEq(
             geniusVault.balanceOf(trader),
-            1_000 ether,
+            1_000_000_000,
             "Trader should hold shares equivalent to the USDC deposited in GeniusVault"
         );
     }
 
     function testSelfDepositAndWithdraw() public {
         uint256 usdcBalance = usdc.balanceOf(address(this));
-        assertEq(
-            usdcBalance,
-            1_000_000 ether,
-            "Contract should initially have 1,000,000 USDC"
-        );
 
         // Approve the GeniusVault to manage USDC on behalf of the contract
         usdc.approve(address(geniusVault), 1_000 ether);
-        geniusVault.stakeDeposit(1_000 ether, address(this));
+        geniusVault.stakeDeposit(1_000_000_000, address(this));
         geniusVault.approve(address(this), 1_000 ether);
-        geniusVault.stakeWithdraw(1_000 ether, address(this), address(this));
+        geniusVault.stakeWithdraw(1_000_000_000, address(this), address(this));
 
         assertEq(
             usdc.balanceOf(address(this)),
@@ -187,7 +176,7 @@ contract GeniusVaultStakingTest is Test {
         usdc.approve(address(geniusVault), 1_000 ether);
 
         vm.prank(trader);
-        geniusVault.stakeDeposit(1_000 ether, trader);
+        geniusVault.stakeDeposit(1_000_000_000, trader);
         assertEq(
             usdc.balanceOf(trader),
             0,
@@ -200,11 +189,11 @@ contract GeniusVaultStakingTest is Test {
         );
 
         vm.prank(trader);
-        geniusVault.approve(trader, 1_000 ether);
+        geniusVault.approve(trader, 1_000_000_000);
 
         // Withdraw the deposited USDC back to the trader
         vm.prank(trader);
-        geniusVault.stakeWithdraw(1_000 ether, trader, trader);
+        geniusVault.stakeWithdraw(1_000_000_000, trader, trader);
 
         assertEq(
             usdc.balanceOf(trader),
@@ -237,7 +226,7 @@ contract GeniusVaultStakingTest is Test {
                 1_000 ether
             )
         );
-        geniusVault.stakeDeposit(1_000 ether, trader);
+        geniusVault.stakeDeposit(1_000_000_000, trader);
     }
 
     function testWithdrawMoreThanDeposited() public {
@@ -245,12 +234,124 @@ contract GeniusVaultStakingTest is Test {
         vm.prank(trader);
         usdc.approve(address(geniusVault), 500 ether);
         vm.prank(trader);
-        geniusVault.stakeDeposit(500 ether, trader);
+        geniusVault.stakeDeposit(500_000_000, trader);
 
         vm.prank(trader);
         geniusVault.approve(trader, 1_000 ether);
         vm.expectRevert();
         vm.prank(trader);
         geniusVault.stakeWithdraw(1_000 ether, trader, trader);
+    }
+
+    function testStakeDepositConversion() public {
+        vm.startPrank(trader);
+
+        // Approve spending
+        usdc.approve(address(geniusVault), type(uint256).max);
+
+        // Deposit 100 stablecoin (18 decimals)
+        uint256 expectedVaultTokens = 100 * 1e6; // Expected 100 vault tokens (6 decimals)
+
+        geniusVault.stakeDeposit(expectedVaultTokens, trader);
+
+        // Verify balances
+        assertEq(
+            geniusVault.balanceOf(trader),
+            expectedVaultTokens,
+            "Incorrect vault token balance after deposit"
+        );
+        assertEq(
+            geniusVault.totalStakedAssets(),
+            expectedVaultTokens,
+            "Incorrect total staked assets"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testStakeWithdrawConversion() public {
+        vm.startPrank(trader);
+
+        // First deposit
+        usdc.approve(address(geniusVault), type(uint256).max);
+        uint256 depositAmount = 100 * 1e6; // 100 tokens (18 decimals)
+        geniusVault.stakeDeposit(depositAmount, trader);
+
+        // Withdraw half
+        uint256 withdrawVaultTokens = 50 * 1e6; // 50 vault tokens (6 decimals)
+        uint256 expectedStablecoin = 50 * 1e18; // Expected 50 stablecoin (18 decimals)
+
+        uint256 initialStablecoinBalance = usdc.balanceOf(trader);
+
+        geniusVault.stakeWithdraw(withdrawVaultTokens, trader, trader);
+
+        assertEq(
+            usdc.balanceOf(trader) - initialStablecoinBalance,
+            expectedStablecoin,
+            "Incorrect stablecoin amount received"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testPrecisionHandling() public {
+        vm.startPrank(trader);
+        usdc.approve(address(geniusVault), type(uint256).max);
+
+        // Test with a precise amount: 1.123456789123456789 stablecoin (18 decimals)
+        uint256 depositAmount = 1123456000000000000;
+        // Should convert to 1.123456 vault tokens (6 decimals)
+        uint256 expectedVaultTokens = 1123456;
+
+        geniusVault.stakeDeposit(expectedVaultTokens, trader);
+
+        // Check vault tokens received
+        assertEq(
+            geniusVault.balanceOf(trader),
+            expectedVaultTokens,
+            "Incorrect vault tokens after deposit with precision"
+        );
+
+        // Withdraw and verify received amount
+        uint256 initialStablecoinBalance = usdc.balanceOf(trader);
+        geniusVault.stakeWithdraw(expectedVaultTokens, trader, trader);
+
+        assertEq(
+            usdc.balanceOf(trader) - initialStablecoinBalance,
+            depositAmount,
+            "Incorrect stablecoin amount after withdrawal"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testLargeAmounts() public {
+        vm.startPrank(trader);
+        usdc.mint(trader, 1_000_000 ether);
+        usdc.approve(address(geniusVault), type(uint256).max);
+
+        // Test with 1 million tokens
+        uint256 depositAmount = 1_000_000 * 1e18; // 1M tokens (18 decimals)
+        uint256 expectedVaultTokens = 1_000_000 * 1e6; // 1M vault tokens (6 decimals)
+
+        geniusVault.stakeDeposit(expectedVaultTokens, trader);
+
+        assertEq(
+            geniusVault.balanceOf(trader),
+            expectedVaultTokens,
+            "Incorrect vault tokens for large deposit"
+        );
+
+        // Withdraw full amount
+        uint256 initialStablecoinBalance = usdc.balanceOf(trader);
+        geniusVault.stakeWithdraw(expectedVaultTokens, trader, trader);
+
+        assertEq(
+            usdc.balanceOf(trader) - initialStablecoinBalance,
+            depositAmount,
+            "Incorrect stablecoin amount for large withdrawal"
+        );
+
+        vm.stopPrank();
     }
 }
