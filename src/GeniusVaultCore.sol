@@ -455,6 +455,10 @@ abstract contract GeniusVaultCore is
         _setStablePriceBounds(_lowerBound, _upperBound);
     }
 
+    function decimals() public pure override returns (uint8) {
+        return 6;
+    }
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝

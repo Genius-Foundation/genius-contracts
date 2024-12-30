@@ -159,6 +159,10 @@ contract GeniusVaultTest is Test {
         vm.stopPrank();
     }
 
+    function testDecimals() public view {
+        assertEq(USDC.decimals(), 6, "USDC should have 6 decimals");
+    }
+
     function testcreateOrderWhenPaused() public {
         vm.startPrank(OWNER);
         VAULT.pause();
