@@ -633,14 +633,6 @@ abstract contract GeniusVaultCore is
         return block.timestamp;
     }
 
-    function _convertFromStablecoinDecimals(
-        uint256 amount
-    ) internal view returns (uint256) {
-        uint8 fromDecimals = IERC20Metadata(address(STABLECOIN)).decimals();
-        uint8 toDecimals = decimals();
-        return _convertDecimals(amount, fromDecimals, toDecimals);
-    }
-
     function _convertToStablecoinDecimals(
         uint256 amount
     ) internal view returns (uint256) {
