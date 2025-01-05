@@ -320,9 +320,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
     }
 
     /**
-     * @dev Fallback function to revert native token transfers.
+     * @dev Fallback function to receive ETH.
      */
-    receive() external payable {
-        revert("Native tokens not accepted directly");
-    }
+    receive() external payable {}
 }
