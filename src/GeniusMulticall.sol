@@ -14,5 +14,11 @@ contract GeniusMulticall is MultiSendCallOnly {
 
     function multiSend(bytes memory transactions) external payable {
         _multiSend(transactions);
+
+        uint256 balance = address(this).balance;
+        if (balance > 0) {
+            (bool success, ) = msg.sender.call{value: balance}("");
+            require(success, "GeniusMulticall: refund failed");
+        }
     }
 }
