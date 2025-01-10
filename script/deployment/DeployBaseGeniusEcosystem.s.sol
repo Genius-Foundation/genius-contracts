@@ -6,7 +6,7 @@ import {DeployGeniusEcosystemCore} from "./DeployGeniusEcosystemCore.s.sol";
 // COMMAND: forge script script/deployment/DeployBaseGeniusEcosystem.s.sol --rpc-url $BASE_RPC_URL --broadcast --via-ir
 contract DeployBaseGeniusEcosystem is DeployGeniusEcosystemCore {
     address public constant stableAddress =
-        0xd9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA;
+        0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address public constant priceFeed =
         0x7e860098F58bBFC8648a4311b374B1D669a2bc6B;
     address public constant permit2Address =
