@@ -53,6 +53,8 @@ abstract contract GeniusVaultCore is
     mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
     mapping(bytes32 => OrderStatus) public orderStatus;
 
+    mapping(bytes32 => bool) public invalidOrder;
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
     // ╚═══════════════════════════════════════════════════════════╝
@@ -199,6 +201,42 @@ abstract contract GeniusVaultCore is
         emit StakeWithdraw(msg.sender, receiver, owner, amount);
 
         STABLECOIN.safeTransfer(receiver, stablecoinAmount);
+    }
+
+    function revertOrder(Order memory order) external override nonReentrant {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Created)
+            revert GeniusErrors.InvalidOrderStatus();
+        if (!invalidOrder[orderHash_]) revert GeniusErrors.OrderNotInvalid();
+        if (order.srcChainId != _currentChainId())
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+
+        _isAmountValid(order.amountIn - order.fee, availableAssets());
+
+        orderStatus[orderHash_] = OrderStatus.Reverted;
+
+        STABLECOIN.safeTransfer(
+            bytes32ToAddress(order.trader),
+            order.amountIn - order.fee
+        );
+
+        emit OrderReverted(
+            order.srcChainId,
+            order.trader,
+            order.receiver,
+            order.seed,
+            orderHash_
+        );
+
+        orderStatus[orderHash_] = OrderStatus.Nonexistant;
+    }
+
+    function setInvalidOrders(
+        bytes32[] memory orderHashes
+    ) external override onlyOrchestrator {
+        for (uint256 i = 0; i < orderHashes.length; i++) {
+            invalidOrder[orderHashes[i]] = true;
+        }
     }
 
     /**

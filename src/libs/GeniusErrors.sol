@@ -31,6 +31,8 @@ library GeniusErrors {
 
     error IsNotOrchestratorNorAdmin();
 
+    error OrderNotInvalid();
+
     /**
      * @dev Error thrown when an invalid admin address is encountered.
      */

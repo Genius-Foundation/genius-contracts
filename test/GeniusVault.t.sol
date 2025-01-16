@@ -792,4 +792,146 @@ contract GeniusVaultTest is Test {
 
         vm.stopPrank();
     }
+
+    function testRevertOrder() public {
+        // Setup initial state
+        deal(address(USDC), address(VAULT), 1_000 ether);
+
+        // Create and setup the order
+        IGeniusVault.Order memory orderToRevert = IGeniusVault.Order({
+            seed: keccak256(abi.encodePacked("revertOrder")),
+            amountIn: 1_000 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid), // Must be current chain
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        // Mark order as Created and Invalid
+        bytes32 orderHash = VAULT.orderHash(orderToRevert);
+
+        vm.startPrank(address(ORCHESTRATOR));
+        // First create the order
+        USDC.approve(address(VAULT), orderToRevert.amountIn);
+        VAULT.createOrder(orderToRevert);
+
+        // Mark order as invalid
+        bytes32[] memory invalidOrderHashes = new bytes32[](1);
+        invalidOrderHashes[0] = orderHash;
+        VAULT.setInvalidOrders(invalidOrderHashes);
+        vm.stopPrank();
+
+        // Store initial balances
+        uint256 initialVaultBalance = USDC.balanceOf(address(VAULT));
+        uint256 initialTraderBalance = USDC.balanceOf(TRADER);
+
+        // Execute revertOrder
+        VAULT.revertOrder(orderToRevert);
+
+        // Verify the results
+        assertEq(
+            USDC.balanceOf(TRADER),
+            initialTraderBalance + orderToRevert.amountIn - orderToRevert.fee,
+            "Trader should receive amountIn minus fee"
+        );
+
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            initialVaultBalance - (orderToRevert.amountIn - orderToRevert.fee),
+            "Vault balance should decrease by amountIn minus fee"
+        );
+
+        assertEq(
+            uint256(VAULT.orderStatus(orderHash)),
+            uint256(IGeniusVault.OrderStatus.Nonexistant),
+            "Order status should be Nonexistant after revert"
+        );
+    }
+
+    function testRevertOrderFailsIfNotCreated() public {
+        IGeniusVault.Order memory orderToRevert = IGeniusVault.Order({
+            seed: keccak256(abi.encodePacked("revertOrder")),
+            amountIn: 1_000 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidOrderStatus.selector)
+        );
+        VAULT.revertOrder(orderToRevert);
+    }
+
+    function testRevertOrderFailsIfNotInvalid() public {
+        // Setup initial state
+        deal(address(USDC), address(VAULT), 1_000 ether);
+
+        IGeniusVault.Order memory orderToRevert = IGeniusVault.Order({
+            seed: keccak256(abi.encodePacked("revertOrder")),
+            amountIn: 1_000 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        vm.startPrank(address(ORCHESTRATOR));
+        USDC.approve(address(VAULT), orderToRevert.amountIn);
+        VAULT.createOrder(orderToRevert);
+        vm.stopPrank();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.OrderNotInvalid.selector)
+        );
+        VAULT.revertOrder(orderToRevert);
+    }
+
+    function testSetInvalidOrders() public {
+        // Create multiple orders
+        bytes32[] memory orderHashes = new bytes32[](3);
+        orderHashes[0] = keccak256("order1");
+        orderHashes[1] = keccak256("order2");
+        orderHashes[2] = keccak256("order3");
+
+        // Verify orders are not marked as invalid initially
+        assertEq(VAULT.invalidOrder(orderHashes[0]), false);
+        assertEq(VAULT.invalidOrder(orderHashes[1]), false);
+        assertEq(VAULT.invalidOrder(orderHashes[2]), false);
+
+        // Set orders as invalid
+        vm.startPrank(address(ORCHESTRATOR));
+        VAULT.setInvalidOrders(orderHashes);
+        vm.stopPrank();
+
+        // Verify orders are now marked as invalid
+        assertEq(VAULT.invalidOrder(orderHashes[0]), true);
+        assertEq(VAULT.invalidOrder(orderHashes[1]), true);
+        assertEq(VAULT.invalidOrder(orderHashes[2]), true);
+    }
+
+    function testSetInvalidOrdersFailsIfNotOrchestrator() public {
+        bytes32[] memory orderHashes = new bytes32[](1);
+        orderHashes[0] = keccak256("order1");
+
+        vm.startPrank(TRADER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.IsNotOrchestrator.selector)
+        );
+        VAULT.setInvalidOrders(orderHashes);
+        vm.stopPrank();
+    }
 }

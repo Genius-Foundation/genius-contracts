@@ -18,7 +18,8 @@ interface IGeniusVault {
     enum OrderStatus {
         Nonexistant,
         Created,
-        Filled
+        Filled,
+        Reverted
     }
 
     /**
@@ -125,6 +126,14 @@ interface IGeniusVault {
         bool success
     );
 
+    event OrderReverted(
+        uint256 indexed srcChainId,
+        bytes32 indexed trader,
+        bytes32 indexed receiver,
+        bytes32 seed,
+        bytes32 orderHash
+    );
+
     /**
      * @notice Emitted when liquidity is removed for rebalancing.
      * @param amount The amount of funds being bridged.
@@ -225,6 +234,13 @@ interface IGeniusVault {
     function createOrder(Order memory order) external payable;
 
     /**
+     * @notice Set orders as invalid to allow revert from users in cases where the orders are invalid and cannot be filled
+     *
+     * @param orderHashes The hashes of the orders to set as invalid
+     */
+    function setInvalidOrders(bytes32[] memory orderHashes) external;
+
+    /**
      * @notice Fill an order on the destination chain
      *
      * The swap should have the receiver as the receiver if no arbitrary call
@@ -247,6 +263,22 @@ interface IGeniusVault {
         address callTarget,
         bytes calldata callData
     ) external;
+
+    /**
+     * @notice Revert an order on the source chain only if that order is invalid
+     * An order can be invalid if created to another type of chain (e.g. Ethereum to Solana)
+     *  and that the receiver is not a correct solana address
+     *
+     * If the receiver is invalid when an order is created to a compatible chain (e.g. Ethereum to Base),
+     * the amount will be sent to the sender (trader) address
+     *
+     * If the tokenOut is invalid, the effectiveTokenOut will be the stablecoin used on the target chain
+     *
+     * The orchestrators can set orders as invalid using the setInvalidOrders function
+     *
+     * @param order The Order struct containing the order details.
+     */
+    function revertOrder(Order memory order) external;
 
     /**
      * @notice Fill multiple orders on the destination chain

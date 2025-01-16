@@ -10,6 +10,8 @@ contract GeniusProxyCallTest is Test {
     TransferEth public TRANSFER_ETH = new TransferEth();
     address trader = makeAddr("trader");
 
+    receive() external payable {}
+
     function setUp() public {
         // Fund the trader with 10 ether
         vm.deal(trader, 10 ether);
@@ -29,12 +31,15 @@ contract GeniusProxyCallTest is Test {
             payable(address(GENIUS_MULTICALL))
         );
 
-        bytes memory transactions = _encodeTransactions(targets, values, dataArray);
+        bytes memory transactions = _encodeTransactions(
+            targets,
+            values,
+            dataArray
+        );
 
         // Call with value
         GENIUS_MULTICALL.multiSend{value: 1 ether}(transactions);
     }
-
 
     function testNativeRefundTrader() public {
         address[] memory targets = new address[](1);
@@ -49,7 +54,11 @@ contract GeniusProxyCallTest is Test {
             payable(trader)
         );
 
-        bytes memory transactions = _encodeTransactions(targets, values, dataArray);
+        bytes memory transactions = _encodeTransactions(
+            targets,
+            values,
+            dataArray
+        );
 
         // Call with value
         GENIUS_MULTICALL.multiSend{value: 1 ether}(transactions);
