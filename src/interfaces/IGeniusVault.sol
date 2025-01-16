@@ -18,7 +18,8 @@ interface IGeniusVault {
     enum OrderStatus {
         Nonexistant,
         Created,
-        Filled
+        Filled,
+        Reverted
     }
 
     /**
@@ -123,6 +124,14 @@ interface IGeniusVault {
         uint256 effectiveAmountOut,
         uint256 amountStablecoinValue,
         bool success
+    );
+
+    event OrderReverted(
+        uint256 indexed srcChainId,
+        bytes32 indexed trader,
+        bytes32 indexed receiver,
+        bytes32 seed,
+        bytes32 orderHash
     );
 
     /**
@@ -266,6 +275,27 @@ interface IGeniusVault {
         address[] memory callsTargets,
         bytes[] memory callsData
     ) external;
+
+    /**
+     * @notice Revert an order on the source chain only if that order is invalid
+     * An order can be invalid if created to another type of chain (e.g. Ethereum to Solana)
+     *  and that the receiver is not a correct solana address
+     *
+     * If the receiver is invalid when an order is created to a compatible chain (e.g. Ethereum to Base),
+     * the amount will be sent to the sender (trader) address
+     *
+     * If the tokenOut is invalid, the effectiveTokenOut will be the stablecoin used on the target chain
+     *
+     * @param order The Order struct containing the order details.
+     */
+    function revertOrder(Order memory order) external;
+
+    /**
+     * @notice Revert multiple orders on the source chain only if that orders are invalid
+     *
+     * @param orders The Order struct containing the order details.
+     */
+    function revertOrderBatch(Order[] memory orders) external;
 
     /**
      * @notice Claims fees from the GeniusVault contract.

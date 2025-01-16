@@ -201,6 +201,20 @@ abstract contract GeniusVaultCore is
         STABLECOIN.safeTransfer(receiver, stablecoinAmount);
     }
 
+    function revertOrder(
+        Order memory order
+    ) external override onlyOrchestrator {
+        _revertOrder(order);
+    }
+
+    function revertOrderBatch(
+        Order[] memory orders
+    ) external override onlyOrchestrator {
+        for (uint256 i = 0; i < orders.length; i++) {
+            _revertOrder(orders[i]);
+        }
+    }
+
     /**
      * @dev See {IGeniusVault-fillOrder}.
      */
@@ -241,6 +255,31 @@ abstract contract GeniusVaultCore is
                 callsData[i]
             );
         }
+    }
+
+    function _revertOrder(Order memory order) internal whenNotPaused {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
+            revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId())
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+
+        _isAmountValid(order.amountIn - order.fee, availableAssets());
+
+        orderStatus[orderHash_] = OrderStatus.Reverted;
+
+        STABLECOIN.safeTransfer(
+            bytes32ToAddress(order.trader),
+            order.amountIn - order.fee
+        );
+
+        emit OrderReverted(
+            order.srcChainId,
+            order.trader,
+            order.receiver,
+            order.seed,
+            orderHash_
+        );
     }
 
     /**

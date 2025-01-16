@@ -792,4 +792,183 @@ contract GeniusVaultTest is Test {
 
         vm.stopPrank();
     }
+
+    function testRevertOrder() public {
+        // Setup initial state
+        deal(address(USDC), address(VAULT), 1_000 ether);
+        deal(address(USDC), TRADER, 1_000 ether);
+
+        uint256 initialVaultBalance = USDC.balanceOf(address(VAULT));
+        uint256 initialTraderBalance = USDC.balanceOf(TRADER);
+
+        // Create order for reverting
+        IGeniusVault.Order memory orderToRevert = IGeniusVault.Order({
+            seed: keccak256(abi.encodePacked("revertOrder")),
+            amountIn: 100 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        // Revert order as orchestrator
+        vm.startPrank(ORCHESTRATOR);
+        VAULT.revertOrder(orderToRevert);
+        vm.stopPrank();
+
+        // Verify balances after revert
+        assertEq(
+            USDC.balanceOf(TRADER),
+            initialTraderBalance + (orderToRevert.amountIn - orderToRevert.fee),
+            "Trader should receive amount minus fee"
+        );
+
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            initialVaultBalance - (orderToRevert.amountIn - orderToRevert.fee),
+            "Vault balance should decrease by amount minus fee"
+        );
+
+        // Verify order status
+        bytes32 orderHash = VAULT.orderHash(orderToRevert);
+        assertEq(
+            uint256(VAULT.orderStatus(orderHash)),
+            uint256(IGeniusVault.OrderStatus.Reverted),
+            "Order status should be Reverted"
+        );
+    }
+
+    function testRevertOrderWhenPaused() public {
+        vm.startPrank(OWNER);
+        VAULT.pause();
+        vm.stopPrank();
+
+        IGeniusVault.Order memory orderToRevert = IGeniusVault.Order({
+            seed: keccak256(abi.encodePacked("revertOrder")),
+            amountIn: 100 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        vm.startPrank(ORCHESTRATOR);
+        vm.expectRevert(
+            abi.encodeWithSelector(Pausable.EnforcedPause.selector)
+        );
+        VAULT.revertOrder(orderToRevert);
+        vm.stopPrank();
+    }
+
+    function testRevertOrderWithInvalidSourceChain() public {
+        IGeniusVault.Order memory orderToRevert = IGeniusVault.Order({
+            seed: keccak256(abi.encodePacked("revertOrder")),
+            amountIn: 100 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: 999, // Invalid source chain
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        vm.startPrank(ORCHESTRATOR);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidSourceChainId.selector,
+                999
+            )
+        );
+        VAULT.revertOrder(orderToRevert);
+        vm.stopPrank();
+    }
+
+    function testRevertOrderWithInsufficientBalance() public {
+        // Ensure vault has less balance than required
+        deal(address(USDC), address(VAULT), 50 ether);
+
+        IGeniusVault.Order memory orderToRevert = IGeniusVault.Order({
+            seed: keccak256(abi.encodePacked("revertOrder")),
+            amountIn: 100 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        vm.startPrank(ORCHESTRATOR);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InsufficientLiquidity.selector,
+                50 ether,
+                99 ether
+            )
+        );
+        VAULT.revertOrder(orderToRevert);
+        vm.stopPrank();
+    }
+
+    function testRevertOrderNonOrchestrator() public {
+        IGeniusVault.Order memory orderToRevert = IGeniusVault.Order({
+            seed: keccak256(abi.encodePacked("revertOrder")),
+            amountIn: 100 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        vm.startPrank(TRADER);
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.IsNotOrchestrator.selector)
+        );
+        VAULT.revertOrder(orderToRevert);
+        vm.stopPrank();
+    }
+
+    function testCannotRevertOrderTwice() public {
+        deal(address(USDC), address(VAULT), 1_000 ether);
+
+        IGeniusVault.Order memory orderToRevert = IGeniusVault.Order({
+            seed: keccak256(abi.encodePacked("revertOrder")),
+            amountIn: 100 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: uint16(block.chainid),
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        vm.startPrank(ORCHESTRATOR);
+        // First revert should succeed
+        VAULT.revertOrder(orderToRevert);
+
+        // Second revert should fail
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidOrderStatus.selector)
+        );
+        VAULT.revertOrder(orderToRevert);
+        vm.stopPrank();
+    }
 }
