@@ -227,8 +227,6 @@ abstract contract GeniusVaultCore is
             order.seed,
             orderHash_
         );
-
-        orderStatus[orderHash_] = OrderStatus.Nonexistant;
     }
 
     function setInvalidOrders(
