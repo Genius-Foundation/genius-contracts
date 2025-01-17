@@ -18,7 +18,8 @@ interface IGeniusVault {
     enum OrderStatus {
         Nonexistant,
         Created,
-        Filled
+        Filled,
+        Reverted
     }
 
     /**
@@ -123,6 +124,14 @@ interface IGeniusVault {
         uint256 effectiveAmountOut,
         uint256 amountStablecoinValue,
         bool success
+    );
+
+    event OrderReverted(
+        uint256 indexed srcChainId,
+        bytes32 indexed trader,
+        bytes32 indexed receiver,
+        bytes32 seed,
+        bytes32 orderHash
     );
 
     /**
@@ -246,6 +255,11 @@ interface IGeniusVault {
         bytes calldata swapData,
         address callTarget,
         bytes calldata callData
+    ) external;
+
+    function revertOrder(
+        Order memory order,
+        bytes memory orchestratorSig
     ) external;
 
     /**

@@ -11,10 +11,12 @@ import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/acce
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 /**
  * @title GeniusVault
@@ -33,6 +35,8 @@ abstract contract GeniusVaultCore is
     ReentrancyGuardUpgradeable
 {
     using SafeERC20 for IERC20;
+    using MessageHashUtils for bytes32;
+    using ECDSA for bytes32;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
@@ -199,6 +203,38 @@ abstract contract GeniusVaultCore is
         emit StakeWithdraw(msg.sender, receiver, owner, amount);
 
         STABLECOIN.safeTransfer(receiver, stablecoinAmount);
+    }
+
+    function revertOrder(
+        Order memory order,
+        bytes memory orchestratorSig
+    ) external override nonReentrant whenNotPaused {
+        bytes32 orderHash_ = orderHash(order);
+        if (orderStatus[orderHash_] != OrderStatus.Created)
+            revert GeniusErrors.InvalidOrderStatus();
+        if (order.srcChainId != _currentChainId())
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+
+        _isAmountValid(order.amountIn - order.fee, availableAssets());
+
+        bytes32 orderDigest = _revertOrderDigest(orderHash_);
+
+        _verifyOrchestratorSignature(orderDigest, orchestratorSig);
+
+        orderStatus[orderHash_] = OrderStatus.Reverted;
+
+        STABLECOIN.safeTransfer(
+            bytes32ToAddress(order.trader),
+            order.amountIn - order.fee
+        );
+
+        emit OrderReverted(
+            order.srcChainId,
+            order.trader,
+            order.receiver,
+            order.seed,
+            orderHash_
+        );
     }
 
     /**
@@ -473,6 +509,24 @@ abstract contract GeniusVaultCore is
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
+
+    function _revertOrderDigest(
+        bytes32 _orderHash
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(abi.encodePacked("PREFIX_CANCEL_ORDER_HASH", _orderHash));
+    }
+
+    function _verifyOrchestratorSignature(
+        bytes32 messageHash,
+        bytes memory signature
+    ) internal view {
+        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
+        address recoveredSigner = ethSignedMessageHash.recover(signature);
+        if (!hasRole(ORCHESTRATOR_ROLE, recoveredSigner)) {
+            revert GeniusErrors.InvalidSignature();
+        }
+    }
 
     /**
      * @dev Internal function to set stablecoin price bounds for chainlink price feed checks.
