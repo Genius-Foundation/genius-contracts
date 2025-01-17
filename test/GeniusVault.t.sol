@@ -30,7 +30,9 @@ contract GeniusVaultTest is Test {
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address OWNER;
     address TRADER;
+    uint256 TRADER_PK;
     address ORCHESTRATOR;
+    uint256 ORCHESTRATOR_PK;
     bytes32 RECEIVER;
 
     ERC20 public USDC;
@@ -52,9 +54,9 @@ contract GeniusVaultTest is Test {
         assertEq(vm.activeFork(), avalanche);
 
         OWNER = makeAddr("OWNER");
-        TRADER = makeAddr("TRADER");
+        (TRADER, TRADER_PK) = makeAddrAndKey("TRADER");
         RECEIVER = bytes32(uint256(uint160(TRADER)));
-        ORCHESTRATOR = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38;
+        (ORCHESTRATOR, ORCHESTRATOR_PK) = makeAddrAndKey("ORCHESTRATOR");
 
         MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
 
@@ -791,5 +793,145 @@ contract GeniusVaultTest is Test {
         VAULT.createOrder(order);
 
         vm.stopPrank();
+    }
+
+    function testRevertOrder() public {
+        vm.startPrank(TRADER);
+        USDC.approve(address(VAULT), order.amountIn);
+        VAULT.createOrder(order);
+        vm.stopPrank();
+
+        vm.startPrank(address(ORCHESTRATOR));
+        bytes32 orderHash = VAULT.orderHash(order);
+
+        // Generate orchestrator signature
+        bytes32 revertDigest = _revertOrderDigest(orderHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            ORCHESTRATOR_PK,
+            revertDigest
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Should successfully revert the order
+        VAULT.revertOrder(order, signature);
+
+        assertEq(
+            uint256(VAULT.orderStatus(orderHash)),
+            uint256(IGeniusVault.OrderStatus.Reverted),
+            "Order status should be Reverted"
+        );
+
+        // Verify USDC was returned to trader (minus fee)
+        assertEq(
+            USDC.balanceOf(TRADER),
+            999 ether, // amountIn - fee
+            "Trader should receive amountIn minus fee"
+        );
+
+        vm.stopPrank();
+    }
+
+    function testRevertOrderWhenPaused() public {
+        vm.startPrank(TRADER);
+        USDC.approve(address(VAULT), order.amountIn);
+        VAULT.createOrder(order);
+        vm.stopPrank();
+
+        vm.startPrank(OWNER);
+        VAULT.pause();
+        vm.stopPrank();
+
+        bytes32 orderHash = VAULT.orderHash(order);
+        bytes32 revertDigest = _revertOrderDigest(orderHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            ORCHESTRATOR_PK,
+            revertDigest
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(Pausable.EnforcedPause.selector)
+        );
+        VAULT.revertOrder(order, signature);
+    }
+
+    function testRevertOrderInvalidStatus() public {
+        vm.startPrank(address(ORCHESTRATOR));
+
+        bytes32 orderHash = VAULT.orderHash(order);
+        bytes32 revertDigest = _revertOrderDigest(orderHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            ORCHESTRATOR_PK,
+            revertDigest
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidOrderStatus.selector)
+        );
+        VAULT.revertOrder(order, signature);
+
+        vm.stopPrank();
+    }
+
+    function testRevertOrderInvalidSignature() public {
+        vm.startPrank(TRADER);
+        USDC.approve(address(VAULT), order.amountIn);
+        VAULT.createOrder(order);
+        vm.stopPrank();
+
+        vm.startPrank(address(ORCHESTRATOR));
+
+        // Generate invalid signature using different private key
+        bytes32 orderHash = VAULT.orderHash(order);
+        bytes32 revertDigest = _revertOrderDigest(orderHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(TRADER_PK, revertDigest); // Using trader's key instead
+        bytes memory invalidSignature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidSignature.selector)
+        );
+        VAULT.revertOrder(order, invalidSignature);
+
+        vm.stopPrank();
+    }
+
+    function testRevertOrderInsufficientLiquidity() public {
+        vm.startPrank(TRADER);
+        USDC.approve(address(VAULT), order.amountIn);
+        VAULT.createOrder(order);
+        vm.stopPrank();
+
+        // Create order
+        vm.startPrank(address(ORCHESTRATOR));
+
+        // Drain vault's liquidity
+        deal(address(USDC), address(VAULT), 0);
+
+        bytes32 orderHash = VAULT.orderHash(order);
+        bytes32 revertDigest = _revertOrderDigest(orderHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            ORCHESTRATOR_PK,
+            revertDigest
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InsufficientLiquidity.selector,
+                0,
+                999 ether
+            )
+        );
+        VAULT.revertOrder(order, signature);
+
+        vm.stopPrank();
+    }
+
+    function _revertOrderDigest(
+        bytes32 _orderHash
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(abi.encodePacked("PREFIX_CANCEL_ORDER_HASH", _orderHash));
     }
 }

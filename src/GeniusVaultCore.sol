@@ -521,8 +521,7 @@ abstract contract GeniusVaultCore is
         bytes32 messageHash,
         bytes memory signature
     ) internal view {
-        bytes32 ethSignedMessageHash = messageHash.toEthSignedMessageHash();
-        address recoveredSigner = ethSignedMessageHash.recover(signature);
+        address recoveredSigner = messageHash.recover(signature);
         if (!hasRole(ORCHESTRATOR_ROLE, recoveredSigner)) {
             revert GeniusErrors.InvalidSignature();
         }
