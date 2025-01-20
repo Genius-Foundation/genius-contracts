@@ -108,6 +108,7 @@ contract GeniusGasTankTest is Test {
         );
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             address(USDC),
             data,
             permitBatch,
@@ -169,6 +170,7 @@ contract GeniusGasTankTest is Test {
         );
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -242,6 +244,7 @@ contract GeniusGasTankTest is Test {
         );
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -325,6 +328,7 @@ contract GeniusGasTankTest is Test {
         uint256 feeAmount = 1 ether;
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             target,
             data,
             permitBatch,
@@ -448,6 +452,7 @@ contract GeniusGasTankTest is Test {
         uint256 expiredDeadline = block.timestamp - 1;
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -538,6 +543,7 @@ contract GeniusGasTankTest is Test {
         bytes memory transactions = _encodeTransactions(targets, values, data);
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             address(PROXYCALL),
             transactions,
             permitBatch,
@@ -604,6 +610,7 @@ contract GeniusGasTankTest is Test {
         );
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -687,6 +694,7 @@ contract GeniusGasTankTest is Test {
         uint256 feeAmount = 1 ether;
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -755,6 +763,7 @@ contract GeniusGasTankTest is Test {
         uint256 initialNonce = GAS_TANK.nonces(USER);
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -813,6 +822,7 @@ contract GeniusGasTankTest is Test {
         );
 
         bytes memory sponsorSignature = _generateSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -853,29 +863,6 @@ contract GeniusGasTankTest is Test {
             sponsorSignature
         );
         vm.stopPrank();
-    }
-
-    function _generatePermitBatchSignature(
-        IAllowanceTransfer.PermitDetails[] memory details
-    )
-        internal
-        view
-        returns (IAllowanceTransfer.PermitBatch memory, bytes memory)
-    {
-        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer
-            .PermitBatch({
-                details: details,
-                spender: address(GAS_TANK),
-                sigDeadline: 1900000000
-            });
-
-        bytes memory permitSignature = sigUtils.getPermitBatchSignature(
-            permitBatch,
-            USER_PK,
-            DOMAIN_SEPERATOR
-        );
-
-        return (permitBatch, permitSignature);
     }
 
     function testAggregateWithPermit2() public {
@@ -1020,6 +1007,7 @@ contract GeniusGasTankTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
 
         bytes memory sponsorSignature = _generateUnorderedSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -1086,6 +1074,7 @@ contract GeniusGasTankTest is Test {
         uint256 feeAmount = 1 ether;
 
         bytes memory sponsorSignature = _generateUnorderedSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -1212,6 +1201,7 @@ contract GeniusGasTankTest is Test {
         uint256 expiredDeadline = block.timestamp - 1;
 
         bytes memory sponsorSignature = _generateUnorderedSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -1272,6 +1262,7 @@ contract GeniusGasTankTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
 
         bytes memory sponsorSignature = _generateUnorderedSignature(
+            block.chainid,
             address(ROUTER),
             data,
             permitBatch,
@@ -1312,7 +1303,151 @@ contract GeniusGasTankTest is Test {
         );
     }
 
+    function testSponsorUnorderedTxnWrongChainSig() external {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(USDC),
+                amount: uint160(BASE_USER_USDC_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        bytes memory data = abi.encodeWithSignature(
+            "swapTo(address,address,uint256,address)",
+            address(USDC),
+            address(WETH),
+            BASE_USER_USDC_BALANCE,
+            USER
+        );
+
+        bytes32 seed = keccak256("test_seed");
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes memory sponsorSignature = _generateUnorderedSignature(
+            uint256(42),
+            address(ROUTER),
+            data,
+            permitBatch,
+            seed,
+            address(USDC),
+            0,
+            deadline,
+            USER_PK
+        );
+
+        vm.startPrank(SENDER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidSignature.selector)
+        );
+        GAS_TANK.sponsorUnorderedTransactions(
+            address(ROUTER),
+            data,
+            permitBatch,
+            permitSignature,
+            USER,
+            address(USDC),
+            0,
+            deadline,
+            seed,
+            sponsorSignature
+        );
+    }
+
+    function testSponsorOrderedTxnWrongChainId() external {
+        IAllowanceTransfer.PermitDetails memory details = IAllowanceTransfer
+            .PermitDetails({
+                token: address(USDC),
+                amount: uint160(BASE_USER_USDC_BALANCE),
+                nonce: 0,
+                expiration: 1900000000
+            });
+
+        IAllowanceTransfer.PermitDetails[]
+            memory detailsArray = new IAllowanceTransfer.PermitDetails[](1);
+
+        detailsArray[0] = details;
+
+        (
+            IAllowanceTransfer.PermitBatch memory permitBatch,
+            bytes memory permitSignature
+        ) = _generatePermitBatchSignature(detailsArray);
+
+        address target = address(ROUTER);
+        bytes memory data = abi.encodeWithSignature(
+            "swapTo(address,address,uint256,address)",
+            address(USDC),
+            address(WETH),
+            BASE_USER_USDC_BALANCE - 1 ether,
+            USER
+        );
+
+        uint256 feeAmount = 1 ether;
+
+        bytes memory sponsorSignature = _generateSignature(
+            uint256(42),
+            target,
+            data,
+            permitBatch,
+            GAS_TANK.nonces(USER),
+            address(USDC),
+            feeAmount,
+            1900000000,
+            USER_PK
+        );
+
+        vm.startPrank(SENDER);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidSignature.selector)
+        );
+        GAS_TANK.sponsorOrderedTransactions(
+            target,
+            data,
+            permitBatch,
+            permitSignature,
+            USER,
+            address(USDC),
+            feeAmount,
+            1900000000,
+            sponsorSignature
+        );
+    }
+
+    function _generatePermitBatchSignature(
+        IAllowanceTransfer.PermitDetails[] memory details
+    )
+        internal
+        view
+        returns (IAllowanceTransfer.PermitBatch memory, bytes memory)
+    {
+        IAllowanceTransfer.PermitBatch memory permitBatch = IAllowanceTransfer
+            .PermitBatch({
+                details: details,
+                spender: address(GAS_TANK),
+                sigDeadline: 1900000000
+            });
+
+        bytes memory permitSignature = sigUtils.getPermitBatchSignature(
+            permitBatch,
+            USER_PK,
+            DOMAIN_SEPERATOR
+        );
+
+        return (permitBatch, permitSignature);
+    }
+
     function _generateSignature(
+        uint256 chainId,
         address target,
         bytes memory data,
         IAllowanceTransfer.PermitBatch memory permitBatch,
@@ -1324,6 +1459,7 @@ contract GeniusGasTankTest is Test {
     ) internal view returns (bytes memory) {
         bytes32 messageHash = keccak256(
             abi.encode(
+                chainId,
                 target,
                 data,
                 permitBatch,
@@ -1346,6 +1482,7 @@ contract GeniusGasTankTest is Test {
     }
 
     function _generateUnorderedSignature(
+        uint256 chainId,
         address target,
         bytes memory data,
         IAllowanceTransfer.PermitBatch memory permitBatch,
@@ -1357,6 +1494,7 @@ contract GeniusGasTankTest is Test {
     ) internal view returns (bytes memory) {
         bytes32 messageHash = keccak256(
             abi.encode(
+                chainId,
                 target,
                 data,
                 permitBatch,

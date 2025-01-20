@@ -77,6 +77,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
 
         bytes32 messageHash = keccak256(
             abi.encode(
+                block.chainid,
                 target,
                 data,
                 permitBatch,
@@ -143,6 +144,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
 
         bytes32 messageHash = keccak256(
             abi.encode(
+                block.chainid,
                 target,
                 data,
                 permitBatch,

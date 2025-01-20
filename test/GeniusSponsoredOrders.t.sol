@@ -289,6 +289,7 @@ contract GeniusSponsoredOrdersTest is Test {
     ) internal view returns (bytes memory) {
         bytes32 messageHash = keccak256(
             abi.encode(
+                block.chainid,
                 target,
                 data,
                 permitBatch,
