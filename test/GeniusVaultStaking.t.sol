@@ -7,6 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockUSDC} from "./mocks/mockUSDC.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
+import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
@@ -321,6 +322,18 @@ contract GeniusVaultStakingTest is Test {
             depositAmount,
             "Incorrect stablecoin amount after withdrawal"
         );
+
+        vm.stopPrank();
+    }
+
+    function testRevertTinyAmountDecimals() public {
+        vm.startPrank(trader);
+        usdc.approve(address(geniusVault), type(uint256).max);
+
+        // Try to stake 0.0000000001 vault tokens (6 decimals)
+        // This should revert since it would convert to 0 when going to USDC's 18 decimals
+        vm.expectRevert(GeniusErrors.InvalidAmount.selector);
+        geniusVault.stakeDeposit(1, trader);
 
         vm.stopPrank();
     }

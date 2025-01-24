@@ -710,11 +710,16 @@ abstract contract GeniusVaultCore is
             return amount;
         }
 
+        uint256 result;
         if (fromDecimals > toDecimals) {
-            return amount / (10 ** (fromDecimals - toDecimals));
+            result = amount / (10 ** (fromDecimals - toDecimals));
+        } else {
+            result = amount * (10 ** (toDecimals - fromDecimals));
         }
 
-        return amount * (10 ** (toDecimals - fromDecimals));
+        if (result == 0) revert GeniusErrors.InvalidAmount();
+
+        return result;
     }
 
     /**
