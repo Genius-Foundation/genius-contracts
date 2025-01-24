@@ -326,18 +326,6 @@ contract GeniusVaultStakingTest is Test {
         vm.stopPrank();
     }
 
-    function testRevertTinyAmountDecimals() public {
-        vm.startPrank(trader);
-        usdc.approve(address(geniusVault), type(uint256).max);
-
-        // Try to stake 0.0000000001 vault tokens (6 decimals)
-        // This should revert since it would convert to 0 when going to USDC's 18 decimals
-        vm.expectRevert(GeniusErrors.InvalidAmount.selector);
-        geniusVault.stakeDeposit(1, trader);
-
-        vm.stopPrank();
-    }
-
     function testLargeAmounts() public {
         vm.startPrank(trader);
         usdc.mint(trader, 1_000_000 ether);

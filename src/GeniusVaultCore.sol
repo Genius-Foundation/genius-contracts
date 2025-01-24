@@ -717,7 +717,7 @@ abstract contract GeniusVaultCore is
             result = amount * (10 ** (toDecimals - fromDecimals));
         }
 
-        if (result == 0) revert GeniusErrors.InvalidAmount();
+        if (amount != 0 && result == 0) revert GeniusErrors.InvalidAmount();
 
         return result;
     }
