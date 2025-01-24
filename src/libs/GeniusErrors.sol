@@ -261,4 +261,7 @@ library GeniusErrors {
     error PriceOutOfBounds(uint256 price);
     error StalePrice(uint256 timestamp);
     error PriceFeedError();
+
+    error InvalidRound();
+    error InvalidPrice();
 }
