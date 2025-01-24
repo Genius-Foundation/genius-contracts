@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.13;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./interfaces/IGeniusActions.sol";
+import "./libs/GeniusErrors.sol";
 
 /**
  * @title GeniusActions
@@ -43,7 +43,6 @@ contract GeniusActions is IGeniusActions, AccessControl {
     constructor(address _admin) {
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(SENTINEL_ROLE, _admin);
-
         nextActionId = 1;
     }
 
@@ -52,18 +51,14 @@ contract GeniusActions is IGeniusActions, AccessControl {
     // ╚═══════════════════════════════════════════════════════════╝
 
     modifier onlyAdmin() {
-        require(
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
-            "OwnablePausable: access denied"
-        );
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
+            revert GeniusErrors.AccessDenied();
         _;
     }
 
     modifier onlySentinel() {
-        require(
-            hasRole(SENTINEL_ROLE, msg.sender),
-            "OwnablePausable: access denied"
-        );
+        if (!hasRole(SENTINEL_ROLE, msg.sender))
+            revert GeniusErrors.AccessDenied();
         _;
     }
 
@@ -82,9 +77,6 @@ contract GeniusActions is IGeniusActions, AccessControl {
         emit OrchestratorAuthorized(_orchestrator, _authorized);
     }
 
-    /**
-     * @dev See {IGeniusActions-setBatchOrchestratorAuthorized}.
-     */
     function setBatchOrchestratorAuthorized(
         address[] calldata _orchestrators,
         bool _authorized
@@ -136,9 +128,12 @@ contract GeniusActions is IGeniusActions, AccessControl {
         string memory ipfsHash
     ) external onlyAdmin {
         bytes32 actionHash = getActionHashFromIpfsHash(ipfsHash);
-        require(labelToId[actionLabel] == 0, "Label already exists");
-        require(hashToId[actionHash] == 0, "IPFS hash already exists");
-        require(bytes(ipfsHash).length >= 40, "incorrect IPFS hash");
+        if (labelToId[actionLabel] != 0)
+            revert GeniusErrors.LabelAlreadyExists();
+        if (hashToId[actionHash] != 0)
+            revert GeniusErrors.IpfsHashAlreadyExists();
+        if (bytes(ipfsHash).length < 40)
+            revert GeniusErrors.IncorrectIpfsHash();
         _newAction(actionLabel, actionHash, ipfsHash);
     }
 
@@ -172,8 +167,7 @@ contract GeniusActions is IGeniusActions, AccessControl {
         string memory newIpfsHash
     ) external onlyAdmin {
         uint256 actionId = hashToId[actionHash];
-        require(actionId != 0, "Action does not exist");
-
+        if (actionId == 0) revert GeniusErrors.ActionDoesNotExist();
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
@@ -185,12 +179,10 @@ contract GeniusActions is IGeniusActions, AccessControl {
         string memory newIpfsHash
     ) external onlyAdmin {
         uint256 actionId = labelToId[actionLabel];
-        require(actionId != 0, "Action does not exist");
-
+        if (actionId == 0) revert GeniusErrors.ActionDoesNotExist();
         bytes32 actionHash = getActionHashFromIpfsHash(
             idToAction[actionId].ipfsHash
         );
-
         _updateActionIpfsHash(actionId, actionHash, newIpfsHash);
     }
 
@@ -282,7 +274,8 @@ contract GeniusActions is IGeniusActions, AccessControl {
         bytes32 _actionHash
     ) public view returns (Action memory) {
         Action memory action = idToAction[hashToId[_actionHash]];
-        require(bytes(action.ipfsHash).length != 0, "Action does not exist");
+        if (bytes(action.ipfsHash).length == 0)
+            revert GeniusErrors.ActionDoesNotExist();
         return action;
     }
 
@@ -293,7 +286,8 @@ contract GeniusActions is IGeniusActions, AccessControl {
         bytes32 _actionLabel
     ) external view returns (Action memory) {
         Action memory action = idToAction[labelToId[_actionLabel]];
-        require(bytes(action.ipfsHash).length != 0, "Action does not exist");
+        if (bytes(action.ipfsHash).length == 0)
+            revert GeniusErrors.ActionDoesNotExist();
         return action;
     }
 
@@ -322,11 +316,9 @@ contract GeniusActions is IGeniusActions, AccessControl {
         string memory newIpfsHash
     ) internal {
         bytes32 newActionHash = getActionHashFromIpfsHash(newIpfsHash);
-        require(
-            prevActionHash != newActionHash,
-            "New IPFS hash is the same as the old one"
-        );
-        require(hashToId[newActionHash] == 0, "New IPFS hash already exists");
+        if (prevActionHash == newActionHash) revert GeniusErrors.SameIpfsHash();
+        if (hashToId[newActionHash] != 0)
+            revert GeniusErrors.IpfsHashAlreadyExists();
 
         hashToId[prevActionHash] = 0;
         hashToId[newActionHash] = actionId;
@@ -346,7 +338,7 @@ contract GeniusActions is IGeniusActions, AccessControl {
         bytes32 oldLabel,
         bytes32 newLabel
     ) internal {
-        require(labelToId[newLabel] == 0, "New label already exists");
+        if (labelToId[newLabel] != 0) revert GeniusErrors.NewLabelExists();
 
         labelToId[oldLabel] = 0;
         labelToId[newLabel] = actionId;
@@ -383,9 +375,9 @@ contract GeniusActions is IGeniusActions, AccessControl {
      */
     function _updateActionStatus(uint256 id, bool active) internal {
         Action storage action = idToAction[id];
-        require(bytes(action.ipfsHash).length != 0, "Action does not exist");
-
-        require(action.active != active, "Status is already set to this value");
+        if (bytes(action.ipfsHash).length == 0)
+            revert GeniusErrors.ActionDoesNotExist();
+        if (action.active == active) revert GeniusErrors.StatusAlreadySet();
 
         action.active = active;
         emit ActionStatusUpdated(id, active);

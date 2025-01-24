@@ -264,4 +264,14 @@ library GeniusErrors {
 
     error InvalidRound();
     error InvalidPrice();
+    error InvalidBytes32Address();
+
+    error AccessDenied();
+    error LabelAlreadyExists();
+    error IpfsHashAlreadyExists();
+    error IncorrectIpfsHash();
+    error ActionDoesNotExist();
+    error SameIpfsHash();
+    error NewLabelExists();
+    error StatusAlreadySet();
 }

@@ -451,10 +451,8 @@ abstract contract GeniusVaultCore is
     function bytes32ToAddress(
         bytes32 _input
     ) public pure override returns (address) {
-        require(
-            uint96(uint256(_input) >> 160) == 0,
-            "First 12 bytes must be zero"
-        );
+        if (uint96(uint256(_input) >> 160) != 0)
+            revert GeniusErrors.InvalidBytes32Address();
         return address(uint160(uint256(_input)));
     }
 
