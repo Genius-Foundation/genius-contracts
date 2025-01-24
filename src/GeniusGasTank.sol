@@ -198,7 +198,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         address feeToken,
         uint256 feeAmount,
         address toApprove
-    ) external payable override {
+    ) external payable override whenNotPaused {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
 
         address[] memory tokensIn = _permitAndBatchTransfer(
