@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import {MultiSendCallOnly} from "./libs/MultiSendCallOnly.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
