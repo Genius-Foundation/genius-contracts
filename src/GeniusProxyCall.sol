@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.24;
 
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
@@ -254,10 +254,11 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         address target,
         bytes calldata data,
         address toApprove
-    ) internal {        
+    ) internal {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
-        if (!_isContract(toApprove)) revert GeniusErrors.ApprovalTargetIsNotContract();
+        if (!_isContract(toApprove))
+            revert GeniusErrors.ApprovalTargetIsNotContract();
 
         if (target == address(this)) {
             (bool _success, ) = target.call{value: msg.value}(data);

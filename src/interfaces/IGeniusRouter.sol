@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
@@ -19,7 +19,7 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 interface IGeniusRouter {
     /**
      * @notice Swaps tokens and creates a cross-chain order using standard token approvals
-     * 
+     *
      * @param seed Unique identifier for the order
      * @param tokensIn Array of token addresses to be swapped
      * @param amountsIn Array of amounts corresponding to the tokens
@@ -50,7 +50,7 @@ interface IGeniusRouter {
 
     /**
      * @notice Swaps tokens and creates a cross-chain order using Permit2 for token approvals
-     * 
+     *
      * @param seed Unique identifier for the order
      * @param permitBatch The Permit2 batch transfer details
      * @param permitSignature The signature for the Permit2 transfer
@@ -79,7 +79,7 @@ interface IGeniusRouter {
 
     /**
      * @notice Creates a cross-chain order directly with stablecoins using Permit2
-     * 
+     *
      * @param seed Unique identifier for the order
      * @param permitBatch The Permit2 batch transfer details (must contain only STABLECOIN)
      * @param permitSignature The signature for the Permit2 transfer
