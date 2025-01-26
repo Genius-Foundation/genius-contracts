@@ -38,6 +38,8 @@ abstract contract GeniusVaultCore is
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
 
+    uint256 public constant BASE_PERCENTAGE = 10_000;
+
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
@@ -672,7 +674,7 @@ abstract contract GeniusVaultCore is
      * @param percentage The percentage to validate.
      */
     function _validatePercentage(uint256 percentage) internal pure {
-        if (percentage > 10_000) revert GeniusErrors.InvalidPercentage();
+        if (percentage > BASE_PERCENTAGE) revert GeniusErrors.InvalidPercentage();
     }
 
     /**
