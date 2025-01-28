@@ -7,6 +7,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockUSDC} from "./mocks/mockUSDC.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
+import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";

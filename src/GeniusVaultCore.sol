@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
@@ -37,6 +37,8 @@ abstract contract GeniusVaultCore is
     using SafeERC20 for IERC20;
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
+
+    uint256 public constant BASE_PERCENTAGE = 10_000;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
@@ -451,10 +453,8 @@ abstract contract GeniusVaultCore is
     function bytes32ToAddress(
         bytes32 _input
     ) public pure override returns (address) {
-        require(
-            uint96(uint256(_input) >> 160) == 0,
-            "First 12 bytes must be zero"
-        );
+        if (uint96(uint256(_input) >> 160) != 0)
+            revert GeniusErrors.InvalidBytes32Address();
         return address(uint160(uint256(_input)));
     }
 
@@ -556,9 +556,14 @@ abstract contract GeniusVaultCore is
             uint256 updatedAt,
             uint80 answeredInRound
         ) {
-            startedAt;
+            if (startedAt == 0) revert GeniusErrors.InvalidRound();
             if (answeredInRound < roundId)
                 revert GeniusErrors.StalePrice(updatedAt);
+
+            if (block.timestamp - updatedAt > 3600)
+                revert GeniusErrors.StalePrice(updatedAt);
+
+            if (price <= 0) revert GeniusErrors.InvalidPrice();
 
             uint256 priceUint = uint256(price);
             if (
@@ -669,7 +674,7 @@ abstract contract GeniusVaultCore is
      * @param percentage The percentage to validate.
      */
     function _validatePercentage(uint256 percentage) internal pure {
-        if (percentage > 10_000) revert GeniusErrors.InvalidPercentage();
+        if (percentage > BASE_PERCENTAGE) revert GeniusErrors.InvalidPercentage();
     }
 
     /**
@@ -710,11 +715,16 @@ abstract contract GeniusVaultCore is
             return amount;
         }
 
+        uint256 result;
         if (fromDecimals > toDecimals) {
-            return amount / (10 ** (fromDecimals - toDecimals));
+            result = amount / (10 ** (fromDecimals - toDecimals));
+        } else {
+            result = amount * (10 ** (toDecimals - fromDecimals));
         }
 
-        return amount * (10 ** (toDecimals - fromDecimals));
+        if (amount != 0 && result == 0) revert GeniusErrors.InvalidAmount();
+
+        return result;
     }
 
     /**

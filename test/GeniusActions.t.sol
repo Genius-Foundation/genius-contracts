@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
 import {GeniusActions} from "../src/GeniusActions.sol";
+import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
 contract GeniusActionsTest is Test {
     address public deployer = makeAddr("deployer");
@@ -20,158 +21,261 @@ contract GeniusActionsTest is Test {
     }
 
     function testConstructor() public view {
-        assertTrue(geniusActions.hasRole(geniusActions.DEFAULT_ADMIN_ROLE(), admin));
+        assertTrue(
+            geniusActions.hasRole(geniusActions.DEFAULT_ADMIN_ROLE(), admin)
+        );
         assertTrue(geniusActions.hasRole(geniusActions.SENTINEL_ROLE(), admin));
     }
 
     function testAddActionWithoutAdmin() public {
         vm.prank(user);
-        vm.expectRevert("OwnablePausable: access denied");
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.AccessDenied.selector)
+        );
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
     }
 
     function testAddActionAsAdmin() public {
         vm.prank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        GeniusActions.Action memory action = geniusActions.getActionByActionLabel("action1");
-        assertEq(action.ipfsHash, "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+        GeniusActions.Action memory action = geniusActions
+            .getActionByActionLabel("action1");
+        assertEq(
+            action.ipfsHash,
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
     }
 
     function testAddActionWithInvalidIpfsHash() public {
         vm.prank(admin);
-        vm.expectRevert("incorrect IPFS hash");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.IncorrectIpfsHash.selector)
+        );
         geniusActions.addAction("action1", "invalid");
     }
 
     function testGetNonexistentAction() public {
-        vm.expectRevert("Action does not exist");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.ActionDoesNotExist.selector)
+        );
         geniusActions.getActionByActionLabel("nonexistent");
     }
 
     function testAddDuplicateAction() public {
         vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        vm.expectRevert("Label already exists");
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.LabelAlreadyExists.selector)
+        );
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72"
+        );
         vm.stopPrank();
     }
 
     function testUpdateActionStatusByHash() public {
         vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        bytes32 actionHash = geniusActions.getActionHashFromIpfsHash("QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+        bytes32 actionHash = geniusActions.getActionHashFromIpfsHash(
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
         geniusActions.updateActionStatusByHash(actionHash, false);
-        GeniusActions.Action memory action = geniusActions.getActionByActionHash(actionHash);
+        GeniusActions.Action memory action = geniusActions
+            .getActionByActionHash(actionHash);
         assertFalse(action.active);
         vm.stopPrank();
     }
 
     function testUpdateActionStatusByLabel() public {
         vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
         geniusActions.updateActionStatusByLabel("action1", false);
-        GeniusActions.Action memory action = geniusActions.getActionByActionLabel("action1");
+        GeniusActions.Action memory action = geniusActions
+            .getActionByActionLabel("action1");
         assertFalse(action.active);
         vm.stopPrank();
     }
 
     function testEmergencyDisableActionByLabel() public {
         vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
         geniusActions.emergencyDisableActionByLabel("action1");
-        GeniusActions.Action memory action = geniusActions.getActionByActionLabel("action1");
+        GeniusActions.Action memory action = geniusActions
+            .getActionByActionLabel("action1");
         assertFalse(action.active);
         vm.stopPrank();
     }
 
     function testEmergencyDisableActionById() public {
         vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
         geniusActions.emergencyDisableActionById(1);
-        GeniusActions.Action memory action = geniusActions.getActionByActionLabel("action1");
+        GeniusActions.Action memory action = geniusActions
+            .getActionByActionLabel("action1");
         assertFalse(action.active);
         vm.stopPrank();
     }
 
     function testEmergencyDisableActionByHash() public {
         vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        bytes32 actionHash = geniusActions.getActionHashFromIpfsHash("QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+        bytes32 actionHash = geniusActions.getActionHashFromIpfsHash(
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
         geniusActions.emergencyDisableActionByHash(actionHash);
-        GeniusActions.Action memory action = geniusActions.getActionByActionHash(actionHash);
+        GeniusActions.Action memory action = geniusActions
+            .getActionByActionHash(actionHash);
         assertFalse(action.active);
         vm.stopPrank();
     }
 
     function testEmergencyDisableByNonAdmin() public {
         vm.prank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+
         vm.prank(user);
-        vm.expectRevert("OwnablePausable: access denied");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.AccessDenied.selector)
+        );
         geniusActions.emergencyDisableActionByLabel("action1");
     }
 
     function testUpdateActionIpfsHashByLabel() public {
         vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        geniusActions.updateActionIpfsHashByLabel("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
-        GeniusActions.Action memory action = geniusActions.getActionByActionLabel("action1");
-        assertEq(action.ipfsHash, "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+        geniusActions.updateActionIpfsHashByLabel(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72"
+        );
+        GeniusActions.Action memory action = geniusActions
+            .getActionByActionLabel("action1");
+        assertEq(
+            action.ipfsHash,
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72"
+        );
         vm.stopPrank();
     }
 
     function testUpdateActionIpfsHashByHash() public {
         vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        bytes32 oldHash = geniusActions.getActionHashFromIpfsHash("QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        geniusActions.updateActionIpfsHashByHash(oldHash, "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
-        GeniusActions.Action memory action = geniusActions.getActionByActionLabel("action1");
-        assertEq(action.ipfsHash, "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+        bytes32 oldHash = geniusActions.getActionHashFromIpfsHash(
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+        geniusActions.updateActionIpfsHashByHash(
+            oldHash,
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72"
+        );
+        GeniusActions.Action memory action = geniusActions
+            .getActionByActionLabel("action1");
+        assertEq(
+            action.ipfsHash,
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72"
+        );
         vm.stopPrank();
     }
 
     function testUpdateNonexistentActionIpfsHash() public {
         vm.prank(admin);
-        vm.expectRevert("Action does not exist");
-        geniusActions.updateActionIpfsHashByLabel("nonexistent", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.ActionDoesNotExist.selector)
+        );
+        geniusActions.updateActionIpfsHashByLabel(
+            "nonexistent",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd72"
+        );
     }
 
     function testUpdateActionIpfsHashToSameHash() public {
         vm.startPrank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        bytes32 oldHash = geniusActions.getActionHashFromIpfsHash("QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
-        vm.expectRevert("New IPFS hash is the same as the old one");
-        geniusActions.updateActionIpfsHashByHash(oldHash, "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+        bytes32 oldHash = geniusActions.getActionHashFromIpfsHash(
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.SameIpfsHash.selector)
+        );
+        geniusActions.updateActionIpfsHashByHash(
+            oldHash,
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
         vm.stopPrank();
     }
 
     function testGetActionByIpfsHash() public {
         vm.prank(admin);
-        geniusActions.addAction("action1", "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        geniusActions.addAction(
+            "action1",
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
 
-        GeniusActions.Action memory action = geniusActions.getActionByIpfsHash("QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        GeniusActions.Action memory action = geniusActions.getActionByIpfsHash(
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
         assertEq(action.label, "action1");
-        assertEq(action.ipfsHash, "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        assertEq(
+            action.ipfsHash,
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
         assertTrue(action.active);
     }
 
     function testGetActionHashFromIpfsHash() public view {
         bytes32 expectedHash = 0xd264059aba5c9a50a24fa7a025939025c7f5289aa94b6ffa8f8abe41eeacbb81;
-        bytes32 actualHash = geniusActions.getActionHashFromIpfsHash("QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71");
+        bytes32 actualHash = geniusActions.getActionHashFromIpfsHash(
+            "QmTfCejgo2wTwqnDJs8Lu1pCNeCrCDuE4GAwkna93zdd71"
+        );
         assertEq(actualHash, expectedHash);
     }
 
     function testSetOrchestratorAuthorized() public {
         vm.prank(admin);
         geniusActions.setOrchestratorAuthorized(orchestrator1, true);
-        
         assertTrue(geniusActions.isAuthorizedOrchestrator(orchestrator1));
     }
 
     function testSetOrchestratorAuthorizedByNonAdmin() public {
         vm.prank(user);
-        vm.expectRevert("OwnablePausable: access denied");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.AccessDenied.selector)
+        );
         geniusActions.setOrchestratorAuthorized(orchestrator1, true);
     }
 
@@ -193,7 +297,9 @@ contract GeniusActionsTest is Test {
         orchestrators[1] = orchestrator2;
 
         vm.prank(user);
-        vm.expectRevert("OwnablePausable: access denied");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.AccessDenied.selector)
+        );
         geniusActions.setBatchOrchestratorAuthorized(orchestrators, true);
     }
 
@@ -211,7 +317,6 @@ contract GeniusActionsTest is Test {
 
         vm.prank(sentinel);
         geniusActions.emergencyDisableOrchestrator(orchestrator1);
-
         assertFalse(geniusActions.isAuthorizedOrchestrator(orchestrator1));
     }
 
@@ -220,13 +325,15 @@ contract GeniusActionsTest is Test {
         geniusActions.setOrchestratorAuthorized(orchestrator1, true);
 
         vm.prank(user);
-        vm.expectRevert("OwnablePausable: access denied");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.AccessDenied.selector)
+        );
         geniusActions.emergencyDisableOrchestrator(orchestrator1);
     }
 
     function testComplexOrchestratorScenario() public {
         vm.startPrank(admin);
-        
+
         // Set up orchestrators
         address[] memory orchestrators = new address[](3);
         orchestrators[0] = orchestrator1;
@@ -241,8 +348,6 @@ contract GeniusActionsTest is Test {
 
         // Disable one orchestrator
         geniusActions.setOrchestratorAuthorized(user, false);
-
-        // Verify the disabled orchestrator
         assertFalse(geniusActions.isAuthorizedOrchestrator(user));
 
         // Set up sentinel
@@ -262,7 +367,7 @@ contract GeniusActionsTest is Test {
 
     function testSetCommitHashAuthorized() public {
         bytes32 commitHash = keccak256("test commit hash");
-        
+
         vm.prank(admin);
         geniusActions.setCommitHashAuthorized(commitHash, true);
 
@@ -271,9 +376,11 @@ contract GeniusActionsTest is Test {
 
     function testSetCommitHashAuthorizedByNonAdmin() public {
         bytes32 commitHash = keccak256("test commit hash");
-        
+
         vm.prank(user);
-        vm.expectRevert("OwnablePausable: access denied");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.AccessDenied.selector)
+        );
         geniusActions.setCommitHashAuthorized(commitHash, true);
     }
 
@@ -295,7 +402,9 @@ contract GeniusActionsTest is Test {
         commitHashes[1] = keccak256("test commit hash 2");
 
         vm.prank(user);
-        vm.expectRevert("OwnablePausable: access denied");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.AccessDenied.selector)
+        );
         geniusActions.setBatchCommitHashAuthorized(commitHashes, true);
     }
 
@@ -306,7 +415,7 @@ contract GeniusActionsTest is Test {
 
     function testEmergencyDisableCommitHash() public {
         bytes32 commitHash = keccak256("test commit hash");
-        
+
         vm.startPrank(admin);
         geniusActions.setCommitHashAuthorized(commitHash, true);
         assertTrue(geniusActions.isAuthorizedCommitHash(commitHash));
@@ -322,12 +431,14 @@ contract GeniusActionsTest is Test {
 
     function testEmergencyDisableCommitHashByNonSentinel() public {
         bytes32 commitHash = keccak256("test commit hash");
-        
+
         vm.prank(admin);
         geniusActions.setCommitHashAuthorized(commitHash, true);
 
         vm.prank(user);
-        vm.expectRevert("OwnablePausable: access denied");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.AccessDenied.selector)
+        );
         geniusActions.emergencyDisableCommitHash(commitHash);
     }
 

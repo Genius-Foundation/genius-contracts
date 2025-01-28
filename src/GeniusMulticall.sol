@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
 import {MultiSendCallOnly} from "./libs/MultiSendCallOnly.sol";
+import {GeniusErrors} from "./libs/GeniusErrors.sol";
 
 /**
  * @title GeniusMulticall
@@ -18,7 +19,7 @@ contract GeniusMulticall is MultiSendCallOnly {
         uint256 balance = address(this).balance;
         if (balance > 0) {
             (bool success, ) = msg.sender.call{value: balance}("");
-            require(success, "GeniusMulticall: refund failed");
+            if (!success) revert GeniusErrors.InvalidAmount();
         }
     }
 }

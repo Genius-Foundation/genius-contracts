@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -137,7 +137,8 @@ contract GeniusVault is GeniusVaultCore {
      */
     function minLiquidity() public view override returns (uint256) {
         uint256 _totalStaked = _convertToStablecoinDecimals(totalStakedAssets);
-        uint256 reduction = (_totalStaked * rebalanceThreshold) / 10_000;
+        uint256 reduction = (_totalStaked * rebalanceThreshold) /
+            BASE_PERCENTAGE;
         uint256 minBalance = _totalStaked - reduction;
         return minBalance + claimableFees();
     }

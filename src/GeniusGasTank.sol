@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
@@ -198,7 +198,7 @@ contract GeniusGasTank is IGeniusGasTank, AccessControl, Pausable {
         address feeToken,
         uint256 feeAmount,
         address toApprove
-    ) external payable override {
+    ) external payable override whenNotPaused {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
 
         address[] memory tokensIn = _permitAndBatchTransfer(

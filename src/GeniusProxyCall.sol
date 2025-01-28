@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
@@ -124,12 +124,12 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
 
         uint256 balance = IERC20(effectiveTokenOut).balanceOf(address(this));
 
-        if (balance > 0)
+        if (balance != 0)
             IERC20(effectiveTokenOut).safeTransfer(receiver, balance);
 
         if (stablecoin != effectiveTokenOut) {
             uint256 balanceStable = IERC20(stablecoin).balanceOf(address(this));
-            if (balanceStable > 0)
+            if (balanceStable != 0)
                 IERC20(stablecoin).safeTransfer(receiver, balanceStable);
         }
     }
@@ -223,7 +223,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         for (uint i; i < tokensLength; i++) {
             uint256 balance = IERC20(tokens[i]).balanceOf(address(this));
 
-            if (balance > 0) {
+            if (balance != 0) {
                 IERC20(tokens[i]).safeTransfer(target, balance);
             }
         }
@@ -254,10 +254,11 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         address target,
         bytes calldata data,
         address toApprove
-    ) internal {        
+    ) internal {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
-        if (!_isContract(toApprove)) revert GeniusErrors.ApprovalTargetIsNotContract();
+        if (!_isContract(toApprove))
+            revert GeniusErrors.ApprovalTargetIsNotContract();
 
         if (target == address(this)) {
             (bool _success, ) = target.call{value: msg.value}(data);
@@ -316,7 +317,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         assembly {
             length := extcodesize(_addr)
         }
-        return length > 0;
+        return length != 0;
     }
 
     /**

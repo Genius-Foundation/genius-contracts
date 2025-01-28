@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-
-pragma solidity ^0.8.20;
+pragma solidity 0.8.24;
 
 library GeniusErrors {
     /**
@@ -261,4 +260,17 @@ library GeniusErrors {
     error PriceOutOfBounds(uint256 price);
     error StalePrice(uint256 timestamp);
     error PriceFeedError();
+
+    error InvalidRound();
+    error InvalidPrice();
+    error InvalidBytes32Address();
+
+    error AccessDenied();
+    error LabelAlreadyExists();
+    error IpfsHashAlreadyExists();
+    error IncorrectIpfsHash();
+    error ActionDoesNotExist();
+    error SameIpfsHash();
+    error NewLabelExists();
+    error StatusAlreadySet();
 }
