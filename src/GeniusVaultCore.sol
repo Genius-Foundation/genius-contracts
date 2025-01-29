@@ -318,7 +318,7 @@ abstract contract GeniusVaultCore is
 
         if (isCall) {
             bytes32 reconstructedSeed = calldataToSeed(callTarget, callData);
-            if (reconstructedSeed != order.seed)
+            if (bytes16(reconstructedSeed) != bytes16(order.seed))
                 revert GeniusErrors.InvalidSeed();
         }
 

@@ -544,7 +544,152 @@ contract GeniusVaultTest is Test {
         );
     }
 
-    function testfillOrderOrderFulfillment() public {
+    function testfillOrderSwap() public {
+        vm.startPrank(ORCHESTRATOR);
+        deal(address(USDC), address(VAULT), 1_000 ether);
+
+        order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1_000 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: 42,
+            destChainId: uint16(block.chainid),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 500 ether,
+            tokenOut: VAULT.addressToBytes32(address(WETH))
+        });
+
+        deal(address(WETH), address(DEX_ROUTER), 1_000 ether);
+
+        bytes memory data = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            order.amountIn - order.fee,
+            TRADER
+        );
+
+        VAULT.fillOrder(order, address(DEX_ROUTER), data, address(0), "");
+
+        bytes32 orderHash = VAULT.orderHash(order);
+        assertEq(
+            uint256(VAULT.orderStatus(orderHash)),
+            uint256(IGeniusVault.OrderStatus.Filled),
+            "Order status should be Filled"
+        );
+        assertEq(
+            WETH.balanceOf(address(TRADER)),
+            500 ether,
+            "Balance this should be 500 Weth"
+        );
+    }
+
+    function testfillOrderSwapToWrongReceiver() public {
+        vm.startPrank(ORCHESTRATOR);
+        deal(address(USDC), address(VAULT), 1_000 ether);
+
+        order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1_000 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: 42,
+            destChainId: uint16(block.chainid),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 500 ether,
+            tokenOut: VAULT.addressToBytes32(address(WETH))
+        });
+
+        deal(address(WETH), address(DEX_ROUTER), 1_000 ether);
+
+        bytes memory data = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            order.amountIn - order.fee,
+            address(this)
+        );
+
+        uint256 balanceBefore = USDC.balanceOf(TRADER);
+
+        VAULT.fillOrder(order, address(DEX_ROUTER), data, address(0), "");
+
+        bytes32 orderHash = VAULT.orderHash(order);
+        assertEq(
+            uint256(VAULT.orderStatus(orderHash)),
+            uint256(IGeniusVault.OrderStatus.Filled),
+            "Order status should be Filled"
+        );
+        assertEq(
+            WETH.balanceOf(address(TRADER)),
+            0 ether,
+            "Balance receiver should be 0 Weth"
+        );
+        assertEq(
+            WETH.balanceOf(address(this)),
+            0 ether,
+            "Balance this should be 0 Weth"
+        );
+        assertEq(
+            USDC.balanceOf(address(TRADER)) - balanceBefore,
+            999 ether,
+            "Balance receiver should be 999 usdc"
+        );
+    }
+
+    function testfillOrderSwapUnderMinAmountOut() public {
+        vm.startPrank(ORCHESTRATOR);
+        deal(address(USDC), address(VAULT), 1_000 ether);
+
+        order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1_000 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: 42,
+            destChainId: uint16(block.chainid),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 501 ether,
+            tokenOut: VAULT.addressToBytes32(address(WETH))
+        });
+
+        deal(address(WETH), address(DEX_ROUTER), 1_000 ether);
+
+        bytes memory data = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            order.amountIn - order.fee,
+            TRADER
+        );
+
+        uint256 balanceBefore = USDC.balanceOf(TRADER);
+
+        VAULT.fillOrder(order, address(DEX_ROUTER), data, address(0), "");
+
+        bytes32 orderHash = VAULT.orderHash(order);
+        assertEq(
+            uint256(VAULT.orderStatus(orderHash)),
+            uint256(IGeniusVault.OrderStatus.Filled),
+            "Order status should be Filled"
+        );
+        assertEq(
+            WETH.balanceOf(address(TRADER)),
+            0 ether,
+            "Balance this should be 0 Weth"
+        );
+        assertEq(
+            USDC.balanceOf(address(TRADER)) - balanceBefore,
+            999 ether,
+            "Balance this should be 999 usdc"
+        );
+    }
+
+    function testfillOrderArbitraryCallWrongSeed() public {
         vm.startPrank(ORCHESTRATOR);
         deal(address(USDC), address(VAULT), 1_000 ether);
 
@@ -567,7 +712,56 @@ contract GeniusVaultTest is Test {
             999 ether
         );
 
-        VAULT.fillOrder(order, address(USDC), data, address(0), "");
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidSeed.selector)
+        );
+        VAULT.fillOrder(order, address(0), "", address(USDC), data);
+    }
+
+    function testfillOrderArbitraryCall() public {
+        vm.startPrank(ORCHESTRATOR);
+        deal(address(USDC), address(VAULT), 1_000 ether);
+
+        deal(address(WETH), address(DEX_ROUTER), 1_000 ether);
+
+        bytes memory data = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(USDC),
+            address(WETH),
+            999 ether,
+            0x7b4991A80BA0319599485DFFC496B687b0e9Ac70
+        );
+
+        order = IGeniusVault.Order({
+            seed: bytes32(
+                abi.encodePacked(
+                    bytes16(
+                        keccak256(
+                            abi.encodePacked(
+                                address(DEX_ROUTER),
+                                keccak256(data)
+                            )
+                        )
+                    ),
+                    bytes16(0)
+                )
+            ),
+            amountIn: 1_000 ether,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: 42,
+            destChainId: uint16(block.chainid),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: VAULT.addressToBytes32(address(USDC))
+        });
+
+        uint256 balanceBefore = WETH.balanceOf(
+            0x7b4991A80BA0319599485DFFC496B687b0e9Ac70
+        );
+
+        VAULT.fillOrder(order, address(0), "", address(DEX_ROUTER), data);
 
         bytes32 orderHash = VAULT.orderHash(order);
         assertEq(
