@@ -173,6 +173,8 @@ interface IGeniusVault {
         uint256 newMinFee
     );
 
+    event MaxOrderAmountChanged(uint256 newMaxOrderAmount);
+
     /**
      * @notice Emitted when the price feed is updated.
      * @param newPriceFeed The address of the new price feed.
@@ -322,6 +324,12 @@ interface IGeniusVault {
         uint256 _lowerBound,
         uint256 _upperBound
     ) external;
+
+    /**
+     * @notice Sets the maximum order amount that can be created
+     * @param _newMaxOrderAmount The new maximum order amount
+     */
+    function setMaxOrderAmount(uint256 _newMaxOrderAmount) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.

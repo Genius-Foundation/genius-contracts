@@ -12,11 +12,7 @@ import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 import {GeniusVaultCore} from "./GeniusVault.sol";
 
 /**
- * @title GeniusMultiTokenPool
- * @author @altloot, @samuel_vdu
- *
- * @notice The GeniusMultiTokenPool contract helps to facilitate cross-chain
- *         liquidity management and swaps and can utilize multiple sources of liquidity.
+ * @notice This contract is deprecated and is not used in the current implementation.
  */
 contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
     using SafeERC20 for IERC20;
@@ -52,7 +48,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
         uint256 _rebalanceThreshold,
         address _priceFeed,
         uint256 _stablePriceLowerBound,
-        uint256 _stablePriceUpperBound
+        uint256 _stablePriceUpperBound,
+        uint256 _maxOrderAmount
     ) external initializer {
         NATIVE = _native;
         GeniusVaultCore._initialize(
@@ -62,7 +59,8 @@ contract GeniusMultiTokenVault is IGeniusMultiTokenVault, GeniusVaultCore {
             _rebalanceThreshold,
             _priceFeed,
             _stablePriceLowerBound,
-            _stablePriceUpperBound
+            _stablePriceUpperBound,
+            _maxOrderAmount
         );
     }
 

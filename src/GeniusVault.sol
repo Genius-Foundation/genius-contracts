@@ -38,7 +38,8 @@ contract GeniusVault is GeniusVaultCore {
         uint256 _rebalanceThreshold,
         address _priceFeed,
         uint256 _stablePriceLowerBound,
-        uint256 _stablePriceUpperBound
+        uint256 _stablePriceUpperBound,
+        uint256 _maxOrderAmount
     ) external initializer {
         GeniusVaultCore._initialize(
             _stablecoin,
@@ -47,7 +48,8 @@ contract GeniusVault is GeniusVaultCore {
             _rebalanceThreshold,
             _priceFeed,
             _stablePriceLowerBound,
-            _stablePriceUpperBound
+            _stablePriceUpperBound,
+            _maxOrderAmount
         );
     }
 
@@ -63,8 +65,11 @@ contract GeniusVault is GeniusVaultCore {
         address tokenIn = address(STABLECOIN);
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.NonAddress0();
-        if (order.amountIn == 0 || order.amountIn <= order.fee)
-            revert GeniusErrors.InvalidAmount();
+        if (
+            order.amountIn == 0 ||
+            order.amountIn <= order.fee ||
+            order.amountIn > maxOrderAmount
+        ) revert GeniusErrors.InvalidAmount();
         if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
             revert GeniusErrors.InvalidTokenIn();
         if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();

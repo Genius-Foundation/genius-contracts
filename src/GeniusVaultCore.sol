@@ -59,6 +59,8 @@ abstract contract GeniusVaultCore is
     mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
     mapping(bytes32 => OrderStatus) public orderStatus;
 
+    uint256 public maxOrderAmount;
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
     // ╚═══════════════════════════════════════════════════════════╝
@@ -103,7 +105,8 @@ abstract contract GeniusVaultCore is
         uint256 _rebalanceThreshold,
         address _priceFeed,
         uint256 _stablePriceLowerBound,
-        uint256 _stablePriceUpperBound
+        uint256 _stablePriceUpperBound,
+        uint256 _maxOrderAmount
     ) internal onlyInitializing {
         if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
         if (_admin == address(0)) revert GeniusErrors.NonAddress0();
@@ -119,6 +122,7 @@ abstract contract GeniusVaultCore is
         _setRebalanceThreshold(_rebalanceThreshold);
         _setPriceFeed(_priceFeed);
         _setStablePriceBounds(_stablePriceLowerBound, _stablePriceUpperBound);
+        _setMaxOrderAmount(_maxOrderAmount);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
@@ -502,6 +506,15 @@ abstract contract GeniusVaultCore is
         _setStablePriceBounds(_lowerBound, _upperBound);
     }
 
+    /**
+     * @dev See {IGeniusVault-setMaxOrderAmount}.
+     */
+    function setMaxOrderAmount(
+        uint256 _maxOrderAmount
+    ) external override onlyAdmin {
+        _setMaxOrderAmount(_maxOrderAmount);
+    }
+
     function decimals() public pure override returns (uint8) {
         return 6;
     }
@@ -509,6 +522,11 @@ abstract contract GeniusVaultCore is
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║
     // ╚═══════════════════════════════════════════════════════════╝
+
+    function _setMaxOrderAmount(uint256 _maxOrderAmount) internal {
+        maxOrderAmount = _maxOrderAmount;
+        emit MaxOrderAmountChanged(_maxOrderAmount);
+    }
 
     function _revertOrderDigest(
         bytes32 _orderHash
@@ -674,7 +692,8 @@ abstract contract GeniusVaultCore is
      * @param percentage The percentage to validate.
      */
     function _validatePercentage(uint256 percentage) internal pure {
-        if (percentage > BASE_PERCENTAGE) revert GeniusErrors.InvalidPercentage();
+        if (percentage > BASE_PERCENTAGE)
+            revert GeniusErrors.InvalidPercentage();
     }
 
     /**

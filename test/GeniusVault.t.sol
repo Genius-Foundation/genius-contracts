@@ -77,7 +77,8 @@ contract GeniusVaultTest is Test {
             7_500,
             address(MOCK_PRICE_FEED),
             98_000_000,
-            102_000_000
+            102_000_000,
+            1000 ether
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -245,7 +246,8 @@ contract GeniusVaultTest is Test {
             7_500,
             address(MOCK_PRICE_FEED),
             99_000_000,
-            101_000_000
+            101_000_000,
+            1000 ether
         );
     }
 
@@ -580,6 +582,28 @@ contract GeniusVaultTest is Test {
         order = IGeniusVault.Order({
             seed: keccak256("order"),
             amountIn: 0,
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            srcChainId: 42,
+            destChainId: uint16(block.chainid),
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 0,
+            tokenOut: VAULT.addressToBytes32(address(USDC))
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(GeniusErrors.InvalidAmount.selector)
+        );
+        VAULT.createOrder(order);
+    }
+
+    function testcreateOrderWithAmountAboveMax() public {
+        deal(address(USDC), TRADER, 1_000 ether);
+        vm.startPrank(address(ORCHESTRATOR));
+        order = IGeniusVault.Order({
+            seed: keccak256("order"),
+            amountIn: 1001 ether,
             trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             srcChainId: 42,
