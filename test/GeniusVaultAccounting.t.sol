@@ -149,7 +149,8 @@ contract GeniusVaultAccounting is Test {
             7_500,
             address(MOCK_PRICE_FEED),
             99_000_000,
-            101_000_000
+            101_000_000,
+            1_000 ether
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
