@@ -11,7 +11,7 @@ import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
  * @dev A contract for deploying the GeniusExecutor contract.
         Deployment commands:
         `source .env` // Load environment variables
-        POLYGON: forge script script/deployment/DeployPolygonGeniusEcosystem.s.sol:DeployPolygonGeniusEcosystem --rpc-url $POLYGON_RPC_URL --broadcast -vvvv --via-ir
+        source .env && forge script script/DeployRouter.s.sol --rpc-url $BASE_RPC_URL --broadcast -vvvv --via-ir
  */
 contract DeployRouter is Script {
     GeniusRouter public geniusRouter;
@@ -29,6 +29,11 @@ contract DeployRouter is Script {
 
         geniusProxyCall = GeniusProxyCall(
             payable(vm.envAddress("GENIUS_PROXYCALL_ADDRESS"))
+        );
+
+        geniusProxyCall.grantRole(
+            keccak256("CALLER_ROLE"),
+            address(geniusRouter)
         );
 
         console.log("GeniusRouter deployed at: ", address(geniusRouter));
