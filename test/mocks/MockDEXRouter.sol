@@ -123,6 +123,13 @@ contract MockDEXRouter {
         return mockTokens[tokenAddress];
     }
 
+    function swapETHToToken(address token, address to) external payable {
+        // Mock the swap by transferring the predefined amount of tokens
+        // In a real DEX, this would calculate the amount based on the ETH sent
+        uint256 outAmount = IERC20(token).balanceOf(address(this)) / 2;
+        IERC20(token).transfer(to, outAmount);
+    }
+
     // Fallback function to receive ETH
     receive() external payable {}
 }

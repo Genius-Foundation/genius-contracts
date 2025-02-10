@@ -59,7 +59,6 @@ contract GeniusRouter is IGeniusRouter {
         uint256 minAmountOut,
         bytes32 tokenOut
     ) public payable override {
-        if (tokensIn.length == 0) revert GeniusErrors.EmptyArray();
         if (tokensIn.length != amountsIn.length)
             revert GeniusErrors.ArrayLengthsMismatch();
 

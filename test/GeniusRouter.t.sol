@@ -673,6 +673,79 @@ contract GeniusRouterTest is Test {
         );
     }
 
+    function testSwapAndCreateOrderWithEth() public {
+        // Setup empty arrays since we're using ETH
+        address[] memory tokensIn = new address[](0);
+        uint256[] memory amountsIn = new uint256[](0);
+
+        uint256 ethAmount = 1 ether;
+
+        // Create swap data for DEX router to swap ETH to USDC
+        bytes memory data = abi.encodeWithSelector(
+            DEX_ROUTER.swapETHToToken.selector,
+            address(USDC),
+            address(GENIUS_ROUTER)
+        );
+
+        uint256 fee = 1 ether;
+        uint256 minAmountOut = 49 ether;
+
+        vm.deal(USER, ethAmount); // Give USER some ETH
+        vm.startPrank(USER);
+
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            seed: bytes32(uint256(1)),
+            trader: RECEIVER,
+            receiver: RECEIVER,
+            amountIn: BASE_ROUTER_USDC_BALANCE / 2,
+            tokenIn: TOKEN_IN,
+            tokenOut: TOKEN_OUT,
+            destChainId: destChainId,
+            srcChainId: block.chainid,
+            minAmountOut: minAmountOut,
+            fee: fee
+        });
+
+        vm.expectEmit(address(GENIUS_VAULT));
+        emit IGeniusVault.OrderCreated(
+            destChainId,
+            RECEIVER,
+            RECEIVER,
+            bytes32(uint256(1)),
+            GENIUS_VAULT.orderHash(order),
+            TOKEN_IN,
+            TOKEN_OUT,
+            BASE_ROUTER_USDC_BALANCE / 2,
+            minAmountOut,
+            fee
+        );
+
+        // Call swapAndCreateOrder with ETH value
+        GENIUS_ROUTER.swapAndCreateOrder{value: ethAmount}(
+            bytes32(uint256(1)),
+            tokensIn,
+            amountsIn,
+            address(DEX_ROUTER),
+            address(DEX_ROUTER),
+            data,
+            USER,
+            destChainId,
+            fee,
+            RECEIVER,
+            minAmountOut,
+            TOKEN_OUT
+        );
+
+        // Verify USDC was received and deposited in vault
+        assertEq(
+            USDC.balanceOf(address(GENIUS_VAULT)),
+            BASE_ROUTER_USDC_BALANCE / 2
+        );
+
+        // Verify ETH was spent
+        assertEq(address(USER).balance, 0);
+    }
+
     function _encodeTransactions(
         address[] memory targets,
         uint256[] memory values,

@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Script, console} from "forge-std/Script.sol";
 
 import {GeniusRouter} from "../src/GeniusRouter.sol";
+import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 /**
  * @title DeployPolygonGeniusEcosystem
@@ -14,6 +15,7 @@ import {GeniusRouter} from "../src/GeniusRouter.sol";
  */
 contract DeployRouter is Script {
     GeniusRouter public geniusRouter;
+    GeniusProxyCall public geniusProxyCall;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
@@ -23,6 +25,10 @@ contract DeployRouter is Script {
             vm.envAddress("PERMIT2_ADDRESS"),
             vm.envAddress("GENIUS_VAULT_ADDRESS"),
             vm.envAddress("GENIUS_PROXYCALL_ADDRESS")
+        );
+
+        geniusProxyCall = GeniusProxyCall(
+            payable(vm.envAddress("GENIUS_PROXYCALL_ADDRESS"))
         );
 
         console.log("GeniusRouter deployed at: ", address(geniusRouter));
