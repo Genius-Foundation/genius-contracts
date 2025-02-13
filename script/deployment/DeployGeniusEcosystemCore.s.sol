@@ -51,7 +51,8 @@ contract DeployGeniusEcosystemCore is Script {
             7_500,
             _priceFeed,
             99_000_000,
-            101_000_000
+            101_000_000,
+            100_000_000 // 100usd
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
