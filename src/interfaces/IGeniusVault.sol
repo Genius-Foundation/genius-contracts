@@ -178,6 +178,13 @@ interface IGeniusVault {
     event PriceFeedHeartbeatChanged(uint256 newHeartbeat);
 
     /**
+     * @notice Emitted when the decimals of the stablecoin are changed.
+     * @param chainId The chain ID of the stablecoin.
+     * @param newDecimals The new decimals of the stablecoin.
+     */
+    event ChainStablecoinDecimalsChanged(uint256 chainId, uint256 newDecimals);
+
+    /**
      * @notice Emitted when the price feed is updated.
      * @param newPriceFeed The address of the new price feed.
      */
@@ -332,6 +339,16 @@ interface IGeniusVault {
      * @param _newMaxOrderAmount The new maximum order amount
      */
     function setMaxOrderAmount(uint256 _newMaxOrderAmount) external;
+
+    /**
+     * @notice Sets the decimals of the stablecoin for a specific chain
+     * @param _chainId The chain ID of the stablecoin.
+     * @param _newDecimals The new decimals of the stablecoin.
+     */
+    function setChainStablecoinDecimals(
+        uint256 _chainId,
+        uint256 _newDecimals
+    ) external;
 
     /**
      * @notice Sets the heartbeat for the price feed

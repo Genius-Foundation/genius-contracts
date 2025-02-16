@@ -79,6 +79,7 @@ contract GeniusVaultOrders is Test {
 
         DEX_ROUTER = new MockDEXRouter();
         VAULT.setTargetChainMinFee(address(USDC), targetChainId, 1 ether);
+        VAULT.setChainStablecoinDecimals(targetChainId, 6);
 
         vm.stopPrank();
 
@@ -100,7 +101,7 @@ contract GeniusVaultOrders is Test {
         deal(address(USDC), address(VAULT), 1_000 ether);
     }
 
-    function testRemoveLiquiditySwap() public {
+    function testFillOrder() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
 
@@ -108,8 +109,8 @@ contract GeniusVaultOrders is Test {
             trader: VAULT.addressToBytes32(TRADER),
             receiver: RECEIVER,
             amountIn: 1_000 ether,
-            seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: targetChainId, // Use the current chain ID
+            seed: keccak256("order"),
+            srcChainId: targetChainId,
             destChainId: block.chainid,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
@@ -117,7 +118,6 @@ contract GeniusVaultOrders is Test {
             tokenOut: VAULT.addressToBytes32(address(TOKEN1))
         });
 
-        // Remove liquidity
         vm.startPrank(address(ORCHESTRATOR));
 
         bytes memory data = abi.encodeWithSelector(
@@ -162,9 +162,7 @@ contract GeniusVaultOrders is Test {
         );
     }
 
-    function testRemoveLiquiditySwapShouldTransferUsdcIfAmountOutTooSmall()
-        public
-    {
+    function testFillOrderShouldTransferUsdcIfAmountOutTooSmall() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
 
@@ -207,6 +205,82 @@ contract GeniusVaultOrders is Test {
             USDC.balanceOf(TRADER) - balanceBefore,
             999 ether,
             "Executor balance should be 999 USDC"
+        );
+    }
+
+    function testFillOrderFromVaultWithLowerDecimals() public {
+        vm.startPrank(address(OWNER));
+        VAULT.setChainStablecoinDecimals(targetChainId, 3);
+        vm.stopPrank();
+
+        vm.startPrank(address(ORCHESTRATOR));
+        USDC.approve(address(VAULT), 1_000_000);
+
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000_000,
+            seed: keccak256("order"),
+            srcChainId: targetChainId,
+            destChainId: block.chainid,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1_000,
+            minAmountOut: 50_000_000,
+            tokenOut: VAULT.addressToBytes32(address(TOKEN1))
+        });
+
+        vm.startPrank(address(ORCHESTRATOR));
+        uint256 balanceBefore = USDC.balanceOf(TRADER);
+
+        VAULT.fillOrder(order, address(0), "", address(0), "");
+        vm.stopPrank();
+
+        bytes32 hash = VAULT.orderHash(order);
+        assertEq(uint(VAULT.orderStatus(hash)), 2, "Order should be filled");
+
+        // Add assertions to check the state after removing liquidity
+        assertEq(
+            balanceBefore - USDC.balanceOf(address(VAULT)),
+            999_000_000,
+            "GeniusVault balance should be 1 ether (only fees left)"
+        );
+    }
+
+    function testFillOrderFromVaultWithHigherDecimals() public {
+        vm.startPrank(address(OWNER));
+        VAULT.setChainStablecoinDecimals(targetChainId, 18);
+        vm.stopPrank();
+
+        vm.startPrank(address(ORCHESTRATOR));
+        USDC.approve(address(VAULT), 1_000 ether);
+
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order"),
+            srcChainId: targetChainId,
+            destChainId: block.chainid,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: 1 ether,
+            minAmountOut: 50_000_000 ether,
+            tokenOut: VAULT.addressToBytes32(address(TOKEN1))
+        });
+
+        vm.startPrank(address(ORCHESTRATOR));
+
+        uint256 balanceBefore = USDC.balanceOf(TRADER);
+        VAULT.fillOrder(order, address(0), "", address(0), "");
+        vm.stopPrank();
+
+        bytes32 hash = VAULT.orderHash(order);
+        assertEq(uint(VAULT.orderStatus(hash)), 2, "Order should be filled");
+
+        // Add assertions to check the state after removing liquidity
+        assertEq(
+            balanceBefore - USDC.balanceOf(address(VAULT)),
+            999_000_000,
+            "GeniusVault balance should be 1 ether (only fees left)"
         );
     }
 }
