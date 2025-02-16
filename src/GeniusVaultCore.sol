@@ -61,6 +61,8 @@ abstract contract GeniusVaultCore is
 
     uint256 public maxOrderAmount;
 
+    uint256 public priceFeedHeartbeat;
+
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
     // ╚═══════════════════════════════════════════════════════════╝
@@ -104,6 +106,7 @@ abstract contract GeniusVaultCore is
         address _multicall,
         uint256 _rebalanceThreshold,
         address _priceFeed,
+        uint256 _priceFeedHeartbeat,
         uint256 _stablePriceLowerBound,
         uint256 _stablePriceUpperBound,
         uint256 _maxOrderAmount
@@ -123,6 +126,7 @@ abstract contract GeniusVaultCore is
         _setPriceFeed(_priceFeed);
         _setStablePriceBounds(_stablePriceLowerBound, _stablePriceUpperBound);
         _setMaxOrderAmount(_maxOrderAmount);
+        _setPriceFeedHeartbeat(_priceFeedHeartbeat);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(PAUSER_ROLE, _admin);
@@ -515,6 +519,15 @@ abstract contract GeniusVaultCore is
         _setMaxOrderAmount(_maxOrderAmount);
     }
 
+    /**
+     * @dev See {IGeniusVault-setPriceFeedHeartbeat}.
+     */
+    function setPriceFeedHeartbeat(
+        uint256 _priceFeedHeartbeat
+    ) external override onlyAdmin {
+        _setPriceFeedHeartbeat(_priceFeedHeartbeat);
+    }
+
     function decimals() public pure override returns (uint8) {
         return 6;
     }
@@ -526,6 +539,11 @@ abstract contract GeniusVaultCore is
     function _setMaxOrderAmount(uint256 _maxOrderAmount) internal {
         maxOrderAmount = _maxOrderAmount;
         emit MaxOrderAmountChanged(_maxOrderAmount);
+    }
+
+    function _setPriceFeedHeartbeat(uint256 _priceFeedHeartbeat) internal {
+        priceFeedHeartbeat = _priceFeedHeartbeat;
+        emit PriceFeedHeartbeatChanged(_priceFeedHeartbeat);
     }
 
     function _revertOrderDigest(
@@ -578,7 +596,7 @@ abstract contract GeniusVaultCore is
             if (answeredInRound < roundId)
                 revert GeniusErrors.StalePrice(updatedAt);
 
-            if (block.timestamp - updatedAt > 3600)
+            if (block.timestamp - updatedAt > priceFeedHeartbeat)
                 revert GeniusErrors.StalePrice(updatedAt);
 
             if (price <= 0) revert GeniusErrors.InvalidPrice();
@@ -755,5 +773,5 @@ abstract contract GeniusVaultCore is
     ) internal override onlyAdmin {}
 
     // Storage gap for future upgrades
-    uint256[50] private __gap;
+    uint256[48] private __gap;
 }

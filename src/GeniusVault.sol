@@ -37,6 +37,7 @@ contract GeniusVault is GeniusVaultCore {
         address _multicall,
         uint256 _rebalanceThreshold,
         address _priceFeed,
+        uint256 _priceFeedHeartbeat,
         uint256 _stablePriceLowerBound,
         uint256 _stablePriceUpperBound,
         uint256 _maxOrderAmount
@@ -47,6 +48,7 @@ contract GeniusVault is GeniusVaultCore {
             _multicall,
             _rebalanceThreshold,
             _priceFeed,
+            _priceFeedHeartbeat,
             _stablePriceLowerBound,
             _stablePriceUpperBound,
             _maxOrderAmount

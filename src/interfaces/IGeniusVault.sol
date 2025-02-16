@@ -175,6 +175,8 @@ interface IGeniusVault {
 
     event MaxOrderAmountChanged(uint256 newMaxOrderAmount);
 
+    event PriceFeedHeartbeatChanged(uint256 newHeartbeat);
+
     /**
      * @notice Emitted when the price feed is updated.
      * @param newPriceFeed The address of the new price feed.
@@ -330,6 +332,12 @@ interface IGeniusVault {
      * @param _newMaxOrderAmount The new maximum order amount
      */
     function setMaxOrderAmount(uint256 _newMaxOrderAmount) external;
+
+    /**
+     * @notice Sets the heartbeat for the price feed
+     * @param _newHeartbeat The new heartbeat
+     */
+    function setPriceFeedHeartbeat(uint256 _newHeartbeat) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.
