@@ -8,7 +8,6 @@ import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 import {GeniusVault} from "../src/GeniusVault.sol";
-import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -38,7 +37,6 @@ contract GeniusVaultTransferVerificationTest is Test {
 
     ERC20 public USDC;
     GeniusVault public VAULT;
-    GeniusMultiTokenVault public MULTIVAULT;
     GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
@@ -87,6 +85,7 @@ contract GeniusVaultTransferVerificationTest is Test {
             address(PROXYCALL),
             7_500,
             address(MOCK_PRICE_FEED),
+            86_000,
             99_000_000,
             101_000_000,
             1000 ether
@@ -95,32 +94,9 @@ contract GeniusVaultTransferVerificationTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
-        GeniusMultiTokenVault implementationMulti = new GeniusMultiTokenVault();
-
-        bytes memory dataMulti = abi.encodeWithSelector(
-            GeniusMultiTokenVault.initialize.selector,
-            address(0),
-            address(USDC),
-            OWNER,
-            address(PROXYCALL),
-            7_500,
-            address(MOCK_PRICE_FEED),
-            99_000_000,
-            101_000_000,
-            1000 ether
-        );
-
-        ERC1967Proxy proxyMulti = new ERC1967Proxy(
-            address(implementationMulti),
-            dataMulti
-        );
-
-        MULTIVAULT = GeniusMultiTokenVault(address(proxyMulti));
-
+        
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
-        MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
-        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(MULTIVAULT));
 
         vm.stopPrank();
 
@@ -145,37 +121,6 @@ contract GeniusVaultTransferVerificationTest is Test {
 
         vm.expectRevert();
         VAULT.rebalanceLiquidity(
-            amountToRemove,
-            targetChainId,
-            address(USDC),
-            transferData
-        );
-        vm.stopPrank();
-    }
-
-    function testWrongTransferOnRemoveBridgeLiquidityMULTIVAULT() public {
-        // Add initial liquidity
-        vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(MULTIVAULT), 500 ether);
-        vm.stopPrank();
-
-        vm.startPrank(ORCHESTRATOR);
-        address[] memory targets = new address[](1);
-        targets[0] = address(USDC);
-
-        uint256[] memory values = new uint256[](1);
-        values[0] = 0;
-
-        address recipient = makeAddr("recipient");
-
-        bytes memory transferData = abi.encodeWithSelector(
-            USDC.transfer.selector,
-            recipient,
-            wrongTransferAmount
-        );
-
-        vm.expectRevert();
-        MULTIVAULT.rebalanceLiquidity(
             amountToRemove,
             targetChainId,
             address(USDC),

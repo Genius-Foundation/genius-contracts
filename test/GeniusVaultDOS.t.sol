@@ -9,7 +9,6 @@ import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
 
 import {GeniusVault} from "../src/GeniusVault.sol";
-import {GeniusMultiTokenVault} from "../src/GeniusMultiTokenVault.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
@@ -35,7 +34,6 @@ contract GeniusVaultDOSTest is Test {
 
     ERC20 public USDC;
     GeniusVault public VAULT;
-    GeniusMultiTokenVault public MULTIVAULT;
     GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
 
@@ -84,6 +82,7 @@ contract GeniusVaultDOSTest is Test {
             address(PROXYCALL),
             7_500,
             address(MOCK_PRICE_FEED),
+            86_000,
             99_000_000,
             101_000_000,
             1000 ether
@@ -92,33 +91,10 @@ contract GeniusVaultDOSTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         VAULT = GeniusVault(address(proxy));
-        GeniusMultiTokenVault implementationMulti = new GeniusMultiTokenVault();
-
-        bytes memory dataMulti = abi.encodeWithSelector(
-            GeniusMultiTokenVault.initialize.selector,
-            address(0),
-            address(USDC),
-            OWNER,
-            address(PROXYCALL),
-            7_500,
-            address(MOCK_PRICE_FEED),
-            99_000_000,
-            101_000_000,
-            1000 ether
-        );
-
-        ERC1967Proxy proxyMulti = new ERC1967Proxy(
-            address(implementationMulti),
-            dataMulti
-        );
-
-        MULTIVAULT = GeniusMultiTokenVault(address(proxyMulti));
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
-        MULTIVAULT.grantRole(MULTIVAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
 
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
-        PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(MULTIVAULT));
 
         vm.stopPrank();
 
@@ -158,76 +134,5 @@ contract GeniusVaultDOSTest is Test {
 
         // Verify that the funds have been transferred
         assertEq(USDC.balanceOf(recipient), amountToRemove);
-    }
-
-    function testDOSAttackOnRemoveBridgeLiquidityMULTIVAULT() public {
-        // Add initial liquidity
-        vm.startPrank(ORCHESTRATOR);
-        USDC.transfer(address(MULTIVAULT), 500 ether);
-        vm.stopPrank();
-
-        // Record initial state
-        uint256 initialtotalAssets = MULTIVAULT.stablecoinBalance();
-        uint256 initialavailableAssets = MULTIVAULT.availableAssets();
-
-        // Simulate a donation to the vault
-        deal(address(USDC), address(MULTIVAULT), 500 ether + 100 ether);
-
-        vm.startPrank(ORCHESTRATOR);
-        address recipient = makeAddr("recipient");
-
-        bytes memory data = abi.encodeWithSelector(
-            USDC.transfer.selector,
-            recipient,
-            500 ether
-        );
-
-        // This should now succeed
-        MULTIVAULT.rebalanceLiquidity(
-            500 ether,
-            targetChainId,
-            address(USDC),
-            data
-        );
-
-        vm.stopPrank();
-
-        // Verify that the funds have been transferred
-        assertEq(
-            USDC.balanceOf(recipient),
-            500 ether,
-            "Recipient should receive the removed amount"
-        );
-
-        // Verify the state changes in the vault
-        assertEq(
-            MULTIVAULT.stablecoinBalance(),
-            initialtotalAssets + 100 ether - 500 ether,
-            "Total stables should be updated correctly"
-        );
-        assertEq(
-            MULTIVAULT.availableAssets(),
-            initialavailableAssets + 100 ether - 500 ether,
-            "Available stable balance should be updated correctly"
-        );
-
-        // Try to remove more than the available balance (should revert)
-        vm.startPrank(ORCHESTRATOR);
-        uint256 excessiveAmount = MULTIVAULT.availableAssets() + 1 ether;
-        vm.expectRevert();
-        MULTIVAULT.rebalanceLiquidity(
-            excessiveAmount,
-            targetChainId,
-            address(USDC),
-            data
-        );
-        vm.stopPrank();
-
-        // Verify that the total balance matches the contract's actual balance
-        assertEq(
-            USDC.balanceOf(address(MULTIVAULT)),
-            MULTIVAULT.stablecoinBalance(),
-            "Contract balance should match stablecoinBalance"
-        );
     }
 }

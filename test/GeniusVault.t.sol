@@ -76,6 +76,7 @@ contract GeniusVaultTest is Test {
             address(PROXYCALL),
             7_500,
             address(MOCK_PRICE_FEED),
+            86_000,
             98_000_000,
             102_000_000,
             1000 ether
@@ -245,6 +246,7 @@ contract GeniusVaultTest is Test {
             address(PROXYCALL),
             7_500,
             address(MOCK_PRICE_FEED),
+            86000,
             99_000_000,
             101_000_000,
             1000 ether
@@ -756,10 +758,6 @@ contract GeniusVaultTest is Test {
             minAmountOut: 0,
             tokenOut: VAULT.addressToBytes32(address(USDC))
         });
-
-        uint256 balanceBefore = WETH.balanceOf(
-            0x7b4991A80BA0319599485DFFC496B687b0e9Ac70
-        );
 
         VAULT.fillOrder(order, address(0), "", address(DEX_ROUTER), data);
 

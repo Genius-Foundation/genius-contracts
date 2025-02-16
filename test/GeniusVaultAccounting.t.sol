@@ -148,6 +148,7 @@ contract GeniusVaultAccounting is Test {
             address(PROXYCALL),
             7_500,
             address(MOCK_PRICE_FEED),
+            86_000,
             99_000_000,
             101_000_000,
             1_000 ether

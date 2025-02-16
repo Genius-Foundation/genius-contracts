@@ -6,7 +6,6 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 import {GeniusProxyCall} from "../../src/GeniusProxyCall.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
-import {GeniusActions} from "../../src/GeniusActions.sol";
 import {GeniusRouter} from "../../src/GeniusRouter.sol";
 import {GeniusGasTank} from "../../src/GeniusGasTank.sol";
 
