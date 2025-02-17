@@ -790,5 +790,5 @@ abstract contract GeniusVaultCore is
     ) internal override onlyAdmin {}
 
     // Storage gap for future upgrades
-    uint256[48] private __gap;
+    uint256[47] private __gap;
 }
