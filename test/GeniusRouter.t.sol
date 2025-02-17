@@ -101,6 +101,7 @@ contract GeniusRouterTest is Test {
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_ROUTER));
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_VAULT));
         GENIUS_VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
+        GENIUS_VAULT.setChainStablecoinDecimals(destChainId, 6);
 
         RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
         TOKEN_OUT = GENIUS_VAULT.addressToBytes32(address(USDC));

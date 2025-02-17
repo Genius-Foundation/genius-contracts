@@ -78,6 +78,7 @@ contract GeniusVaultFees is Test {
 
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
         VAULT.setTargetChainMinFee(address(USDC), targetChainId, 1 ether);
+        VAULT.setChainStablecoinDecimals(destChainId, 6);
 
         vm.stopPrank();
 
@@ -151,7 +152,7 @@ contract GeniusVaultFees is Test {
         );
     }
 
-    function testAddLiquidityAndRemoveLiquidity() public {
+    function testCreateAndFillOrder() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
 
@@ -160,7 +161,7 @@ contract GeniusVaultFees is Test {
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: 43114, // Use the current chain ID
+            srcChainId: uint16(block.chainid), // Use the current chain ID
             destChainId: destChainId,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
@@ -176,7 +177,7 @@ contract GeniusVaultFees is Test {
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: 1, // Use the current chain ID
+            srcChainId: destChainId, // Use the current chain ID
             destChainId: uint16(block.chainid),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 0 ether,
@@ -207,7 +208,7 @@ contract GeniusVaultFees is Test {
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: 1, // Use the current chain ID
+            srcChainId: destChainId, // Use the current chain ID
             destChainId: uint16(block.chainid),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,
@@ -256,7 +257,7 @@ contract GeniusVaultFees is Test {
         );
     }
 
-    function testAddLiquidityAndRemoveLiquidityWithoutExternalCall() public {
+    function testCreateAndFillOrderWithoutExternalCall() public {
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 1_000 ether);
 
@@ -281,7 +282,7 @@ contract GeniusVaultFees is Test {
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: 1, // Use the current chain ID
+            srcChainId: destChainId, // Use the current chain ID
             destChainId: uint16(block.chainid),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 0 ether,
@@ -306,7 +307,7 @@ contract GeniusVaultFees is Test {
             receiver: RECEIVER,
             amountIn: 1_000 ether,
             seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: 1, // Use the current chain ID
+            srcChainId: destChainId, // Use the current chain ID
             destChainId: uint16(block.chainid),
             tokenIn: VAULT.addressToBytes32(address(USDC)),
             fee: 1 ether,

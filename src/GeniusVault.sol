@@ -81,7 +81,8 @@ contract GeniusVault is GeniusVaultCore {
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         uint256 minFee = targetChainMinFee[tokenIn][order.destChainId];
-        if (minFee == 0) revert GeniusErrors.TokenOrTargetChainNotSupported();
+        if (minFee == 0 || chainStablecoinDecimals[order.destChainId] == 0)
+            revert GeniusErrors.TokenOrTargetChainNotSupported();
         if (order.fee < minFee)
             revert GeniusErrors.InsufficientFees(order.fee, minFee, tokenIn);
 
@@ -143,7 +144,7 @@ contract GeniusVault is GeniusVaultCore {
      * @dev See {IGeniusVault-minLiquidity}.
      */
     function minLiquidity() public view override returns (uint256) {
-        uint256 _totalStaked = _convertToStablecoinDecimals(totalStakedAssets);
+        uint256 _totalStaked = totalStakedAssets;
         uint256 reduction = (_totalStaked * rebalanceThreshold) /
             BASE_PERCENTAGE;
         uint256 minBalance = _totalStaked - reduction;

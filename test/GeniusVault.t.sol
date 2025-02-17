@@ -129,6 +129,7 @@ contract GeniusVaultTest is Test {
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
         VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
+        VAULT.setChainStablecoinDecimals(destChainId, 6);
 
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
 

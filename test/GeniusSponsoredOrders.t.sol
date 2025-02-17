@@ -119,6 +119,7 @@ contract GeniusSponsoredOrdersTest is Test {
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_VAULT));
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GAS_TANK));
         GENIUS_VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
+        GENIUS_VAULT.setChainStablecoinDecimals(destChainId, 6);
 
         vm.stopPrank();
 

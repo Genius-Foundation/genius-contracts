@@ -60,8 +60,9 @@ abstract contract GeniusVaultCore is
     mapping(bytes32 => OrderStatus) public orderStatus;
 
     uint256 public maxOrderAmount;
-
     uint256 public priceFeedHeartbeat;
+
+    mapping(uint256 => uint256) public chainStablecoinDecimals;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
@@ -169,16 +170,9 @@ abstract contract GeniusVaultCore is
         if (amount == 0) revert GeniusErrors.InvalidAmount();
         if (receiver == address(0)) revert GeniusErrors.NonAddress0();
 
-        // Convert stablecoin amount to vault tokens
-        uint256 stablecoinAmount = _convertToStablecoinDecimals(amount);
-
         totalStakedAssets += amount;
 
-        STABLECOIN.safeTransferFrom(
-            msg.sender,
-            address(this),
-            stablecoinAmount
-        );
+        STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
         _mint(receiver, amount);
 
         emit StakeDeposit(msg.sender, receiver, amount);
@@ -196,9 +190,6 @@ abstract contract GeniusVaultCore is
             _spendAllowance(owner, _msgSender(), amount);
         }
 
-        // Convert vault amount to stablecoin amount
-        uint256 stablecoinAmount = _convertToStablecoinDecimals(amount);
-
         if (amount > stablecoinBalance()) revert GeniusErrors.InvalidAmount();
         if (amount > totalStakedAssets)
             revert GeniusErrors.InsufficientBalance(
@@ -212,7 +203,7 @@ abstract contract GeniusVaultCore is
 
         emit StakeWithdraw(msg.sender, receiver, owner, amount);
 
-        STABLECOIN.safeTransfer(receiver, stablecoinAmount);
+        STABLECOIN.safeTransfer(receiver, amount);
     }
 
     function revertOrder(
@@ -315,7 +306,17 @@ abstract contract GeniusVaultCore is
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.InvalidTrader();
 
-        _isAmountValid(order.amountIn - order.fee, availableAssets());
+        uint256 sourceChainDecimals = chainStablecoinDecimals[order.srcChainId];
+        if (sourceChainDecimals == 0)
+            revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
+
+        uint256 formattedStablecoinAmountOut = _convertDecimals(
+            order.amountIn - order.fee,
+            uint8(sourceChainDecimals),
+            decimals()
+        );
+
+        _isAmountValid(formattedStablecoinAmountOut, availableAssets());
 
         bool isSwap = swapTarget != address(0);
         bool isCall = callTarget != address(0);
@@ -329,16 +330,16 @@ abstract contract GeniusVaultCore is
         orderStatus[orderHash_] = OrderStatus.Filled;
         address receiver = bytes32ToAddress(order.receiver);
         address effectiveTokenOut = address(STABLECOIN);
-        uint256 effectiveAmountOut = order.amountIn - order.fee;
+        uint256 effectiveAmountOut = formattedStablecoinAmountOut;
         bool success = true;
 
         if (!isCall && !isSwap) {
-            STABLECOIN.safeTransfer(receiver, order.amountIn - order.fee);
+            STABLECOIN.safeTransfer(receiver, formattedStablecoinAmountOut);
         } else {
             IERC20 tokenOut = IERC20(bytes32ToAddress(order.tokenOut));
             STABLECOIN.safeTransfer(
                 address(PROXYCALL),
-                order.amountIn - order.fee
+                formattedStablecoinAmountOut
             );
             (effectiveTokenOut, effectiveAmountOut, success) = PROXYCALL.call(
                 receiver,
@@ -360,7 +361,7 @@ abstract contract GeniusVaultCore is
             orderHash_,
             effectiveTokenOut,
             effectiveAmountOut,
-            order.amountIn - order.fee,
+            formattedStablecoinAmountOut,
             success
         );
     }
@@ -501,6 +502,16 @@ abstract contract GeniusVaultCore is
     }
 
     /**
+     * @dev See {IGeniusVault-setChainStablecoinDecimals}.
+     */
+    function setChainStablecoinDecimals(
+        uint256 _chainId,
+        uint256 _decimals
+    ) external override onlyAdmin {
+        _setChainStablecoinDecimals(_chainId, _decimals);
+    }
+
+    /**
      * @dev See {IGeniusVault-setStablePriceBounds}.
      */
     function setStablePriceBounds(
@@ -528,8 +539,8 @@ abstract contract GeniusVaultCore is
         _setPriceFeedHeartbeat(_priceFeedHeartbeat);
     }
 
-    function decimals() public pure override returns (uint8) {
-        return 6;
+    function decimals() public view override returns (uint8) {
+        return IERC20Metadata(address(STABLECOIN)).decimals();
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
@@ -635,6 +646,20 @@ abstract contract GeniusVaultCore is
     }
 
     /**
+     * @dev Internal function to set the number of decimals for a stablecoin on a given chain.
+     *
+     * @param _chainId The chain ID.
+     * @param _decimals The number of decimals for the stablecoin.
+     */
+    function _setChainStablecoinDecimals(
+        uint256 _chainId,
+        uint256 _decimals
+    ) internal {
+        chainStablecoinDecimals[_chainId] = _decimals;
+        emit ChainStablecoinDecimalsChanged(_chainId, _decimals);
+    }
+
+    /**
      * @dev Internal function to set the address of the proxy call contract.
      *
      * @param _proxyCall The address of the proxy call contract.
@@ -728,14 +753,6 @@ abstract contract GeniusVaultCore is
         return block.timestamp;
     }
 
-    function _convertToStablecoinDecimals(
-        uint256 amount
-    ) internal view returns (uint256) {
-        uint8 fromDecimals = decimals();
-        uint8 toDecimals = IERC20Metadata(address(STABLECOIN)).decimals();
-        return _convertDecimals(amount, fromDecimals, toDecimals);
-    }
-
     /**
      * @dev Converts amount between tokens with different decimals
      * @param amount The amount to convert
@@ -773,5 +790,5 @@ abstract contract GeniusVaultCore is
     ) internal override onlyAdmin {}
 
     // Storage gap for future upgrades
-    uint256[48] private __gap;
+    uint256[47] private __gap;
 }
