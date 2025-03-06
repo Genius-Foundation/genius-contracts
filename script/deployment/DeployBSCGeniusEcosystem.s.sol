@@ -9,13 +9,14 @@ contract DeployBSCGeniusEcosystem is DeployGeniusEcosystemCore {
         0x55d398326f99059fF775485246999027B3197955;
     address public constant priceFeed =
         0xB97Ad0E74fa7d920791E90258A6E2085088b4320;
+
+    uint256 public constant priceFeedHeartBeat = 900;
     address public constant permit2Address =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
 
     function run() external {
-        address[] memory orchestrators = new address[](1);
-        orchestrators[0] = 0x1b58dd4DE6B7B3066D614905f5c8Fea9C81a1439;
+        address[] memory orchestrators = new address[](0);
 
         address[] memory feeTokens = new address[](7);
         feeTokens[0] = stableAddress; // USDC
@@ -48,6 +49,7 @@ contract DeployBSCGeniusEcosystem is DeployGeniusEcosystemCore {
             permit2Address,
             stableAddress,
             priceFeed,
+            priceFeedHeartBeat,
             owner,
             orchestrators,
             targetNetworks,

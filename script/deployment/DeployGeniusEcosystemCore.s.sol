@@ -28,6 +28,7 @@ contract DeployGeniusEcosystemCore is Script {
         address _permit2Address,
         address _stableAddress,
         address _priceFeed,
+        uint256 _priceFeedHeartbeat,
         address _owner,
         address[] memory orchestrators,
         uint256[] memory targetNetworks,
@@ -49,6 +50,7 @@ contract DeployGeniusEcosystemCore is Script {
             address(geniusProxyCall),
             7_500,
             _priceFeed,
+            _priceFeedHeartbeat,
             99_000_000,
             101_000_000,
             100_000_000 // 100usd

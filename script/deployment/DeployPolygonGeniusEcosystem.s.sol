@@ -9,13 +9,13 @@ contract DeployPolygonGeniusEcosystem is DeployGeniusEcosystemCore {
         0xc2132D05D31c914a87C6611C10748AEb04B58e8F;
     address public constant priceFeed =
         0x0A6513e40db6EB1b165753AD52E80663aeA50545;
+    uint256 public constant priceFeedHeartBeat = 27;
     address public constant permit2Address =
         0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address public constant owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
 
     function run() external {
-        address[] memory orchestrators = new address[](1);
-        orchestrators[0] = 0x1b58dd4DE6B7B3066D614905f5c8Fea9C81a1439;
+        address[] memory orchestrators = new address[](0);
 
         address[] memory feeTokens = new address[](7);
         feeTokens[0] = stableAddress; // USDC
@@ -48,6 +48,7 @@ contract DeployPolygonGeniusEcosystem is DeployGeniusEcosystemCore {
             permit2Address,
             stableAddress,
             priceFeed,
+            priceFeedHeartBeat,
             owner,
             orchestrators,
             targetNetworks,
