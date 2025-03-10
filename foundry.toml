@@ -13,6 +13,10 @@ fail_on_revert = true # Whether or not to fail the test if a call reverts
 
 [rpc_endpoints]
 bnb = "${BSC_RPC_URL}"
+base = "${BASE_RPC_URL}"
+sonic = "${SONIC_RPC_URL}"
 
 [etherscan]
+sonic = { key = "${SONICSCAN_API_KEY}", url = "https://api.sonicscan.io/api" }
 bnb = { key = "${BSCSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
+base = { key = "${BASESCAN_API_KEY}", url = "https://api.sonicscan.org/api" }

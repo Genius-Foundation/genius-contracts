@@ -6,9 +6,9 @@ import {DeployGeniusEcosystemCore} from "./DeployGeniusEcosystemCore.s.sol";
 // COMMAND: forge script script/deployment/DeployBSCGeniusEcosystem.s.sol --rpc-url $BSC_RPC_URL --broadcast --via-ir
 contract DeployBSCGeniusEcosystem is DeployGeniusEcosystemCore {
     address public constant stableAddress =
-        0x55d398326f99059fF775485246999027B3197955;
+        0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d;
     address public constant priceFeed =
-        0xB97Ad0E74fa7d920791E90258A6E2085088b4320;
+        0x51597f405303C4377E36123cBc172b13269EA163;
 
     uint256 public constant priceFeedHeartBeat = 900;
     address public constant permit2Address =
