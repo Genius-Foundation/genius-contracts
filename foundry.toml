@@ -17,6 +17,6 @@ base = "${BASE_RPC_URL}"
 sonic = "${SONIC_RPC_URL}"
 
 [etherscan]
-sonic = { key = "${SONICSCAN_API_KEY}", url = "https://api.sonicscan.io/api" }
+sonic = { key = "${SONICSCAN_API_KEY}", url = "https://api.sonicscan.org/api" }
 bnb = { key = "${BSCSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
 base = { key = "${BASESCAN_API_KEY}", url = "https://api.sonicscan.org/api" }

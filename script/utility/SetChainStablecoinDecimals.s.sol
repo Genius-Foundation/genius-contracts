@@ -20,5 +20,7 @@ contract SetTargetChainMinFee is Script {
         geniusVault.setChainStablecoinDecimals(43114, 6);
         geniusVault.setChainStablecoinDecimals(56, 18);
         geniusVault.setChainStablecoinDecimals(1399811149, 6);
+        geniusVault.setChainStablecoinDecimals(146, 6);
+        geniusVault.setChainStablecoinDecimals(137, 6);
     }
 }
