@@ -85,6 +85,19 @@ contract DeployGeniusEcosystemCore is Script {
                 minFeeAmounts[i]
             );
         }
+        
+        // Set up fee tiers based on order size
+        uint256[] memory thresholdAmounts = new uint256[](3);
+        thresholdAmounts[0] = 0;       // First tier starts at 0 (smallest orders)
+        thresholdAmounts[1] = 1000000; // 1000 USD (with 6 decimals)
+        thresholdAmounts[2] = 10000000; // 10000 USD (with 6 decimals)
+        
+        uint256[] memory bpsFees = new uint256[](3);
+        bpsFees[0] = 30; // 0.3% for smallest orders
+        bpsFees[1] = 20; // 0.2% for medium orders
+        bpsFees[2] = 10; // 0.1% for large orders
+        
+        geniusVault.setFeeTiers(thresholdAmounts, bpsFees);
 
         geniusProxyCall.grantRole(
             keccak256("CALLER_ROLE"),

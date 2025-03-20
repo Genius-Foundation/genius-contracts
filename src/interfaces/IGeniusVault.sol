@@ -161,7 +161,7 @@ interface IGeniusVault {
     event ProxyCallChanged(address newProxyCall);
 
     /**
-     * @notice Emitted when the minimum fees for a target chain has changed
+     * @notice Emitted when the minimum fee for a target chain has changed
      * note: if the min fees are set to 0, the chain or token are not supported
      * @param token the address of the token used as a fee
      * @param targetChainId The id of the target chain
@@ -171,6 +171,16 @@ interface IGeniusVault {
         address token,
         uint256 targetChainId,
         uint256 newMinFee
+    );
+    
+    /**
+     * @notice Emitted when the fee tiers based on order size are updated
+     * @param thresholdAmounts Array of threshold amounts for each tier
+     * @param bpsFees Array of basis point fees for each tier
+     */
+    event FeeTiersUpdated(
+        uint256[] thresholdAmounts,
+        uint256[] bpsFees
     );
 
     event MaxOrderAmountChanged(uint256 newMaxOrderAmount);
@@ -312,7 +322,7 @@ interface IGeniusVault {
     function setProxyCall(address _proxyCall) external;
 
     /**
-     * @notice Sets the minimum fees for a target chain has changed
+     * @notice Sets the minimum fee for a target chain
      * note: if the min fees are set to 0, the chain or token are not supported
      * @param _token the address of the token used for the fees
      * @param _targetChainId The id of the target chain
@@ -322,6 +332,16 @@ interface IGeniusVault {
         address _token,
         uint256 _targetChainId,
         uint256 _minFee
+    ) external;
+    
+    /**
+     * @notice Sets the fee tiers based on order size
+     * @param _thresholdAmounts Array of threshold amounts for each tier (minimum order size)
+     * @param _bpsFees Array of basis point fees for each tier
+     */
+    function setFeeTiers(
+        uint256[] calldata _thresholdAmounts,
+        uint256[] calldata _bpsFees
     ) external;
 
     /**

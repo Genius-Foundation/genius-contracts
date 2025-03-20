@@ -35,6 +35,8 @@ contract DeployArbitrumGeniusEcosystem is DeployGeniusEcosystemCore {
         minFeeAmounts[4] = 100000; // $0.1
         minFeeAmounts[5] = 100000; // $0.1
         minFeeAmounts[6] = 100000; // $0.1
+        
+        // Fee tiers will be set in the _run function
 
         uint256[] memory targetNetworks = new uint256[](7);
         targetNetworks[0] = 56; // BSC

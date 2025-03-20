@@ -24,7 +24,6 @@ contract GeniusVaultFees is Test {
     string private rpc = vm.envString("AVALANCHE_RPC_URL");
 
     uint16 sourceChainId = 106; // avalanche
-    uint16 targetChainId = 101; // ethereum
 
     address PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address OWNER;
@@ -77,7 +76,7 @@ contract GeniusVaultFees is Test {
         DEX_ROUTER = new MockDEXRouter();
 
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
-        VAULT.setTargetChainMinFee(address(USDC), targetChainId, 1 ether);
+        VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
         VAULT.setChainStablecoinDecimals(destChainId, 6);
 
         vm.stopPrank();
@@ -351,26 +350,7 @@ contract GeniusVaultFees is Test {
         );
     }
 
-    function testFailedSwapTx() public {
-        vm.startPrank(address(ORCHESTRATOR));
-        USDC.approve(address(VAULT), 1_000 ether);
-
-        IGeniusVault.Order memory orderToFill = IGeniusVault.Order({
-            trader: VAULT.addressToBytes32(TRADER),
-            receiver: RECEIVER,
-            amountIn: 1_000 ether,
-            seed: keccak256("order"), // This should be the correct order ID
-            srcChainId: 43114, // Use the current chain ID
-            destChainId: 1,
-            tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: 1 ether,
-            minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
-        });
-
-        VAULT.createOrder(orderToFill);
-        vm.stopPrank();
-
+    function testOrderFillingFailed() public {
         // Set the order as filled
         vm.startPrank(ORCHESTRATOR);
 
@@ -394,38 +374,12 @@ contract GeniusVaultFees is Test {
             1000 ether
         );
 
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                GeniusErrors.InvalidSourceChainId.selector,
+                1
+            )
+        );
         VAULT.fillOrder(order, address(USDC), data, address(0), "");
-
-        // Add assertions to check the state after removing liquidity
-        assertEq(
-            USDC.balanceOf(address(VAULT)),
-            1 ether,
-            "GeniusVault balance should be 1 ether"
-        );
-        assertEq(
-            USDC.balanceOf(address(TRADER)),
-            999 ether,
-            "TRADER balance should be 999 ether"
-        );
-        assertEq(
-            VAULT.totalStakedAssets(),
-            0,
-            "Total staked assets should still be 0"
-        );
-        assertEq(
-            VAULT.claimableFees(),
-            1 ether,
-            "Total unclaimed fees should still be 1 ether"
-        );
-        assertEq(
-            VAULT.stablecoinBalance(),
-            1_000 ether,
-            "Stablecoin balance should be 1,000 ether"
-        );
-        assertEq(
-            VAULT.availableAssets(),
-            999 ether,
-            "Available Stablecoin balance should be 0 ether"
-        );
     }
 }

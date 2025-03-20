@@ -45,6 +45,8 @@ contract DeployBSCGeniusEcosystem is DeployGeniusEcosystemCore {
         targetNetworks[5] = 1399811149; // SOLANA
         targetNetworks[6] = 137; //POLYGON
 
+        // Fee tiers will be set in the _run function
+        
         _run(
             permit2Address,
             stableAddress,

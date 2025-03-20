@@ -16,17 +16,30 @@ contract SetTargetChainMinFee is Script {
         // geniusVault.setTargetChainMinFee(
         //     0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
         //     43114,
-        //     100000
+        //     100000  // minFee (fixed amount)
         // );
         // geniusVault.setTargetChainMinFee(
         //     0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
         //     42161,
-        //     100000
+        //     100000  // minFee (fixed amount)
         // );
         geniusVault.setTargetChainMinFee(
             0xaf88d065e77c8cC2239327C5EDb3A432268e5831,
             56,
-            100000
+            100000  // minFee (fixed amount)
         );
+        
+        // Set up fee tiers based on order size
+        uint256[] memory thresholdAmounts = new uint256[](3);
+        thresholdAmounts[0] = 0;        // First tier starts at 0 (smallest orders)
+        thresholdAmounts[1] = 1000000;  // 1000 USD (with 6 decimals)
+        thresholdAmounts[2] = 10000000; // 10000 USD (with 6 decimals)
+        
+        uint256[] memory bpsFees = new uint256[](3);
+        bpsFees[0] = 30; // 0.3% for smallest orders
+        bpsFees[1] = 20; // 0.2% for medium orders
+        bpsFees[2] = 10; // 0.1% for large orders
+        
+        geniusVault.setFeeTiers(thresholdAmounts, bpsFees);
     }
 }

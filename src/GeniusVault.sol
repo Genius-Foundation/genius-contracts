@@ -81,10 +81,19 @@ contract GeniusVault is GeniusVaultCore {
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         uint256 minFee = targetChainMinFee[tokenIn][order.destChainId];
+        
         if (minFee == 0 || chainStablecoinDecimals[order.destChainId] == 0)
             revert GeniusErrors.TokenOrTargetChainNotSupported();
-        if (order.fee < minFee)
-            revert GeniusErrors.InsufficientFees(order.fee, minFee, tokenIn);
+            
+        // Get the appropriate fee tier based on order size
+        uint256 orderBpsFee = _getBpsFeeForAmount(order.amountIn);
+            
+        // Calculate the required fee: min fee + bps of the order amount
+        uint256 bpsAmount = (order.amountIn * orderBpsFee) / BASE_PERCENTAGE;
+        uint256 requiredFee = minFee + bpsAmount;
+        
+        if (order.fee < requiredFee)
+            revert GeniusErrors.InsufficientFees(order.fee, requiredFee, tokenIn);
 
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
