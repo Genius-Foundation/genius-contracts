@@ -48,6 +48,16 @@ interface IGeniusVault {
         uint256 fee;
     }
 
+    /**
+     * @notice Struct representing a fee tier based on order size
+     * @param thresholdAmount Minimum amount for this tier
+     * @param bpsFee Basis points fee for this tier
+     */
+    struct FeeTier {
+        uint256 thresholdAmount; // Minimum amount for this tier
+        uint256 bpsFee; // Basis points fee for this tier
+    }
+
     event StablePriceBoundsChanged(uint256 lower, uint256 upper);
 
     /**
@@ -172,16 +182,13 @@ interface IGeniusVault {
         uint256 targetChainId,
         uint256 newMinFee
     );
-    
+
     /**
      * @notice Emitted when the fee tiers based on order size are updated
      * @param thresholdAmounts Array of threshold amounts for each tier
      * @param bpsFees Array of basis point fees for each tier
      */
-    event FeeTiersUpdated(
-        uint256[] thresholdAmounts,
-        uint256[] bpsFees
-    );
+    event FeeTiersUpdated(uint256[] thresholdAmounts, uint256[] bpsFees);
 
     event MaxOrderAmountChanged(uint256 newMaxOrderAmount);
 
@@ -333,7 +340,7 @@ interface IGeniusVault {
         uint256 _targetChainId,
         uint256 _minFee
     ) external;
-    
+
     /**
      * @notice Sets the fee tiers based on order size
      * @param _thresholdAmounts Array of threshold amounts for each tier (minimum order size)

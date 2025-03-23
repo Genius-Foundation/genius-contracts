@@ -58,20 +58,14 @@ abstract contract GeniusVaultCore is
 
     mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
     mapping(bytes32 => OrderStatus) public orderStatus;
-    
-    // Tiered fee structure based on order size
-    struct FeeTier {
-        uint256 thresholdAmount; // Minimum amount for this tier
-        uint256 bpsFee;          // Basis points fee for this tier
-    }
-    
-    // Fee tiers for order size (sorted from smallest to largest threshold)
-    FeeTier[] public feeTiers;
 
     uint256 public maxOrderAmount;
     uint256 public priceFeedHeartbeat;
 
     mapping(uint256 => uint256) public chainStablecoinDecimals;
+
+    // Fee tiers for order size (sorted from smallest to largest threshold)
+    FeeTier[] public feeTiers;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
@@ -509,7 +503,7 @@ abstract contract GeniusVaultCore is
     ) external override onlyAdmin {
         _setTargetChainMinFee(_token, _targetChainId, _minFee);
     }
-    
+
     /**
      * @dev See {IGeniusVault-setFeeTiers}.
      */
@@ -663,7 +657,7 @@ abstract contract GeniusVaultCore is
         targetChainMinFee[_token][_targetChainId] = _minFee;
         emit TargetChainMinFeeChanged(_token, _targetChainId, _minFee);
     }
-    
+
     /**
      * @dev Internal function to set fee tiers based on order size.
      * The tiers should be ordered from smallest to largest threshold amount.
@@ -675,36 +669,38 @@ abstract contract GeniusVaultCore is
         uint256[] calldata _thresholdAmounts,
         uint256[] calldata _bpsFees
     ) internal {
-        if (_thresholdAmounts.length == 0 || _bpsFees.length == 0) 
+        if (_thresholdAmounts.length == 0 || _bpsFees.length == 0)
             revert GeniusErrors.EmptyArray();
-            
+
         if (_thresholdAmounts.length != _bpsFees.length)
             revert GeniusErrors.ArrayLengthsMismatch();
-            
+
         // Clear existing tiers
         delete feeTiers;
-        
+
         // Validate inputs and add new tiers
         uint256 prevThreshold = 0;
-        
+
         for (uint256 i = 0; i < _thresholdAmounts.length; i++) {
             // Ensure tiers are in ascending order
             if (i > 0 && _thresholdAmounts[i] <= prevThreshold)
                 revert GeniusErrors.InvalidAmount();
-                
+
             // Validate bps fee
             if (_bpsFees[i] > BASE_PERCENTAGE)
                 revert GeniusErrors.InvalidPercentage();
-                
+
             prevThreshold = _thresholdAmounts[i];
-            
+
             // Add the tier
-            feeTiers.push(FeeTier({
-                thresholdAmount: _thresholdAmounts[i],
-                bpsFee: _bpsFees[i]
-            }));
+            feeTiers.push(
+                FeeTier({
+                    thresholdAmount: _thresholdAmounts[i],
+                    bpsFee: _bpsFees[i]
+                })
+            );
         }
-        
+
         emit FeeTiersUpdated(_thresholdAmounts, _bpsFees);
     }
 
@@ -791,7 +787,7 @@ abstract contract GeniusVaultCore is
                 _amount
             );
     }
-    
+
     /**
      * @dev Internal function to determine the basis points fee based on order size.
      * Returns the bps fee for the appropriate tier.
@@ -799,12 +795,14 @@ abstract contract GeniusVaultCore is
      * @param _amount The order amount to determine the fee for
      * @return bpsFee The basis points fee to apply
      */
-    function _getBpsFeeForAmount(uint256 _amount) internal view returns (uint256 bpsFee) {
+    function _getBpsFeeForAmount(
+        uint256 _amount
+    ) internal view returns (uint256 bpsFee) {
         if (feeTiers.length == 0) return 0;
-        
+
         // Default to the lowest tier fee
         bpsFee = feeTiers[0].bpsFee;
-        
+
         // Find the appropriate tier based on amount
         for (uint256 i = 0; i < feeTiers.length; i++) {
             if (_amount >= feeTiers[i].thresholdAmount) {
@@ -814,7 +812,7 @@ abstract contract GeniusVaultCore is
                 break;
             }
         }
-        
+
         return bpsFee;
     }
 
@@ -879,5 +877,5 @@ abstract contract GeniusVaultCore is
     ) internal override onlyAdmin {}
 
     // Storage gap for future upgrades
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 }
