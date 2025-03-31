@@ -12,7 +12,7 @@ contract SetTargetChainMinFee is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        geniusVault = GeniusVault(0xB0C54E20c45D79013876DBD69EC4bec260f24F83);
+        geniusVault = GeniusVault(0x74501B8EA784300C1f2330c704A36d01c16Fa676);
         // geniusVault.setTargetChainMinFee(
         //     0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
         //     43114,
@@ -24,8 +24,8 @@ contract SetTargetChainMinFee is Script {
         //     100000
         // );
         geniusVault.setTargetChainMinFee(
-            0xaf88d065e77c8cC2239327C5EDb3A432268e5831,
-            56,
+            0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
+            8453,
             100000
         );
     }

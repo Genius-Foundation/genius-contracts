@@ -29,7 +29,7 @@ contract DeployOptimismGeniusEcosystem is DeployGeniusEcosystemCore {
 
         uint256[] memory minFeeAmounts = new uint256[](7);
         minFeeAmounts[0] = 100000; // $0.1
-        minFeeAmounts[1] = 1000000; // $1
+        minFeeAmounts[1] = 100000; // $0.1
         minFeeAmounts[2] = 100000; // $0.1
         minFeeAmounts[3] = 1000000; // $1
         minFeeAmounts[4] = 100000; // $0.1
