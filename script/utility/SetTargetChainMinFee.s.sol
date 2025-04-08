@@ -12,21 +12,58 @@ contract SetTargetChainMinFee is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        geniusVault = GeniusVault(0x74501B8EA784300C1f2330c704A36d01c16Fa676);
-        // geniusVault.setTargetChainMinFee(
-        //     0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
-        //     43114,
-        //     100000
-        // );
-        // geniusVault.setTargetChainMinFee(
-        //     0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913,
-        //     42161,
-        //     100000
-        // );
-        geniusVault.setTargetChainMinFee(
-            0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85,
-            8453,
-            100000
-        );
+        geniusVault = GeniusVault(0x87D1Fc6EC47823593bc32108dA795A74C65d520B);
+        address stableAddress = 0x55d398326f99059fF775485246999027B3197955;
+
+        address[] memory feeTokens = new address[](9);
+        feeTokens[0] = stableAddress; // USDC
+        feeTokens[1] = stableAddress; // USDC
+        feeTokens[2] = stableAddress; // USDC
+        feeTokens[3] = stableAddress; // USDC
+        feeTokens[4] = stableAddress; // USDC
+        feeTokens[5] = stableAddress; // USDC
+        feeTokens[6] = stableAddress; // USDC
+        feeTokens[7] = stableAddress; // USDC
+        feeTokens[8] = stableAddress; // USDC
+
+        uint256[] memory minFeeAmounts = new uint256[](9);
+        minFeeAmounts[0] = 50000; // $0.05
+        minFeeAmounts[1] = 50000; // $0.05
+        minFeeAmounts[2] = 50000; // $0.05
+        minFeeAmounts[3] = 50000; // $0.05
+        minFeeAmounts[4] = 50000; // $0.05
+        minFeeAmounts[5] = 50000; // $0.05
+        minFeeAmounts[6] = 50000; // $0.05
+        minFeeAmounts[7] = 50000; // $0.05
+        minFeeAmounts[8] = 50000; // $0.05
+
+        uint256[] memory targetNetworks = new uint256[](9);
+        targetNetworks[0] = 8453; // BASE
+        targetNetworks[1] = 10; // OPTIMISM
+        targetNetworks[2] = 42161; // ARBITRUM
+        targetNetworks[3] = 1; // ETHEREUM
+        targetNetworks[4] = 43114; // AVALANCHE
+        targetNetworks[5] = 1399811149; // SOLANA
+        targetNetworks[6] = 137; //POLYGON
+        targetNetworks[7] = 146; //SONIC
+        targetNetworks[8] = 56; //BSC
+
+        for (uint256 i = 0; i < feeTokens.length; i++) {
+            uint256 targetChainMinFee = geniusVault.targetChainMinFee(
+                feeTokens[i],
+                targetNetworks[i]
+            );
+
+            if (
+                targetChainMinFee != minFeeAmounts[i] &&
+                block.chainid != targetNetworks[i]
+            ) {
+                geniusVault.setTargetChainMinFee(
+                    feeTokens[i],
+                    targetNetworks[i],
+                    minFeeAmounts[i]
+                );
+            }
+        }
     }
 }
