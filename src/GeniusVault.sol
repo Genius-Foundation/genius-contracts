@@ -72,7 +72,7 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn <= order.fee ||
             order.amountIn > maxOrderAmount
         ) revert GeniusErrors.InvalidAmount();
-        if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
+        if (order.tokenIn != addressToBytes32(tokenIn))
             revert GeniusErrors.InvalidTokenIn();
         if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
         if (order.destChainId == _currentChainId())
