@@ -12,8 +12,8 @@ contract SetTargetChainMinFee is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        geniusVault = GeniusVault(0x87D1Fc6EC47823593bc32108dA795A74C65d520B);
-        address stableAddress = 0x55d398326f99059fF775485246999027B3197955;
+        geniusVault = GeniusVault(0xB820A29D82aD13b4B2aD8BF77ae586A13caa00DA);
+        address stableAddress = 0x29219dd400f2Bf60E5a23d13Be72B486D4038894;
 
         address[] memory feeTokens = new address[](9);
         feeTokens[0] = stableAddress; // USDC

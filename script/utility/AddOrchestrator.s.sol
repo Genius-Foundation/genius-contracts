@@ -107,18 +107,9 @@ contract AddOrchestrator is Script {
 
         GeniusVault geniusVault = GeniusVault(payable(vaultAddress));
 
-        address[] memory orchestrators = new address[](11);
-        orchestrators[0] = 0x039dA65e692cb4dd93d6DE2ca6A15268F9cF6Fb6;
-        orchestrators[1] = 0x924dEF89eAB8bf12fC0065253D1bC89D1AcEAdc6;
-        orchestrators[2] = 0x479417C01FA532632655579814607E94e6B27550;
-        orchestrators[3] = 0x06247B5d327Aa90Fd84bf909C61eC8Eea65961C3;
-        orchestrators[4] = 0x30641364A0613443381d1DC64D3337A02dc01FAA;
-        orchestrators[5] = 0x1283Ba98C0Dae54d7A49Bd8c77cbC0Be8b65D223;
-        orchestrators[6] = 0x9473c973c33E3924017FeF02C9E407907f6E8530;
-        orchestrators[7] = 0xBcd7efa8235F85A349EBE79Bf107a6E794435a4D;
-        orchestrators[8] = 0x74C440B89A00087E77364b26CFa5640714dCfA4f;
-        orchestrators[9] = 0xc241Ef90fc2e24e897900bc5e6E487e1CE6C9071;
-        orchestrators[10] = 0xd76f6b71b7Cea442834E6E40619C9dfF260C7148;
+        address[] memory orchestrators = new address[](2);
+        orchestrators[0] = 0x57C26D20ecAcfd4F058Df888785ecBF06A47972E;
+        orchestrators[1] = 0xDcc94F2A35dAD658B799C4F6c43FffF98E04e6DA;
 
         for (uint i = 0; i < orchestrators.length; i++) {
             geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
@@ -127,9 +118,8 @@ contract AddOrchestrator is Script {
 
         console.log("All orchestrators added to GeniusVault");
 
-        address[] memory orchestratorsToRevoke = new address[](2);
-        orchestratorsToRevoke[0] = 0xCEfB2c7B2fEE67C15Aa0657E7dE3815dC680Ed03;
-        orchestratorsToRevoke[1] = 0x491BC2ABDb526bac6006D72928f430daC3DbD99d;
+        address[] memory orchestratorsToRevoke = new address[](1);
+        orchestratorsToRevoke[0] = 0x924dEF89eAB8bf12fC0065253D1bC89D1AcEAdc6;
 
         for (uint i = 0; i < orchestratorsToRevoke.length; i++) {
             geniusVault.revokeRole(ORCHESTRATOR_ROLE, orchestratorsToRevoke[i]);
