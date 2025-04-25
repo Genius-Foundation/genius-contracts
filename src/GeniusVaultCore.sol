@@ -66,6 +66,11 @@ abstract contract GeniusVaultCore is
 
     // Fee tiers for order size (sorted from smallest to largest threshold)
     FeeTier[] public feeTiers;
+    FeeTier[] public insuranceFeeTiers;
+
+    // Fee collection addresses
+    address public baseFeeCollector;
+    address public feeCollector;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
@@ -515,6 +520,34 @@ abstract contract GeniusVaultCore is
     }
 
     /**
+     * @dev See {IGeniusVault-setInsuranceFeeTiers}.
+     */
+    function setInsuranceFeeTiers(
+        uint256[] calldata _thresholdAmounts,
+        uint256[] calldata _bpsFees
+    ) external override onlyAdmin {
+        _setInsuranceFeeTiers(_thresholdAmounts, _bpsFees);
+    }
+
+    /**
+     * @dev See {IGeniusVault-setBaseFeeCollector}.
+     */
+    function setBaseFeeCollector(
+        address _collector
+    ) external override onlyAdmin {
+        _setBaseFeeCollector(_collector);
+    }
+
+    /**
+     * @dev See {IGeniusVault-setFeeCollector}.
+     */
+    function setFeeCollector(
+        address _collector
+    ) external override onlyAdmin {
+        _setFeeCollector(_collector);
+    }
+
+    /**
      * @dev See {IGeniusVault-setChainStablecoinDecimals}.
      */
     function setChainStablecoinDecimals(
@@ -705,6 +738,52 @@ abstract contract GeniusVaultCore is
     }
 
     /**
+     * @dev Internal function to set insurance fee tiers based on order size.
+     * The tiers should be ordered from smallest to largest threshold amount.
+     *
+     * @param _thresholdAmounts Array of threshold amounts for each tier (minimum order size for tier)
+     * @param _bpsFees Array of basis point fees for each tier
+     */
+    function _setInsuranceFeeTiers(
+        uint256[] calldata _thresholdAmounts,
+        uint256[] calldata _bpsFees
+    ) internal {
+        if (_thresholdAmounts.length == 0 || _bpsFees.length == 0)
+            revert GeniusErrors.EmptyArray();
+
+        if (_thresholdAmounts.length != _bpsFees.length)
+            revert GeniusErrors.ArrayLengthsMismatch();
+
+        // Clear existing tiers
+        delete insuranceFeeTiers;
+
+        // Validate inputs and add new tiers
+        uint256 prevThreshold = 0;
+
+        for (uint256 i = 0; i < _thresholdAmounts.length; i++) {
+            // Ensure tiers are in ascending order
+            if (i > 0 && _thresholdAmounts[i] <= prevThreshold)
+                revert GeniusErrors.InvalidAmount();
+
+            // Validate bps fee
+            if (_bpsFees[i] > BASE_PERCENTAGE)
+                revert GeniusErrors.InvalidPercentage();
+
+            prevThreshold = _thresholdAmounts[i];
+
+            // Add the tier
+            insuranceFeeTiers.push(
+                FeeTier({
+                    thresholdAmount: _thresholdAmounts[i],
+                    bpsFee: _bpsFees[i]
+                })
+            );
+        }
+
+        emit InsuranceFeeTiersUpdated(_thresholdAmounts, _bpsFees);
+    }
+
+    /**
      * @dev Internal function to set the number of decimals for a stablecoin on a given chain.
      *
      * @param _chainId The chain ID.
@@ -755,6 +834,26 @@ abstract contract GeniusVaultCore is
     }
 
     /**
+     * @dev Set the fee collector address
+     * @param _collector The address to receive base fees
+     */
+    function _setFeeCollector(address _collector) internal {
+        if (_collector == address(0)) revert GeniusErrors.NonAddress0();
+        feeCollector = _collector;
+        emit FeeCollectorSet(_collector);
+    }
+
+    /**
+     * @dev Set the base fee collector address
+     * @param _collector The address to receive base fees
+     */
+    function _setBaseFeeCollector(address _collector) internal {
+        if (_collector == address(0)) revert GeniusErrors.NonAddress0();
+        baseFeeCollector = _collector;
+        emit BaseFeeCollectorSet(_collector);
+    }
+
+    /**
      * @dev Internal function to find the available assets for a given amount.
      * @param _totalAssets The total assets available after the operation.
      * @param _neededLiquidity The amount of assets needed for the operation.
@@ -800,20 +899,82 @@ abstract contract GeniusVaultCore is
     ) internal view returns (uint256 bpsFee) {
         if (feeTiers.length == 0) return 0;
 
-        // Default to the lowest tier fee
+        // Default to the lowest tier fee (or a separate default fee if needed)
         bpsFee = feeTiers[0].bpsFee;
 
-        // Find the appropriate tier based on amount
+        // Find the highest tier that the amount qualifies for
         for (uint256 i = 0; i < feeTiers.length; i++) {
             if (_amount >= feeTiers[i].thresholdAmount) {
                 bpsFee = feeTiers[i].bpsFee;
             } else {
-                // Once we've found a tier with a threshold higher than the amount, break
+                // Found a tier with threshold higher than amount, so break
                 break;
             }
         }
 
         return bpsFee;
+    }
+
+    /**
+     * @dev Internal function to determine the insurance fee basis points based on order size.
+     * Returns the bps fee for the appropriate tier.
+     * If no tiers are set or amount is below the first tier, returns 0.
+     * @param _amount The order amount to determine the fee for
+     * @return bpsFee The basis points fee to apply
+     */
+    function _getInsuranceFeeBpsForAmount(
+        uint256 _amount
+    ) internal view returns (uint256 bpsFee) {
+        if (insuranceFeeTiers.length == 0) return 0;
+
+        // Default to the lowest tier fee
+        bpsFee = insuranceFeeTiers[0].bpsFee;
+
+        // Find the highest tier that the amount qualifies for
+        for (uint256 i = 0; i < insuranceFeeTiers.length; i++) {
+            if (_amount >= insuranceFeeTiers[i].thresholdAmount) {
+                bpsFee = insuranceFeeTiers[i].bpsFee;
+            } else {
+                // Found a tier with threshold higher than amount, so break
+                break;
+            }
+        }
+
+        return bpsFee;
+    }
+
+    /**
+     * @dev Internal function to calculate the complete fee breakdown for an order
+     * @param _amount The order amount
+     * @param _destChainId The destination chain ID
+     * @return FeeBreakdown containing the breakdown of fees
+     */
+    function _calculateFeeBreakdown(
+        uint256 _amount,
+        uint256 _destChainId
+    ) internal view returns (FeeBreakdown memory) {
+        address tokenIn = address(STABLECOIN);
+        uint256 baseFee = targetChainMinFee[tokenIn][_destChainId];
+
+        // Calculate BPS fee
+        uint256 bpsFeePercentage = _getBpsFeeForAmount(_amount);
+        uint256 bpsFee = (_amount * bpsFeePercentage) / BASE_PERCENTAGE;
+
+        // Calculate insurance fee
+        uint256 insuranceFeePercentage = _getInsuranceFeeBpsForAmount(_amount);
+        uint256 insuranceFee = (_amount * insuranceFeePercentage) /
+            BASE_PERCENTAGE;
+
+        // Calculate total fee
+        uint256 totalFee = baseFee + bpsFee + insuranceFee;
+
+        return
+            FeeBreakdown({
+                baseFee: baseFee,
+                bpsFee: bpsFee,
+                insuranceFee: insuranceFee,
+                totalFee: totalFee
+            });
     }
 
     /**

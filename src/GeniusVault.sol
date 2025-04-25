@@ -18,6 +18,9 @@ contract GeniusVault is GeniusVaultCore {
     // State variables
     uint256 public feesCollected;
     uint256 public feesClaimed;
+    uint256 public baseFeeCollected;
+    uint256 public baseFeeClaimed;
+    uint256 public liquidityReinjected;
 
     constructor() {
         _disableInitializers();
@@ -81,19 +84,23 @@ contract GeniusVault is GeniusVaultCore {
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
         uint256 minFee = targetChainMinFee[tokenIn][order.destChainId];
-        
+
         if (minFee == 0 || chainStablecoinDecimals[order.destChainId] == 0)
             revert GeniusErrors.TokenOrTargetChainNotSupported();
-            
-        // Get the appropriate fee tier based on order size
-        uint256 orderBpsFee = _getBpsFeeForAmount(order.amountIn);
-            
-        // Calculate the required fee: min fee + bps of the order amount
-        uint256 bpsAmount = (order.amountIn * orderBpsFee) / BASE_PERCENTAGE;
-        uint256 requiredFee = minFee + bpsAmount;
-        
-        if (order.fee < requiredFee)
-            revert GeniusErrors.InsufficientFees(order.fee, requiredFee, tokenIn);
+
+        // Calculate complete fee breakdown
+        FeeBreakdown memory feeBreakdown = _calculateFeeBreakdown(
+            order.amountIn,
+            order.destChainId
+        );
+
+        // Check if the provided fee is sufficient
+        if (order.fee < feeBreakdown.totalFee)
+            revert GeniusErrors.InsufficientFees(
+                order.fee,
+                feeBreakdown.totalFee,
+                tokenIn
+            );
 
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
@@ -101,7 +108,11 @@ contract GeniusVault is GeniusVaultCore {
 
         STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
 
-        feesCollected += order.fee;
+        // Distribute fees to appropriate buckets
+        baseFeeCollected += feeBreakdown.baseFee;
+        feesCollected += feeBreakdown.bpsFee;
+        liquidityReinjected += feeBreakdown.insuranceFee;
+
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit OrderCreated(
@@ -116,6 +127,15 @@ contract GeniusVault is GeniusVaultCore {
             order.minAmountOut,
             order.fee
         );
+
+        // Emit a detailed fee breakdown event
+        emit OrderFeeBreakdown(
+            orderHash_,
+            feeBreakdown.baseFee,
+            feeBreakdown.bpsFee,
+            feeBreakdown.insuranceFee,
+            feeBreakdown.totalFee
+        );
     }
 
     /**
@@ -126,27 +146,32 @@ contract GeniusVault is GeniusVaultCore {
     }
 
     /**
-     * @dev See {IGeniusVault-claimFees}.
+     * @notice Fetches the amount of base fees that can be claimed
      */
-    function claimFees(
-        uint256 amount,
-        address token
-    ) external virtual override onlyOrchestratorOrAdmin whenNotPaused {
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > claimableFees())
-            revert GeniusErrors.InsufficientFees(
-                amount,
-                claimableFees(),
-                address(STABLECOIN)
-            );
-        if (token != address(STABLECOIN))
-            revert GeniusErrors.InvalidToken(token);
+    function claimableBaseFees() public view returns (uint256) {
+        return baseFeeCollected - baseFeeClaimed;
+    }
 
-        feesClaimed += amount;
+    /**
+     * @dev See {IGeniusVault-collectFees}.
+     */
+    function claimFees() external virtual override whenNotPaused {
+        uint256 feesAmount = claimableFees();
+        uint256 baseFeesAmount = claimableBaseFees();
 
-        STABLECOIN.safeTransfer(msg.sender, amount);
+        if (feesAmount == 0 && baseFeesAmount == 0)
+            revert GeniusErrors.InvalidAmount();
 
-        emit FeesClaimed(address(STABLECOIN), amount);
+        if (feesAmount > 0) {
+            feesClaimed += feesAmount;
+            STABLECOIN.safeTransfer(feeCollector, feesAmount);
+        }
+        if (baseFeesAmount > 0) {
+            baseFeeClaimed += baseFeesAmount;
+            STABLECOIN.safeTransfer(baseFeeCollector, baseFeesAmount);
+        }
+
+        emit FeesClaimed(feesAmount, baseFeesAmount);
     }
 
     /**
@@ -157,6 +182,6 @@ contract GeniusVault is GeniusVaultCore {
         uint256 reduction = (_totalStaked * rebalanceThreshold) /
             BASE_PERCENTAGE;
         uint256 minBalance = _totalStaked - reduction;
-        return minBalance + claimableFees();
+        return minBalance + claimableFees() + claimableBaseFees();
     }
 }

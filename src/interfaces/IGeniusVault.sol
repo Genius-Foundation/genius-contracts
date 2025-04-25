@@ -58,6 +58,13 @@ interface IGeniusVault {
         uint256 bpsFee; // Basis points fee for this tier
     }
 
+    struct FeeBreakdown {
+        uint256 baseFee; // Base fee that goes to operations
+        uint256 bpsFee; // BPS fee that goes to fee collector
+        uint256 insuranceFee; // Insurance fee that gets re-injected into liquidity
+        uint256 totalFee; // Total fee (sum of all components)
+    }
+
     event StablePriceBoundsChanged(uint256 lower, uint256 upper);
 
     /**
@@ -153,10 +160,10 @@ interface IGeniusVault {
 
     /**
      * @notice Emitted when fees are claimed from the Vault contract.
-     * @param token The address of the token the fees were claimed in.
-     * @param amount The amount of fees claimed.
+     * @param feesAmount The amount of fees claimesd.
+     * @param baseFeesAmount The amount of base fees claimed.
      */
-    event FeesClaimed(address indexed token, uint256 amount);
+    event FeesClaimed(uint256 feesAmount, uint256 baseFeesAmount);
 
     /**
      * @notice Emitted when the rebalance threshold is changed.
@@ -206,6 +213,35 @@ interface IGeniusVault {
      * @param newPriceFeed The address of the new price feed.
      */
     event PriceFeedUpdated(address newPriceFeed);
+
+    /**
+     * @dev Emitted when insurance fee tiers are updated
+     */
+    event InsuranceFeeTiersUpdated(
+        uint256[] thresholdAmounts,
+        uint256[] bpsFees
+    );
+
+    /**
+     * @dev Emitted when the base fee collector is set
+     */
+    event BaseFeeCollectorSet(address collector);
+
+    /**
+     * @dev Emitted when the fee collector is set
+     */
+    event FeeCollectorSet(address collector);
+
+    /**
+     * @dev Emitted when an order is created, showing detailed fee breakdown
+     */
+    event OrderFeeBreakdown(
+        bytes32 indexed orderHash,
+        uint256 baseFee,
+        uint256 bpsFee,
+        uint256 insuranceFee,
+        uint256 totalFee
+    );
 
     /**
      * @notice Returns the total balance of the vault.
@@ -311,10 +347,8 @@ interface IGeniusVault {
 
     /**
      * @notice Claims fees from the GeniusVault contract.
-     * @param amount The amount of fees to claim.
-     * @param token The address of the token to claim fees in.
      */
-    function claimFees(uint256 amount, address token) external;
+    function claimFees() external;
 
     /**
      * @notice Sets the rebalance threshold for the GeniusVault contract.
@@ -382,6 +416,28 @@ interface IGeniusVault {
      * @param _newHeartbeat The new heartbeat
      */
     function setPriceFeedHeartbeat(uint256 _newHeartbeat) external;
+
+    /**
+     * @notice Sets the tiered insurance fee structure based on order size
+     * @param _thresholdAmounts Array of threshold amounts for each tier
+     * @param _bpsFees Array of basis point fees for each tier
+     */
+    function setInsuranceFeeTiers(
+        uint256[] calldata _thresholdAmounts,
+        uint256[] calldata _bpsFees
+    ) external;
+
+    /**
+     * @notice Sets the base fee collector address
+     * @param _collector Address that will receive base fees
+     */
+    function setBaseFeeCollector(address _collector) external;
+
+    /**
+     * @notice Sets the fee collector address
+     * @param _collector Address that will receive base fees
+     */
+    function setFeeCollector(address _collector) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.
