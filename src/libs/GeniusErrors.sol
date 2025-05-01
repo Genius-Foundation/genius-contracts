@@ -273,4 +273,5 @@ library GeniusErrors {
     error SameIpfsHash();
     error NewLabelExists();
     error StatusAlreadySet();
+    error NotAuthorized();
 }

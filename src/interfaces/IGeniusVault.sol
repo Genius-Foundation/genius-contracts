@@ -223,14 +223,14 @@ interface IGeniusVault {
     );
 
     /**
-     * @dev Emitted when the base fee collector is set
+     * @dev Emitted when the fee collector contract is set
      */
-    event BaseFeeCollectorSet(address collector);
+    event FeeCollectorSet(address feeCollector);
 
     /**
-     * @dev Emitted when the fee collector is set
+     * @dev Emitted when the fee calculator contract is set
      */
-    event FeeCollectorSet(address collector);
+    event FeeCalculatorSet(address feeCalculator);
 
     /**
      * @dev Emitted when an order is created, showing detailed fee breakdown
@@ -376,16 +376,6 @@ interface IGeniusVault {
     ) external;
 
     /**
-     * @notice Sets the fee tiers based on order size
-     * @param _thresholdAmounts Array of threshold amounts for each tier (minimum order size)
-     * @param _bpsFees Array of basis point fees for each tier
-     */
-    function setFeeTiers(
-        uint256[] calldata _thresholdAmounts,
-        uint256[] calldata _bpsFees
-    ) external;
-
-    /**
      * @notice Sets the stable price bounds for the chainlink price feed checks.
      * @param _lowerBound The new lower bound for the stable price.
      * @param _upperBound The new upper bound for the stable price.
@@ -418,26 +408,16 @@ interface IGeniusVault {
     function setPriceFeedHeartbeat(uint256 _newHeartbeat) external;
 
     /**
-     * @notice Sets the tiered insurance fee structure based on order size
-     * @param _thresholdAmounts Array of threshold amounts for each tier
-     * @param _bpsFees Array of basis point fees for each tier
+     * @notice Sets the fee calculator contract
+     * @param _feeCalculator Address of the fee calculator contract
      */
-    function setInsuranceFeeTiers(
-        uint256[] calldata _thresholdAmounts,
-        uint256[] calldata _bpsFees
-    ) external;
+    function setFeeCalculator(address _feeCalculator) external;
 
     /**
-     * @notice Sets the base fee collector address
-     * @param _collector Address that will receive base fees
+     * @notice Sets the fee collector contract
+     * @param _feeCollector Address of the fee collector contract
      */
-    function setBaseFeeCollector(address _collector) external;
-
-    /**
-     * @notice Sets the fee collector address
-     * @param _collector Address that will receive base fees
-     */
-    function setFeeCollector(address _collector) external;
+    function setFeeCollector(address _feeCollector) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.
