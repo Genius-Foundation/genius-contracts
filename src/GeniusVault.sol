@@ -6,7 +6,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
-import {IFeeCalculator} from "./interfaces/IFeeCalculator.sol";
 import {IFeeCollector} from "./interfaces/IFeeCollector.sol";
 
 /**
@@ -22,8 +21,7 @@ contract GeniusVault is GeniusVaultCore {
     uint256 public feesClaimed;
     uint256 public feesReinjected;
 
-    // Fee contracts
-    IFeeCalculator public feeCalculator;
+    // Fee collector contract
     IFeeCollector public feeCollector;
 
     constructor() {
@@ -87,43 +85,35 @@ contract GeniusVault is GeniusVaultCore {
         if (order.srcChainId != _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
-        // Get fee breakdown from fee calculator
-        IFeeCalculator.FeeBreakdown memory feeBreakdown = feeCalculator.getOrderFees(
-            tokenIn,
-            order.amountIn,
-            order.destChainId
-        );
-
-        // Check if the provided fee is sufficient
-        if (order.fee < feeBreakdown.totalFee)
-            revert GeniusErrors.InsufficientFees(
-                order.fee,
-                feeBreakdown.totalFee,
-                tokenIn
-            );
-
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
 
         STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
 
-        // Calculate any surplus fee over the required minimum
-        uint256 feeSurplus = 0;
-        if (order.fee > feeBreakdown.totalFee) {
-            feeSurplus = order.fee - feeBreakdown.totalFee;
-        }
-
-        // Update fee accounting
-        feesCollected += order.fee - feeBreakdown.totalFee;
-        feesReinjected += feeBreakdown.insuranceFee;
-
-        // Update the fee collector contract
-        feeCollector.updateFees(
-            feeBreakdown.bpsFee,
-            feeBreakdown.baseFee,
-            feeSurplus
+        // Call the fee collector to process fees
+        uint256 amountToTransfer = feeCollector.collectFromVault(
+            tokenIn,
+            order.amountIn,
+            order.destChainId,
+            order.fee
         );
+        
+        // Get fee breakdown for event emission
+        IFeeCollector.FeeBreakdown memory feeBreakdown = feeCollector.getOrderFees(
+            tokenIn,
+            order.amountIn,
+            order.destChainId
+        );
+
+        // Update insurance fee accounting
+        feesReinjected += feeBreakdown.insuranceFee;
+        
+        // Transfer the appropriate amount to the fee collector
+        if (amountToTransfer > 0) {
+            // Transfer fees to fee collector contract
+            STABLECOIN.safeTransfer(address(feeCollector), amountToTransfer);
+        }
 
         orderStatus[orderHash_] = OrderStatus.Created;
 
@@ -157,30 +147,6 @@ contract GeniusVault is GeniusVaultCore {
         return feesCollected - feesClaimed;
     }
 
-    /**
-     * @dev See {IGeniusVault-collectFees}.
-     */
-    function claimFees() external virtual override whenNotPaused {
-        uint256 feesAmount = claimableFees();
-
-        if (feesAmount == 0)
-            revert GeniusErrors.InvalidAmount();
-
-        feesClaimed += feesAmount;
-        STABLECOIN.safeTransfer(address(feeCollector), feesAmount);
-
-        emit FeesClaimed(feesAmount, 0); // Keep the same event signature but set base fees to 0
-    }
-
-    /**
-     * @notice Set the fee calculator contract
-     * @param _feeCalculator Address of the fee calculator contract
-     */
-    function setFeeCalculator(address _feeCalculator) external onlyAdmin {
-        if (_feeCalculator == address(0)) revert GeniusErrors.NonAddress0();
-        feeCalculator = IFeeCalculator(_feeCalculator);
-        emit FeeCalculatorSet(_feeCalculator);
-    }
 
     /**
      * @notice Set the fee collector contract
@@ -200,6 +166,7 @@ contract GeniusVault is GeniusVaultCore {
         uint256 reduction = (_totalStaked * rebalanceThreshold) /
             BASE_PERCENTAGE;
         uint256 minBalance = _totalStaked - reduction;
-        return minBalance + claimableFees();
+        // claimableFees is no longer relevant since fees are transferred directly
+        return minBalance;
     }
 }

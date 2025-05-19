@@ -7,12 +7,36 @@ pragma solidity 0.8.24;
  */
 interface IFeeCollector {
     /**
+     * @notice Struct representing a fee tier based on order size
+     * @param thresholdAmount Minimum amount for this tier
+     * @param bpsFee Basis points fee for this tier
+     */
+    struct FeeTier {
+        uint256 thresholdAmount; // Minimum amount for this tier
+        uint256 bpsFee; // Basis points fee for this tier
+    }
+
+    /**
+     * @notice Breakdown of different fee components for an order
+     * @param baseFee Base fee that goes to operations
+     * @param bpsFee BPS fee that goes to fee collector
+     * @param insuranceFee Insurance fee that gets re-injected into liquidity
+     * @param totalFee Total fee (sum of all components)
+     */
+    struct FeeBreakdown {
+        uint256 baseFee;
+        uint256 bpsFee;
+        uint256 insuranceFee;
+        uint256 totalFee;
+    }
+
+    /**
      * @notice Emitted when fees are updated by the vault
      * @param protocolFee Amount of protocol fees added
      * @param lpFee Amount of LP fees added
-     * @param baseFee Amount of base fees added
+     * @param operatorFee Amount of operator fees added
      */
-    event FeesUpdated(uint256 protocolFee, uint256 lpFee, uint256 baseFee);
+    event FeesCollectedFromVault(uint256 protocolFee, uint256 lpFee, uint256 operatorFee);
 
     /**
      * @notice Emitted when protocol fees are claimed
@@ -29,11 +53,11 @@ interface IFeeCollector {
     event LPFeesClaimed(address indexed claimant, uint256 amount);
 
     /**
-     * @notice Emitted when base fees are claimed
+     * @notice Emitted when operator fees are claimed
      * @param claimant The address that claimed the fees
      * @param amount The amount claimed
      */
-    event BaseFeesClaimed(address indexed claimant, uint256 amount);
+    event OperatorFeesClaimed(address indexed claimant, uint256 amount);
 
     /**
      * @notice Emitted when the vault address is set
@@ -42,23 +66,53 @@ interface IFeeCollector {
     event VaultSet(address vault);
 
     /**
-     * @notice Emitted when fee distribution percentages are updated
-     * @param protocolFeeBps The new protocol fee percentage (basis points)
-     * @param lpFeeBps The new LP fee percentage (basis points)
+     * @notice Emitted when the protocol fee percentage is updated
+     * @param protocolFee The new protocol fee percentage
      */
-    event FeeDistributionUpdated(uint256 protocolFeeBps, uint256 lpFeeBps);
+    event ProtocolFeeUpdated(uint256 protocolFee);
 
     /**
-     * @notice Update the fees collected based on a new order
-     * @param bpsFee The BPS fee component
-     * @param baseFee The base fee component
-     * @param feeSurplus Any surplus fees beyond the minimum required
+     * @notice Emitted when the fee tiers based on order size are updated
+     * @param thresholdAmounts Array of threshold amounts for each tier
+     * @param bpsFees Array of basis point fees for each tier
      */
-    function updateFees(
-        uint256 bpsFee,
-        uint256 baseFee,
-        uint256 feeSurplus
-    ) external;
+    event FeeTiersUpdated(uint256[] thresholdAmounts, uint256[] bpsFees);
+
+    /**
+     * @notice Emitted when insurance fee tiers are updated
+     */
+    event InsuranceFeeTiersUpdated(
+        uint256[] thresholdAmounts,
+        uint256[] bpsFees
+    );
+
+    /**
+     * @notice Emitted when the minimum fee for a target chain has changed
+     * @param token The address of the token used as a fee
+     * @param targetChainId The id of the target chain
+     * @param newMinFee The new minimum fee for the target chain
+     */
+    event TargetChainMinFeeChanged(
+        address token,
+        uint256 targetChainId,
+        uint256 newMinFee
+    );
+
+    /**
+     * @notice Collects and processes fees for an order
+     * @dev Can only be called by the vault
+     * @param _tokenIn The token being sent in the order
+     * @param _amountIn The order amount
+     * @param _destChainId The destination chain ID
+     * @param _orderFee The total fee amount provided with the order
+     * @return amountToTransfer The amount of fees to transfer to the fee collector
+     */
+    function collectFromVault(
+        address _tokenIn,
+        uint256 _amountIn,
+        uint256 _destChainId,
+        uint256 _orderFee
+    ) external returns (uint256 amountToTransfer);
 
     /**
      * @notice Allows admins to claim protocol fees
@@ -73,10 +127,10 @@ interface IFeeCollector {
     function claimLPFees() external returns (uint256 amount);
 
     /**
-     * @notice Allows workers to claim base fees for operational expenses
+     * @notice Allows workers to claim operator fees for operational expenses
      * @return amount The amount of fees claimed
      */
-    function claimBaseFees() external returns (uint256 amount);
+    function claimOperatorFees() external returns (uint256 amount);
 
     /**
      * @notice Sets the vault address that can update fees
@@ -85,13 +139,41 @@ interface IFeeCollector {
     function setVault(address _vault) external;
 
     /**
-     * @notice Sets the fee distribution percentages
-     * @param _protocolFeeBps Percentage (in basis points) allocated to protocol
-     * @param _lpFeeBps Percentage (in basis points) allocated to LPs
+     * @notice Sets the protocol fee percentage
+     * @param _protocolFee Percentage of the BPS fees allocated to protocol
      */
-    function setFeeDistribution(
-        uint256 _protocolFeeBps,
-        uint256 _lpFeeBps
+    function setProtocolFee(uint256 _protocolFee) external;
+
+    /**
+     * @notice Sets the minimum fee for a target chain
+     * @param _token The address of the token used for the fees
+     * @param _targetChainId The id of the target chain
+     * @param _minFee The new minimum fee for the target chain
+     */
+    function setTargetChainMinFee(
+        address _token,
+        uint256 _targetChainId,
+        uint256 _minFee
+    ) external;
+
+    /**
+     * @notice Sets the fee tiers based on order size
+     * @param _thresholdAmounts Array of threshold amounts for each tier (minimum order size)
+     * @param _bpsFees Array of basis point fees for each tier
+     */
+    function setFeeTiers(
+        uint256[] calldata _thresholdAmounts,
+        uint256[] calldata _bpsFees
+    ) external;
+
+    /**
+     * @notice Sets the tiered insurance fee structure based on order size
+     * @param _thresholdAmounts Array of threshold amounts for each tier
+     * @param _bpsFees Array of basis point fees for each tier
+     */
+    function setInsuranceFeeTiers(
+        uint256[] calldata _thresholdAmounts,
+        uint256[] calldata _bpsFees
     ) external;
 
     /**
@@ -107,8 +189,21 @@ interface IFeeCollector {
     function claimableLPFees() external view returns (uint256);
 
     /**
-     * @notice Returns the total claimable base fees
-     * @return Amount of base fees available to claim
+     * @notice Returns the total claimable operator fees
+     * @return Amount of operator fees available to claim
      */
-    function claimableBaseFees() external view returns (uint256);
+    function claimableOperatorFees() external view returns (uint256);
+
+    /**
+     * @notice Calculates the complete fee breakdown for an order
+     * @param _tokenIn The token being sent in the order
+     * @param _amount The order amount
+     * @param _destChainId The destination chain ID
+     * @return A FeeBreakdown struct containing the breakdown of fees
+     */
+    function getOrderFees(
+        address _tokenIn,
+        uint256 _amount,
+        uint256 _destChainId
+    ) external view returns (FeeBreakdown memory);
 }

@@ -346,11 +346,6 @@ interface IGeniusVault {
     ) external;
 
     /**
-     * @notice Claims fees from the GeniusVault contract.
-     */
-    function claimFees() external;
-
-    /**
      * @notice Sets the rebalance threshold for the GeniusVault contract.
      * @param threshold The new rebalance threshold to be set.
      */
@@ -406,12 +401,6 @@ interface IGeniusVault {
      * @param _newHeartbeat The new heartbeat
      */
     function setPriceFeedHeartbeat(uint256 _newHeartbeat) external;
-
-    /**
-     * @notice Sets the fee calculator contract
-     * @param _feeCalculator Address of the fee calculator contract
-     */
-    function setFeeCalculator(address _feeCalculator) external;
 
     /**
      * @notice Sets the fee collector contract
