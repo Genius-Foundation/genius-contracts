@@ -9,6 +9,7 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
+import {FeeCollector} from "../src/fees/FeeCollector.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
@@ -41,6 +42,7 @@ contract GeniusVaultTest is Test {
     GeniusVault public VAULT;
     GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
+    FeeCollector public FEE_COLLECTOR;
 
     IGeniusVault.Order public badOrder;
 
@@ -86,6 +88,58 @@ contract GeniusVaultTest is Test {
 
         VAULT = GeniusVault(address(proxy));
 
+        // Deploy FeeCollector
+        FeeCollector feeCollectorImplementation = new FeeCollector();
+
+        bytes memory feeCollectorData = abi.encodeWithSelector(
+            FeeCollector.initialize.selector,
+            OWNER,
+            address(USDC),
+            2000 // 20% to protocol
+        );
+
+        ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
+            address(feeCollectorImplementation),
+            feeCollectorData
+        );
+
+        FEE_COLLECTOR = FeeCollector(address(feeCollectorProxy));
+
+        // Set FeeCollector in vault
+        VAULT.setFeeCollector(address(FEE_COLLECTOR));
+
+        // Set vault in FeeCollector
+        FEE_COLLECTOR.setVault(address(VAULT));
+
+        // Set up fee tiers in FeeCollector
+        uint256[] memory thresholdAmounts = new uint256[](3);
+        thresholdAmounts[0] = 0;
+        thresholdAmounts[1] = 100 ether;
+        thresholdAmounts[2] = 500 ether;
+
+        uint256[] memory bpsFees = new uint256[](3);
+        bpsFees[0] = 30; // 0.3%
+        bpsFees[1] = 20; // 0.2%
+        bpsFees[2] = 10; // 0.1%
+
+        FEE_COLLECTOR.setFeeTiers(thresholdAmounts, bpsFees);
+
+        // Set up insurance fee tiers
+        uint256[] memory insThresholdAmounts = new uint256[](3);
+        insThresholdAmounts[0] = 0;
+        insThresholdAmounts[1] = 100 ether;
+        insThresholdAmounts[2] = 500 ether;
+
+        uint256[] memory insBpsFees = new uint256[](3);
+        insBpsFees[0] = 30; // 0.3%
+        insBpsFees[1] = 20; // 0.2%
+        insBpsFees[2] = 10; // 0.1%
+
+        FEE_COLLECTOR.setInsuranceFeeTiers(insThresholdAmounts, insBpsFees);
+
+        // Set min fee in FeeCollector
+        FEE_COLLECTOR.setTargetChainMinFee(destChainId, 10000);
+
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
 
         badOrder = IGeniusVault.Order({
@@ -96,7 +150,7 @@ contract GeniusVaultTest is Test {
             srcChainId: 43, // Wrong source chain
             destChainId: destChainId,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: 1 ether,
+            fee: 4 ether,
             minAmountOut: 0,
             tokenOut: bytes32(uint256(1))
         });
@@ -109,7 +163,7 @@ contract GeniusVaultTest is Test {
             srcChainId: uint16(block.chainid),
             destChainId: destChainId,
             tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: 1 ether,
+            fee: 4 ether,
             minAmountOut: 0,
             tokenOut: bytes32(uint256(1))
         });
@@ -128,7 +182,7 @@ contract GeniusVaultTest is Test {
 
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR);
         VAULT.grantRole(VAULT.ORCHESTRATOR_ROLE(), address(this));
-        VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
+        FEE_COLLECTOR.setTargetChainMinFee(destChainId, 1 ether);
         VAULT.setChainStablecoinDecimals(destChainId, 6);
 
         assertEq(VAULT.hasRole(VAULT.ORCHESTRATOR_ROLE(), ORCHESTRATOR), true);
@@ -861,7 +915,7 @@ contract GeniusVaultTest is Test {
 
     function testCreateOrderWithTargetChainIdOrTokenNotSupported() public {
         vm.startPrank(OWNER);
-        VAULT.setTargetChainMinFee(address(USDC), destChainId, 0);
+        FEE_COLLECTOR.setTargetChainMinFee(destChainId, 0);
         vm.stopPrank();
 
         vm.startPrank(address(ORCHESTRATOR));
@@ -879,9 +933,7 @@ contract GeniusVaultTest is Test {
         });
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                GeniusErrors.TokenOrTargetChainNotSupported.selector
-            )
+            abi.encodeWithSelector(GeniusErrors.InvalidDestChainId.selector, 42)
         );
 
         VAULT.createOrder(order);
@@ -926,10 +978,13 @@ contract GeniusVaultTest is Test {
         USDC.approve(address(VAULT), 5_000 ether);
 
         // Set invalid price
-        MOCK_PRICE_FEED.updatePrice(-1);
+        MOCK_PRICE_FEED.updatePrice(100_000_000_00); // 0.1 USD
 
         vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.PriceOutOfBounds.selector, -1)
+            abi.encodeWithSelector(
+                GeniusErrors.PriceOutOfBounds.selector,
+                100_000_000_00
+            )
         );
         VAULT.createOrder(order);
 
@@ -1041,7 +1096,7 @@ contract GeniusVaultTest is Test {
         // Verify USDC was returned to trader (minus fee)
         assertEq(
             USDC.balanceOf(TRADER),
-            999 ether, // amountIn - fee
+            996 ether,
             "Trader should receive amountIn minus fee"
         );
 
@@ -1137,7 +1192,7 @@ contract GeniusVaultTest is Test {
             abi.encodeWithSelector(
                 GeniusErrors.InsufficientLiquidity.selector,
                 0,
-                999 ether
+                996 ether
             )
         );
         VAULT.revertOrder(order, signature);

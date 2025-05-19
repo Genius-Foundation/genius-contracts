@@ -42,7 +42,7 @@ contract FeeCollector is
     FeeTier[] public insuranceFeeTiers;
 
     // Minimum fees per chain (token => chainId => minFee)
-    mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
+    mapping(uint256 => uint256) public targetChainMinFee;
 
     // The token (stablecoin) used for fees
     IERC20 public stablecoin;
@@ -86,14 +86,14 @@ contract FeeCollector is
     /**
      * @notice Collects and processes fees for an order
      * @dev Can only be called by the vault
-     * @param _tokenIn The token being sent in the order
+     * @param _orderHash The hash of the order
      * @param _amountIn The order amount
      * @param _destChainId The destination chain ID
      * @param _orderFee The total fee amount provided with the order
      * @return amountToTransfer The amount of fees to transfer to the fee collector
      */
     function collectFromVault(
-        address _tokenIn,
+        bytes32 _orderHash,
         uint256 _amountIn,
         uint256 _destChainId,
         uint256 _orderFee
@@ -102,7 +102,6 @@ contract FeeCollector is
 
         // Calculate fee breakdown
         FeeBreakdown memory feeBreakdown = _calculateFeeBreakdown(
-            _tokenIn,
             _amountIn,
             _destChainId
         );
@@ -111,8 +110,7 @@ contract FeeCollector is
         if (_orderFee < feeBreakdown.totalFee)
             revert GeniusErrors.InsufficientFees(
                 _orderFee,
-                feeBreakdown.totalFee,
-                _tokenIn
+                feeBreakdown.totalFee
             );
 
         // Calculate any surplus fee over the required minimum
@@ -136,7 +134,12 @@ contract FeeCollector is
         // The vault should transfer the total fee minus insurance fee to the fee collector
         amountToTransfer = _orderFee - feeBreakdown.insuranceFee;
 
-        emit FeesCollectedFromVault(protocolFeeAmount, lpFee, feeBreakdown.baseFee + feeSurplus);
+        emit FeesCollectedFromVault(
+            _orderHash,
+            protocolFeeAmount,
+            lpFee,
+            feeBreakdown.baseFee + feeSurplus
+        );
         return amountToTransfer;
     }
 
@@ -228,16 +231,14 @@ contract FeeCollector is
 
     /**
      * @notice Sets the minimum fee for a target chain
-     * @param _token The address of the token used for the fees
      * @param _targetChainId The id of the target chain
      * @param _minFee The new minimum fee for the target chain
      */
     function setTargetChainMinFee(
-        address _token,
         uint256 _targetChainId,
         uint256 _minFee
     ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        _setTargetChainMinFee(_token, _targetChainId, _minFee);
+        _setTargetChainMinFee(_targetChainId, _minFee);
     }
 
     /**
@@ -290,35 +291,31 @@ contract FeeCollector is
 
     /**
      * @notice Calculates the complete fee breakdown for an order
-     * @param _tokenIn The token being sent in the order
      * @param _amount The order amount
      * @param _destChainId The destination chain ID
      * @return A FeeBreakdown struct containing the breakdown of fees
      */
     function getOrderFees(
-        address _tokenIn,
         uint256 _amount,
         uint256 _destChainId
     ) external view returns (FeeBreakdown memory) {
-        return _calculateFeeBreakdown(_tokenIn, _amount, _destChainId);
+        return _calculateFeeBreakdown(_amount, _destChainId);
     }
 
     /**
      * @dev Internal function to set the minimum fee for a target chain.
-     * @param _token The address of the token to spend.
      * @param _targetChainId The target chain ID.
      * @param _minFee The minimum fee required.
      */
     function _setTargetChainMinFee(
-        address _token,
         uint256 _targetChainId,
         uint256 _minFee
     ) internal {
         if (_targetChainId == block.chainid)
             revert GeniusErrors.InvalidDestChainId(_targetChainId);
 
-        targetChainMinFee[_token][_targetChainId] = _minFee;
-        emit TargetChainMinFeeChanged(_token, _targetChainId, _minFee);
+        targetChainMinFee[_targetChainId] = _minFee;
+        emit TargetChainMinFeeChanged(_targetChainId, _minFee);
     }
 
     /**
@@ -469,17 +466,19 @@ contract FeeCollector is
 
     /**
      * @dev Internal function to calculate the complete fee breakdown for an order
-     * @param _tokenIn The token being sent in the order
      * @param _amount The order amount
      * @param _destChainId The destination chain ID
      * @return FeeBreakdown containing the breakdown of fees
      */
     function _calculateFeeBreakdown(
-        address _tokenIn,
         uint256 _amount,
         uint256 _destChainId
     ) internal view returns (FeeBreakdown memory) {
-        uint256 baseFee = targetChainMinFee[_tokenIn][_destChainId];
+        uint256 baseFee = targetChainMinFee[_destChainId];
+
+        if (baseFee == 0) {
+            revert GeniusErrors.InvalidDestChainId(_destChainId);
+        }
 
         // Calculate BPS fee
         uint256 bpsFeePercentage = _getBpsFeeForAmount(_amount);

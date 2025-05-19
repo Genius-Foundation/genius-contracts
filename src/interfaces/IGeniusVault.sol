@@ -178,19 +178,6 @@ interface IGeniusVault {
     event ProxyCallChanged(address newProxyCall);
 
     /**
-     * @notice Emitted when the minimum fee for a target chain has changed
-     * note: if the min fees are set to 0, the chain or token are not supported
-     * @param token the address of the token used as a fee
-     * @param targetChainId The id of the target chain
-     * @param newMinFee The new minimum fee for the target chain
-     */
-    event TargetChainMinFeeChanged(
-        address token,
-        uint256 targetChainId,
-        uint256 newMinFee
-    );
-
-    /**
      * @notice Emitted when the fee tiers based on order size are updated
      * @param thresholdAmounts Array of threshold amounts for each tier
      * @param bpsFees Array of basis point fees for each tier
@@ -225,7 +212,7 @@ interface IGeniusVault {
     /**
      * @dev Emitted when the fee collector contract is set
      */
-    event FeeCollectorSet(address feeCollector);
+    event FeeCollectorChanged(address feeCollector);
 
     /**
      * @dev Emitted when the fee calculator contract is set
@@ -356,19 +343,6 @@ interface IGeniusVault {
      * @param _proxyCall The new proxy call contract address
      */
     function setProxyCall(address _proxyCall) external;
-
-    /**
-     * @notice Sets the minimum fee for a target chain
-     * note: if the min fees are set to 0, the chain or token are not supported
-     * @param _token the address of the token used for the fees
-     * @param _targetChainId The id of the target chain
-     * @param _minFee The new minimum fee for the target chain
-     */
-    function setTargetChainMinFee(
-        address _token,
-        uint256 _targetChainId,
-        uint256 _minFee
-    ) external;
 
     /**
      * @notice Sets the stable price bounds for the chainlink price feed checks.

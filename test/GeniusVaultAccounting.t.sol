@@ -199,7 +199,7 @@ contract GeniusVaultAccounting is Test {
         FEE_COLLECTOR.setFeeTiers(thresholdAmounts, bpsFees);
         
         // Set min fee in FeeCollector
-        FEE_COLLECTOR.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
+        FEE_COLLECTOR.setTargetChainMinFee(destChainId, 1 ether);
 
         DEX_ROUTER = new MockDEXRouter();
 

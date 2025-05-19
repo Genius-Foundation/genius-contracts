@@ -5,7 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 
 import {GeniusVault} from "../../src/GeniusVault.sol";
 
-contract SetTargetChainMinFee is Script {
+contract SetChainStablecoinDecimalsMinFee is Script {
     GeniusVault public geniusVault;
 
     function run() external {

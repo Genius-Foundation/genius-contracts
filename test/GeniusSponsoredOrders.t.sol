@@ -17,6 +17,8 @@ import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {IGeniusGasTank} from "../src/interfaces/IGeniusGasTank.sol";
 import {GeniusGasTank} from "../src/GeniusGasTank.sol";
 import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
+import {FeeCollector} from "../src/fees/FeeCollector.sol";
+import {IFeeCollector} from "../src/interfaces/IFeeCollector.sol";
 
 contract GeniusSponsoredOrdersTest is Test {
     int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
@@ -39,6 +41,7 @@ contract GeniusSponsoredOrdersTest is Test {
     GeniusRouter public GENIUS_ROUTER;
     GeniusVault public GENIUS_VAULT;
     GeniusGasTank public GAS_TANK;
+    FeeCollector public FEE_COLLECTOR;
 
     ERC20 public USDC;
     ERC20 public WETH;
@@ -96,6 +99,61 @@ contract GeniusSponsoredOrdersTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         GENIUS_VAULT = GeniusVault(address(proxy));
+
+        // Deploy FeeCollector
+        FeeCollector feeCollectorImplementation = new FeeCollector();
+
+        bytes memory feeCollectorData = abi.encodeWithSelector(
+            FeeCollector.initialize.selector,
+            ADMIN,
+            address(USDC),
+            2000 // 20% to protocol
+        );
+
+        ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
+            address(feeCollectorImplementation),
+            feeCollectorData
+        );
+
+        FEE_COLLECTOR = FeeCollector(address(feeCollectorProxy));
+
+        // Set FeeCollector in vault
+        GENIUS_VAULT.setFeeCollector(address(FEE_COLLECTOR));
+
+        // Set vault in FeeCollector
+        FEE_COLLECTOR.setVault(address(GENIUS_VAULT));
+
+        // Set up fee tiers in FeeCollector
+        uint256[] memory thresholdAmounts = new uint256[](3);
+        thresholdAmounts[0] = 0;
+        thresholdAmounts[1] = 100 ether;
+        thresholdAmounts[2] = 500 ether;
+
+        uint256[] memory bpsFees = new uint256[](3);
+        bpsFees[0] = 30; // 0.3%
+        bpsFees[1] = 20; // 0.2%
+        bpsFees[2] = 10; // 0.1%
+
+        FEE_COLLECTOR.setFeeTiers(thresholdAmounts, bpsFees);
+
+        // Set up insurance fee tiers
+        uint256[] memory insThresholdAmounts = new uint256[](3);
+        insThresholdAmounts[0] = 0;
+        insThresholdAmounts[1] = 100 ether;
+        insThresholdAmounts[2] = 500 ether;
+
+        uint256[] memory insBpsFees = new uint256[](3);
+        insBpsFees[0] = 30; // 0.3%
+        insBpsFees[1] = 20; // 0.2%
+        insBpsFees[2] = 10; // 0.1%
+
+        FEE_COLLECTOR.setInsuranceFeeTiers(insThresholdAmounts, insBpsFees);
+
+        // Set min fee in FeeCollector
+        FEE_COLLECTOR.setTargetChainMinFee(destChainId, 1 ether);
+
+        // Set decimals in Vault
+        GENIUS_VAULT.setChainStablecoinDecimals(destChainId, 6);
         GENIUS_ROUTER = new GeniusRouter(
             address(PERMIT2),
             address(GENIUS_VAULT),
@@ -118,7 +176,6 @@ contract GeniusSponsoredOrdersTest is Test {
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_ROUTER));
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_VAULT));
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GAS_TANK));
-        GENIUS_VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
         GENIUS_VAULT.setChainStablecoinDecimals(destChainId, 6);
 
         vm.stopPrank();
@@ -134,7 +191,7 @@ contract GeniusSponsoredOrdersTest is Test {
     }
 
     function testSponsorOrderCreation() public {
-        uint256 sponsorFee = 2 ether;
+        uint256 sponsorFee = 1.3 ether; // Updated to match new fee calculation
 
         address[] memory tokensIn = new address[](1);
         uint256[] memory amountsIn = new uint256[](1);
@@ -150,7 +207,7 @@ contract GeniusSponsoredOrdersTest is Test {
             address(GENIUS_ROUTER)
         );
 
-        uint256 bridgeFee = 1 ether;
+        uint256 bridgeFee = 1.3 ether;
         uint256 minAmountOut = 49 ether;
 
         bytes memory gasTankData = abi.encodeWithSelector(
@@ -251,9 +308,14 @@ contract GeniusSponsoredOrdersTest is Test {
 
         vm.stopPrank();
 
+        IFeeCollector.FeeBreakdown memory fees = FEE_COLLECTOR.getOrderFees(
+            BASE_ROUTER_USDC_BALANCE / 2,
+            destChainId
+        );
+
         assertEq(
             USDC.balanceOf(address(GENIUS_VAULT)),
-            BASE_ROUTER_USDC_BALANCE / 2
+            BASE_ROUTER_USDC_BALANCE / 2 + fees.insuranceFee - fees.totalFee
         );
     }
 

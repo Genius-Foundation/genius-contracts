@@ -36,7 +36,12 @@ interface IFeeCollector {
      * @param lpFee Amount of LP fees added
      * @param operatorFee Amount of operator fees added
      */
-    event FeesCollectedFromVault(uint256 protocolFee, uint256 lpFee, uint256 operatorFee);
+    event FeesCollectedFromVault(
+        bytes32 indexed orderHash,
+        uint256 protocolFee,
+        uint256 lpFee,
+        uint256 operatorFee
+    );
 
     /**
      * @notice Emitted when protocol fees are claimed
@@ -88,27 +93,22 @@ interface IFeeCollector {
 
     /**
      * @notice Emitted when the minimum fee for a target chain has changed
-     * @param token The address of the token used as a fee
      * @param targetChainId The id of the target chain
      * @param newMinFee The new minimum fee for the target chain
      */
-    event TargetChainMinFeeChanged(
-        address token,
-        uint256 targetChainId,
-        uint256 newMinFee
-    );
+    event TargetChainMinFeeChanged(uint256 targetChainId, uint256 newMinFee);
 
     /**
      * @notice Collects and processes fees for an order
      * @dev Can only be called by the vault
-     * @param _tokenIn The token being sent in the order
+     * @param _orderHash The hash of the order
      * @param _amountIn The order amount
      * @param _destChainId The destination chain ID
      * @param _orderFee The total fee amount provided with the order
      * @return amountToTransfer The amount of fees to transfer to the fee collector
      */
     function collectFromVault(
-        address _tokenIn,
+        bytes32 _orderHash,
         uint256 _amountIn,
         uint256 _destChainId,
         uint256 _orderFee
@@ -146,12 +146,10 @@ interface IFeeCollector {
 
     /**
      * @notice Sets the minimum fee for a target chain
-     * @param _token The address of the token used for the fees
      * @param _targetChainId The id of the target chain
      * @param _minFee The new minimum fee for the target chain
      */
     function setTargetChainMinFee(
-        address _token,
         uint256 _targetChainId,
         uint256 _minFee
     ) external;
@@ -196,13 +194,11 @@ interface IFeeCollector {
 
     /**
      * @notice Calculates the complete fee breakdown for an order
-     * @param _tokenIn The token being sent in the order
      * @param _amount The order amount
      * @param _destChainId The destination chain ID
      * @return A FeeBreakdown struct containing the breakdown of fees
      */
     function getOrderFees(
-        address _tokenIn,
         uint256 _amount,
         uint256 _destChainId
     ) external view returns (FeeBreakdown memory);

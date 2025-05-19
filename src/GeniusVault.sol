@@ -6,7 +6,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {GeniusVaultCore} from "./GeniusVaultCore.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
-import {IFeeCollector} from "./interfaces/IFeeCollector.sol";
 
 /**
  * @title GeniusVault
@@ -17,12 +16,8 @@ contract GeniusVault is GeniusVaultCore {
     using SafeERC20 for IERC20;
 
     // State variables for fee accounting
-    uint256 public feesCollected;
-    uint256 public feesClaimed;
-    uint256 public feesReinjected;
-
-    // Fee collector contract
-    IFeeCollector public feeCollector;
+    uint256 public deprecated_feesCollected;
+    uint256 public deprecated_feesClaimed;
 
     constructor() {
         _disableInitializers();
@@ -69,7 +64,6 @@ contract GeniusVault is GeniusVaultCore {
         // Check stablecoin price before accepting the order
         _verifyStablecoinPrice();
 
-        address tokenIn = address(STABLECOIN);
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.NonAddress0();
         if (
@@ -89,26 +83,16 @@ contract GeniusVault is GeniusVaultCore {
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
 
-        STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
-
         // Call the fee collector to process fees
         uint256 amountToTransfer = feeCollector.collectFromVault(
-            tokenIn,
+            orderHash_,
             order.amountIn,
             order.destChainId,
             order.fee
         );
-        
-        // Get fee breakdown for event emission
-        IFeeCollector.FeeBreakdown memory feeBreakdown = feeCollector.getOrderFees(
-            tokenIn,
-            order.amountIn,
-            order.destChainId
-        );
 
-        // Update insurance fee accounting
-        feesReinjected += feeBreakdown.insuranceFee;
-        
+        STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
+
         // Transfer the appropriate amount to the fee collector
         if (amountToTransfer > 0) {
             // Transfer fees to fee collector contract
@@ -129,33 +113,6 @@ contract GeniusVault is GeniusVaultCore {
             order.minAmountOut,
             order.fee
         );
-
-        // Emit a detailed fee breakdown event
-        emit OrderFeeBreakdown(
-            orderHash_,
-            feeBreakdown.baseFee,
-            feeBreakdown.bpsFee,
-            feeBreakdown.insuranceFee,
-            feeBreakdown.totalFee
-        );
-    }
-
-    /**
-     * @notice Fetches the amount of fees that can be claimed
-     */
-    function claimableFees() public view returns (uint256) {
-        return feesCollected - feesClaimed;
-    }
-
-
-    /**
-     * @notice Set the fee collector contract
-     * @param _feeCollector Address of the fee collector contract
-     */
-    function setFeeCollector(address _feeCollector) external onlyAdmin {
-        if (_feeCollector == address(0)) revert GeniusErrors.NonAddress0();
-        feeCollector = IFeeCollector(_feeCollector);
-        emit FeeCollectorSet(_feeCollector);
     }
 
     /**

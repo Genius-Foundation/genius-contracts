@@ -117,7 +117,7 @@ contract GeniusVaultFeeTiers is Test {
         console.log("Current chain ID:", block.chainid);
 
         // Set minimum fee for destination chain (now in FeeCollector)
-        FEE_COLLECTOR.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
+        FEE_COLLECTOR.setTargetChainMinFee(destChainId, 1 ether);
 
         // Set decimals for both source and destination chains
         VAULT.setChainStablecoinDecimals(destChainId, 6);
@@ -135,18 +135,18 @@ contract GeniusVaultFeeTiers is Test {
         bpsFees[2] = 10; // 0.1% for large orders
 
         FEE_COLLECTOR.setFeeTiers(thresholdAmounts, bpsFees);
-        
+
         // Set up insurance fee tiers
         uint256[] memory insThresholdAmounts = new uint256[](3);
         insThresholdAmounts[0] = 0;
         insThresholdAmounts[1] = 100 ether;
         insThresholdAmounts[2] = 500 ether;
-        
+
         uint256[] memory insBpsFees = new uint256[](3);
         insBpsFees[0] = 5; // 0.05% for smallest orders
         insBpsFees[1] = 3; // 0.03% for medium orders
         insBpsFees[2] = 2; // 0.02% for large orders
-        
+
         FEE_COLLECTOR.setInsuranceFeeTiers(insThresholdAmounts, insBpsFees);
 
         // Debug: print chain IDs and stablecoin decimals
@@ -190,19 +190,33 @@ contract GeniusVaultFeeTiers is Test {
 
         assertEq(threshold2, 500 ether, "Threshold 2 should be 500 ether");
         assertEq(bps2, 10, "BPS 2 should be 10");
-        
+
         // Check insurance fee tiers
-        (uint256 insThreshold0, uint256 insBps0) = (FEE_COLLECTOR.insuranceFeeTiers(0));
-        (uint256 insThreshold1, uint256 insBps1) = (FEE_COLLECTOR.insuranceFeeTiers(1));
-        (uint256 insThreshold2, uint256 insBps2) = (FEE_COLLECTOR.insuranceFeeTiers(2));
-        
+        (uint256 insThreshold0, uint256 insBps0) = (
+            FEE_COLLECTOR.insuranceFeeTiers(0)
+        );
+        (uint256 insThreshold1, uint256 insBps1) = (
+            FEE_COLLECTOR.insuranceFeeTiers(1)
+        );
+        (uint256 insThreshold2, uint256 insBps2) = (
+            FEE_COLLECTOR.insuranceFeeTiers(2)
+        );
+
         assertEq(insThreshold0, 0, "Insurance threshold 0 should be 0");
         assertEq(insBps0, 5, "Insurance BPS 0 should be 5");
-        
-        assertEq(insThreshold1, 100 ether, "Insurance threshold 1 should be 100 ether");
+
+        assertEq(
+            insThreshold1,
+            100 ether,
+            "Insurance threshold 1 should be 100 ether"
+        );
         assertEq(insBps1, 3, "Insurance BPS 1 should be 3");
-        
-        assertEq(insThreshold2, 500 ether, "Insurance threshold 2 should be 500 ether");
+
+        assertEq(
+            insThreshold2,
+            500 ether,
+            "Insurance threshold 2 should be 500 ether"
+        );
         assertEq(insBps2, 2, "Insurance BPS 2 should be 2");
     }
 
@@ -227,7 +241,11 @@ contract GeniusVaultFeeTiers is Test {
         assertEq(threshold0, 0, "Updated threshold 0 should be 0");
         assertEq(bps0, 25, "Updated BPS 0 should be 25");
 
-        assertEq(threshold1, 1000 ether, "Updated threshold 1 should be 1000 ether");
+        assertEq(
+            threshold1,
+            1000 ether,
+            "Updated threshold 1 should be 1000 ether"
+        );
         assertEq(bps1, 15, "Updated BPS 1 should be 15");
 
         // Verify that the length of the array has changed - this should revert
@@ -282,7 +300,10 @@ contract GeniusVaultFeeTiers is Test {
         console.log("Starting testSmallOrderFees");
         console.log("Block ChainID:", block.chainid);
         console.log("Dest ChainID:", destChainId);
-        console.log("Chain stablecoin decimals for current chain:", VAULT.chainStablecoinDecimals(block.chainid));
+        console.log(
+            "Chain stablecoin decimals for current chain:",
+            VAULT.chainStablecoinDecimals(block.chainid)
+        );
 
         vm.startPrank(address(ORCHESTRATOR));
         USDC.approve(address(VAULT), 10_000 ether);
@@ -291,11 +312,8 @@ contract GeniusVaultFeeTiers is Test {
         uint256 orderAmount = 50 ether;
 
         // Calculate fee components
-        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR.getOrderFees(
-            address(USDC),
-            orderAmount,
-            destChainId
-        );
+        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+            .getOrderFees(orderAmount, destChainId);
 
         // Total expected fee
         uint256 totalExpectedFee = feeBreakdown.totalFee;
@@ -319,20 +337,21 @@ contract GeniusVaultFeeTiers is Test {
         uint256 balanceAfter = USDC.balanceOf(address(FEE_COLLECTOR));
 
         // Verify the fees collected - FeeCollector should have received the fee amount minus insurance fee
-        uint256 expectedTransferAmount = totalExpectedFee - feeBreakdown.insuranceFee;
+        uint256 expectedTransferAmount = totalExpectedFee -
+            feeBreakdown.insuranceFee;
         assertEq(
             balanceAfter - balanceBefore,
             expectedTransferAmount,
             "FeeCollector should have received fee amount minus insurance fee"
         );
-        
+
         // Get protocol fee using static calls to avoid using internal variables
         (bool success, bytes memory data) = address(FEE_COLLECTOR).staticcall(
             abi.encodeWithSignature("protocolFee()")
         );
         require(success, "Call failed");
         uint256 protocolFeeBps = abi.decode(data, (uint256));
-        
+
         // LP fee is now calculated as remainder (not explicitly set), so we just use what's needed
         uint256 lpFeeBps = 10000 - protocolFeeBps;
 
@@ -362,25 +381,25 @@ contract GeniusVaultFeeTiers is Test {
         // Try with an insufficient fee
         uint256 insufficientFee = totalExpectedFee - 1; // 1 less than required
 
-        IGeniusVault.Order memory orderWithInsufficientFee = IGeniusVault.Order({
-            trader: VAULT.addressToBytes32(TRADER),
-            receiver: RECEIVER,
-            amountIn: orderAmount,
-            seed: keccak256("small_order_insufficient_fee"),
-            srcChainId: uint256(block.chainid), // Make sure we use the active chain ID
-            destChainId: destChainId,
-            tokenIn: VAULT.addressToBytes32(address(USDC)),
-            fee: insufficientFee,
-            minAmountOut: 0,
-            tokenOut: bytes32(uint256(1))
-        });
+        IGeniusVault.Order memory orderWithInsufficientFee = IGeniusVault
+            .Order({
+                trader: VAULT.addressToBytes32(TRADER),
+                receiver: RECEIVER,
+                amountIn: orderAmount,
+                seed: keccak256("small_order_insufficient_fee"),
+                srcChainId: uint256(block.chainid), // Make sure we use the active chain ID
+                destChainId: destChainId,
+                tokenIn: VAULT.addressToBytes32(address(USDC)),
+                fee: insufficientFee,
+                minAmountOut: 0,
+                tokenOut: bytes32(uint256(1))
+            });
 
         vm.expectRevert(
             abi.encodeWithSelector(
                 GeniusErrors.InsufficientFees.selector,
                 insufficientFee,
-                totalExpectedFee,
-                address(USDC)
+                totalExpectedFee
             )
         );
         VAULT.createOrder(orderWithInsufficientFee);
@@ -394,11 +413,8 @@ contract GeniusVaultFeeTiers is Test {
         uint256 orderAmount = 200 ether;
 
         // Calculate fee components
-        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR.getOrderFees(
-            address(USDC),
-            orderAmount,
-            destChainId
-        );
+        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+            .getOrderFees(orderAmount, destChainId);
 
         // Total expected fee
         uint256 totalExpectedFee = feeBreakdown.totalFee;
@@ -422,7 +438,8 @@ contract GeniusVaultFeeTiers is Test {
         uint256 balanceAfter = USDC.balanceOf(address(FEE_COLLECTOR));
 
         // Verify the fees collected - should match the expected fee minus insurance
-        uint256 expectedTransferAmount = totalExpectedFee - feeBreakdown.insuranceFee;
+        uint256 expectedTransferAmount = totalExpectedFee -
+            feeBreakdown.insuranceFee;
         assertEq(
             balanceAfter - balanceBefore,
             expectedTransferAmount,
@@ -438,11 +455,8 @@ contract GeniusVaultFeeTiers is Test {
         uint256 orderAmount = 800 ether;
 
         // Calculate fee components
-        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR.getOrderFees(
-            address(USDC),
-            orderAmount,
-            destChainId
-        );
+        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+            .getOrderFees(orderAmount, destChainId);
 
         // Total expected fee
         uint256 totalExpectedFee = feeBreakdown.totalFee;
@@ -466,7 +480,8 @@ contract GeniusVaultFeeTiers is Test {
         uint256 balanceAfter = USDC.balanceOf(address(FEE_COLLECTOR));
 
         // Verify the fees collected - should match the expected fee minus insurance
-        uint256 expectedTransferAmount = totalExpectedFee - feeBreakdown.insuranceFee;
+        uint256 expectedTransferAmount = totalExpectedFee -
+            feeBreakdown.insuranceFee;
         assertEq(
             balanceAfter - balanceBefore,
             expectedTransferAmount,
@@ -504,11 +519,8 @@ contract GeniusVaultFeeTiers is Test {
         uint256 orderAmount = 500 ether;
 
         // Calculate fee components
-        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR.getOrderFees(
-            address(USDC),
-            orderAmount,
-            destChainId
-        );
+        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+            .getOrderFees(orderAmount, destChainId);
 
         // Total expected fee
         uint256 totalExpectedFee = feeBreakdown.totalFee;
@@ -532,7 +544,8 @@ contract GeniusVaultFeeTiers is Test {
         uint256 balanceAfter = USDC.balanceOf(address(FEE_COLLECTOR));
 
         // Verify the fees collected - should match the expected fee minus insurance
-        uint256 expectedTransferAmount = totalExpectedFee - feeBreakdown.insuranceFee;
+        uint256 expectedTransferAmount = totalExpectedFee -
+            feeBreakdown.insuranceFee;
         assertEq(
             balanceAfter - balanceBefore,
             expectedTransferAmount,
@@ -562,11 +575,8 @@ contract GeniusVaultFeeTiers is Test {
         uint256 orderAmount = 300 ether;
 
         // Calculate fee components
-        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR.getOrderFees(
-            address(USDC),
-            orderAmount,
-            destChainId
-        );
+        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+            .getOrderFees(orderAmount, destChainId);
 
         // Check if insurance fee is calculated correctly (should be 0.03% of 300 ether)
         uint256 expectedInsuranceFee = (300 ether * 3) / 10000;
@@ -594,15 +604,15 @@ contract GeniusVaultFeeTiers is Test {
         });
 
         // Check fees reinjected before creating order
-        uint256 feesReinjectedBefore = VAULT.feesReinjected();
+        uint256 balanceBefore = VAULT.stablecoinBalance();
 
         VAULT.createOrder(order);
 
         // Check fees reinjected after creating order - should have increased by the insurance fee amount
-        uint256 feesReinjectedAfter = VAULT.feesReinjected();
+        uint256 balanceAfter = VAULT.stablecoinBalance();
         assertEq(
-            feesReinjectedAfter - feesReinjectedBefore,
-            expectedInsuranceFee,
+            balanceAfter - balanceBefore,
+            order.amountIn + expectedInsuranceFee - order.fee,
             "Insurance fee should be reinjected into the vault"
         );
     }

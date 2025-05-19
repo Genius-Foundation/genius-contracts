@@ -39,17 +39,25 @@ contract FeeCollectorTest is Test {
     // Test contracts
     FeeCollector public feeCollector;
     GeniusVault public vault;
-    
+
     // Events to test
-    event FeesCollectedFromVault(uint256 protocolFee, uint256 lpFee, uint256 operatorFee);
+    event FeesCollectedFromVault(
+        bytes32 indexed orderHash,
+        uint256 protocolFee,
+        uint256 lpFee,
+        uint256 operatorFee
+    );
     event ProtocolFeesClaimed(address indexed claimant, uint256 amount);
     event LPFeesClaimed(address indexed claimant, uint256 amount);
     event OperatorFeesClaimed(address indexed claimant, uint256 amount);
     event VaultSet(address vault);
     event ProtocolFeeUpdated(uint256 protocolFee);
     event FeeTiersUpdated(uint256[] thresholdAmounts, uint256[] bpsFees);
-    event InsuranceFeeTiersUpdated(uint256[] thresholdAmounts, uint256[] bpsFees);
-    event TargetChainMinFeeChanged(address token, uint256 targetChainId, uint256 newMinFee);
+    event InsuranceFeeTiersUpdated(
+        uint256[] thresholdAmounts,
+        uint256[] bpsFees
+    );
+    event TargetChainMinFeeChanged(uint256 targetChainId, uint256 newMinFee);
 
     function setUp() public {
         // Deploy stablecoin
@@ -60,56 +68,56 @@ contract FeeCollectorTest is Test {
 
         // Deploy FeeCollector
         FeeCollector implementation = new FeeCollector();
-        
+
         bytes memory data = abi.encodeWithSelector(
             FeeCollector.initialize.selector,
             ADMIN,
             address(stablecoin),
             PROTOCOL_FEE_BPS // Only passing protocolFee now, lpFee is calculated automatically
         );
-        
+
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
         feeCollector = FeeCollector(address(proxy));
-        
+
         // Set up vault mock (we'll use a real vault for integration testing later)
         vm.startPrank(ADMIN);
         // Create a mock vault address - we use this for testing authorization
         vault = GeniusVault(makeAddr("VAULT"));
         feeCollector.setVault(address(vault));
-        
+
         // Set up roles
         feeCollector.grantRole(feeCollector.DISTRIBUTOR_ROLE(), DISTRIBUTOR);
         feeCollector.grantRole(feeCollector.WORKER_ROLE(), WORKER);
-        
+
         // Set up fee tiers
         uint256[] memory thresholdAmounts = new uint256[](3);
         thresholdAmounts[0] = 100 ether;
         thresholdAmounts[1] = 1000 ether;
         thresholdAmounts[2] = 10000 ether;
-        
+
         uint256[] memory bpsFees = new uint256[](3);
         bpsFees[0] = 50; // 0.5%
         bpsFees[1] = 30; // 0.3%
         bpsFees[2] = 20; // 0.2%
-        
+
         feeCollector.setFeeTiers(thresholdAmounts, bpsFees);
-        
+
         // Set up insurance fee tiers
         uint256[] memory insThresholdAmounts = new uint256[](3);
         insThresholdAmounts[0] = 100 ether;
         insThresholdAmounts[1] = 1000 ether;
         insThresholdAmounts[2] = 10000 ether;
-        
+
         uint256[] memory insBpsFees = new uint256[](3);
         insBpsFees[0] = 30; // 0.3%
         insBpsFees[1] = 20; // 0.2%
         insBpsFees[2] = 10; // 0.1%
-        
+
         feeCollector.setInsuranceFeeTiers(insThresholdAmounts, insBpsFees);
-        
+
         // Set up minimum fee for destination chain
-        feeCollector.setTargetChainMinFee(address(stablecoin), DEST_CHAIN_ID, 1 ether);
-        
+        feeCollector.setTargetChainMinFee(DEST_CHAIN_ID, 1 ether);
+
         vm.stopPrank();
     }
 
@@ -117,88 +125,95 @@ contract FeeCollectorTest is Test {
 
     function testInitialization() public view {
         assertEq(address(feeCollector.stablecoin()), address(stablecoin));
-        
+
         // Use call to access public variable
         (bool success, bytes memory data) = address(feeCollector).staticcall(
             abi.encodeWithSignature("protocolFee()")
         );
         require(success, "Call failed");
         uint256 protocolFee = abi.decode(data, (uint256));
-        
+
         assertEq(protocolFee, PROTOCOL_FEE_BPS);
         assertEq(feeCollector.vault(), address(vault));
-        
+
         // Check roles
-        assertTrue(feeCollector.hasRole(feeCollector.DEFAULT_ADMIN_ROLE(), ADMIN));
-        assertTrue(feeCollector.hasRole(feeCollector.DISTRIBUTOR_ROLE(), DISTRIBUTOR));
+        assertTrue(
+            feeCollector.hasRole(feeCollector.DEFAULT_ADMIN_ROLE(), ADMIN)
+        );
+        assertTrue(
+            feeCollector.hasRole(feeCollector.DISTRIBUTOR_ROLE(), DISTRIBUTOR)
+        );
         assertTrue(feeCollector.hasRole(feeCollector.WORKER_ROLE(), WORKER));
-        
+
         // Check fee tiers
         (uint256 threshold, uint256 fee) = feeCollector.feeTiers(0);
         assertEq(threshold, 100 ether);
         assertEq(fee, 50);
-        
+
         (threshold, fee) = feeCollector.feeTiers(1);
         assertEq(threshold, 1000 ether);
         assertEq(fee, 30);
-        
+
         (threshold, fee) = feeCollector.feeTiers(2);
         assertEq(threshold, 10000 ether);
         assertEq(fee, 20);
-        
+
         // Check insurance fee tiers
         (threshold, fee) = feeCollector.insuranceFeeTiers(0);
         assertEq(threshold, 100 ether);
         assertEq(fee, 30);
-        
+
         (threshold, fee) = feeCollector.insuranceFeeTiers(1);
         assertEq(threshold, 1000 ether);
         assertEq(fee, 20);
-        
+
         (threshold, fee) = feeCollector.insuranceFeeTiers(2);
         assertEq(threshold, 10000 ether);
         assertEq(fee, 10);
-        
+
         // Check min fee
-        assertEq(feeCollector.targetChainMinFee(address(stablecoin), DEST_CHAIN_ID), 1 ether);
+        assertEq(feeCollector.targetChainMinFee(DEST_CHAIN_ID), 1 ether);
     }
 
-    function testFailInitializeWithZeroAddress() public {
+    function test_RevertWhen_InitializeWithZeroAddress() public {
         FeeCollector implementation = new FeeCollector();
-        
+
         bytes memory data = abi.encodeWithSelector(
             FeeCollector.initialize.selector,
             address(0), // Zero address for admin
             address(stablecoin),
             PROTOCOL_FEE_BPS // Only passing protocolFee now
         );
-        
+
+        vm.expectRevert();
         new ERC1967Proxy(address(implementation), data);
     }
 
-    function testFailInitializeWithZeroStablecoin() public {
+    function test_RevertWhen_InitializeWithZeroStablecoin() public {
         FeeCollector implementation = new FeeCollector();
-        
+
         bytes memory data = abi.encodeWithSelector(
             FeeCollector.initialize.selector,
             ADMIN,
             address(0), // Zero address for stablecoin
             PROTOCOL_FEE_BPS // Only passing protocolFee now
         );
-        
+
+        vm.expectRevert();
         new ERC1967Proxy(address(implementation), data);
     }
 
-    function testFailInitializeWithInvalidFeePercentages() public {
+    function test_RevertWhen_InitializeWithInvalidFeePercentages() public {
         FeeCollector implementation = new FeeCollector();
-        
+
         bytes memory data = abi.encodeWithSelector(
             FeeCollector.initialize.selector,
             ADMIN,
             address(stablecoin),
-            11_000  // > 100%, which is invalid
+            11_000 // > 100%, which is invalid
         );
-        
+
+        vm.expectRevert();
         new ERC1967Proxy(address(implementation), data);
     }
 
@@ -206,54 +221,58 @@ contract FeeCollectorTest is Test {
 
     function testSetVault() public {
         address newVault = makeAddr("NEW_VAULT");
-        
+
         vm.startPrank(ADMIN);
         vm.expectEmit(true, true, true, true);
         emit VaultSet(newVault);
         feeCollector.setVault(newVault);
         vm.stopPrank();
-        
+
         assertEq(feeCollector.vault(), newVault);
     }
 
-    function testFailSetVaultNonAdmin() public {
+    function test_RevertWhen_SetVaultNonAdmin() public {
         address newVault = makeAddr("NEW_VAULT");
-        
+
         vm.prank(RANDOM_USER);
+        vm.expectRevert();
         feeCollector.setVault(newVault);
     }
 
-    function testFailSetVaultZeroAddress() public {
+    function test_RevertWhen_SetVaultZeroAddress() public {
         vm.prank(ADMIN);
+        vm.expectRevert();
         feeCollector.setVault(address(0));
     }
 
     function testSetProtocolFee() public {
         uint256 newProtocolFee = 3_000; // 30%
-        
+
         vm.startPrank(ADMIN);
         vm.expectEmit(true, true, true, true);
         emit ProtocolFeeUpdated(newProtocolFee);
         feeCollector.setProtocolFee(newProtocolFee);
         vm.stopPrank();
-        
+
         // Access internal variables via low-level call
         (bool success, bytes memory data) = address(feeCollector).staticcall(
             abi.encodeWithSignature("protocolFee()")
         );
         require(success, "Call failed");
         uint256 protocolFee = abi.decode(data, (uint256));
-        
+
         assertEq(protocolFee, newProtocolFee);
     }
 
-    function testFailSetProtocolFeeNonAdmin() public {
+    function test_RevertWhen_SetProtocolFeeNonAdmin() public {
         vm.prank(RANDOM_USER);
+        vm.expectRevert();
         feeCollector.setProtocolFee(3_000);
     }
 
-    function testFailSetProtocolFeeInvalidPercentage() public {
+    function test_RevertWhen_SetProtocolFeeInvalidPercentage() public {
         vm.prank(ADMIN);
+        vm.expectRevert();
         feeCollector.setProtocolFee(11_000); // > 100%
     }
 
@@ -261,75 +280,80 @@ contract FeeCollectorTest is Test {
         uint256[] memory newThresholdAmounts = new uint256[](2);
         newThresholdAmounts[0] = 500 ether;
         newThresholdAmounts[1] = 5000 ether;
-        
+
         uint256[] memory newBpsFees = new uint256[](2);
         newBpsFees[0] = 40; // 0.4%
         newBpsFees[1] = 25; // 0.25%
-        
+
         vm.startPrank(ADMIN);
         vm.expectEmit(true, true, true, true);
         emit FeeTiersUpdated(newThresholdAmounts, newBpsFees);
         feeCollector.setFeeTiers(newThresholdAmounts, newBpsFees);
         vm.stopPrank();
-        
+
         (uint256 threshold, uint256 fee) = feeCollector.feeTiers(0);
         assertEq(threshold, 500 ether);
         assertEq(fee, 40);
-        
+
         (threshold, fee) = feeCollector.feeTiers(1);
         assertEq(threshold, 5000 ether);
         assertEq(fee, 25);
     }
 
-    function testFailSetFeeTiersNonAdmin() public {
+    function test_RevertWhen_SetFeeTiersNonAdmin() public {
         uint256[] memory thresholdAmounts = new uint256[](2);
         uint256[] memory bpsFees = new uint256[](2);
-        
+
         vm.prank(RANDOM_USER);
+        vm.expectRevert();
         feeCollector.setFeeTiers(thresholdAmounts, bpsFees);
     }
 
-    function testFailSetFeeTiersEmptyArray() public {
+    function test_RevertWhen_SetFeeTiersEmptyArray() public {
         uint256[] memory thresholdAmounts = new uint256[](0);
         uint256[] memory bpsFees = new uint256[](0);
-        
+
         vm.prank(ADMIN);
+        vm.expectRevert();
         feeCollector.setFeeTiers(thresholdAmounts, bpsFees);
     }
 
-    function testFailSetFeeTiersArrayLengthMismatch() public {
+    function test_RevertWhen_SetFeeTiersArrayLengthMismatch() public {
         uint256[] memory thresholdAmounts = new uint256[](2);
         uint256[] memory bpsFees = new uint256[](3);
-        
+
         vm.prank(ADMIN);
+        vm.expectRevert();
         feeCollector.setFeeTiers(thresholdAmounts, bpsFees);
     }
 
-    function testFailSetFeeTiersOutOfOrder() public {
+    function test_RevertWhen_SetFeeTiersOutOfOrder() public {
         uint256[] memory thresholdAmounts = new uint256[](3);
         thresholdAmounts[0] = 100 ether;
         thresholdAmounts[1] = 1000 ether;
         thresholdAmounts[2] = 500 ether; // Out of order
-        
+
         uint256[] memory bpsFees = new uint256[](3);
         bpsFees[0] = 50;
         bpsFees[1] = 30;
         bpsFees[2] = 20;
-        
+
         vm.prank(ADMIN);
+        vm.expectRevert();
         feeCollector.setFeeTiers(thresholdAmounts, bpsFees);
     }
 
-    function testFailSetFeeTiersInvalidPercentage() public {
+    function test_RevertWhen_SetFeeTiersInvalidPercentage() public {
         uint256[] memory thresholdAmounts = new uint256[](2);
         thresholdAmounts[0] = 100 ether;
         thresholdAmounts[1] = 1000 ether;
-        
+
         uint256[] memory bpsFees = new uint256[](2);
         bpsFees[0] = 50;
         bpsFees[1] = 12000; // Over 100%
-        
+
         vm.prank(ADMIN);
+        vm.expectRevert();
         feeCollector.setFeeTiers(thresholdAmounts, bpsFees);
     }
 
@@ -337,87 +361,85 @@ contract FeeCollectorTest is Test {
         uint256[] memory newThresholdAmounts = new uint256[](2);
         newThresholdAmounts[0] = 500 ether;
         newThresholdAmounts[1] = 5000 ether;
-        
+
         uint256[] memory newBpsFees = new uint256[](2);
         newBpsFees[0] = 25; // 0.25%
         newBpsFees[1] = 15; // 0.15%
-        
+
         vm.startPrank(ADMIN);
         vm.expectEmit(true, true, true, true);
         emit InsuranceFeeTiersUpdated(newThresholdAmounts, newBpsFees);
         feeCollector.setInsuranceFeeTiers(newThresholdAmounts, newBpsFees);
         vm.stopPrank();
-        
+
         (uint256 threshold, uint256 fee) = feeCollector.insuranceFeeTiers(0);
         assertEq(threshold, 500 ether);
         assertEq(fee, 25);
-        
+
         (threshold, fee) = feeCollector.insuranceFeeTiers(1);
         assertEq(threshold, 5000 ether);
         assertEq(fee, 15);
     }
 
     function testSetTargetChainMinFee() public {
-        address token = address(stablecoin);
         uint256 destChainId = 100;
         uint256 minFee = 2 ether;
-        
+
         vm.startPrank(ADMIN);
         vm.expectEmit(true, true, true, true);
-        emit TargetChainMinFeeChanged(token, destChainId, minFee);
-        feeCollector.setTargetChainMinFee(token, destChainId, minFee);
+        emit TargetChainMinFeeChanged(destChainId, minFee);
+        feeCollector.setTargetChainMinFee(destChainId, minFee);
         vm.stopPrank();
-        
-        assertEq(feeCollector.targetChainMinFee(token, destChainId), minFee);
+
+        assertEq(feeCollector.targetChainMinFee(destChainId), minFee);
     }
 
-    function testFailSetTargetChainMinFeeInvalidChainId() public {
+    function test_RevertWhen_SetTargetChainMinFeeInvalidChainId() public {
         vm.prank(ADMIN);
-        feeCollector.setTargetChainMinFee(address(stablecoin), block.chainid, 1 ether);
+        vm.expectRevert();
+        feeCollector.setTargetChainMinFee(block.chainid, 1 ether);
     }
 
     // FEE CALCULATION TESTS
 
     function testGetOrderFees() public view {
         uint256 orderAmount = 500 ether; // Between first and second tier
-        
+
         IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
-            address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID
         );
-        
+
         // Base fee should be set from targetChainMinFee
         assertEq(fees.baseFee, 1 ether);
-        
+
         // BPS fee should be from the first tier (0.5% of 500 ether)
         assertEq(fees.bpsFee, (500 ether * 50) / BASE_PERCENTAGE);
-        
+
         // Insurance fee should be from the first tier (0.3% of 500 ether)
         assertEq(fees.insuranceFee, (500 ether * 30) / BASE_PERCENTAGE);
-        
+
         // Total fee should be the sum
         assertEq(fees.totalFee, fees.baseFee + fees.bpsFee + fees.insuranceFee);
     }
 
     function testGetOrderFeesLargeTier() public view {
         uint256 orderAmount = 20000 ether; // Above the highest tier
-        
+
         IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
-            address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID
         );
-        
+
         // Base fee should be set from targetChainMinFee
         assertEq(fees.baseFee, 1 ether);
-        
+
         // BPS fee should be from the highest tier (0.2% of 20000 ether)
         assertEq(fees.bpsFee, (20000 ether * 20) / BASE_PERCENTAGE);
-        
+
         // Insurance fee should be from the highest tier (0.1% of 20000 ether)
         assertEq(fees.insuranceFee, (20000 ether * 10) / BASE_PERCENTAGE);
-        
+
         // Total fee should be the sum
         assertEq(fees.totalFee, fees.baseFee + fees.bpsFee + fees.insuranceFee);
     }
@@ -426,35 +448,41 @@ contract FeeCollectorTest is Test {
 
     function testCollect() public {
         uint256 orderAmount = 500 ether;
-        
+
         // Calculate expected fee breakdown
-        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector.getOrderFees(
-            address(stablecoin),
-            orderAmount,
-            DEST_CHAIN_ID
-        );
-        
+        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector
+            .getOrderFees(orderAmount, DEST_CHAIN_ID);
+
         // Expected fee distribution
-        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) / BASE_PERCENTAGE;
-        uint256 expectedLpFee = (expectedFees.bpsFee * LP_FEE_BPS) / BASE_PERCENTAGE;
+        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+        uint256 expectedLpFee = expectedFees.bpsFee - expectedProtocolFee; // LP fee is remainder
         uint256 expectedOperatorFee = expectedFees.baseFee; // No surplus in this test
-        
+
         // Simulate vault calling collect
         vm.startPrank(address(vault));
         vm.expectEmit(true, true, true, true);
-        emit FeesCollectedFromVault(expectedProtocolFee, expectedLpFee, expectedOperatorFee);
-        
+        emit FeesCollectedFromVault(
+            bytes32(0),
+            expectedProtocolFee,
+            expectedLpFee,
+            expectedOperatorFee
+        );
+
         uint256 amountToTransfer = feeCollector.collectFromVault(
-            address(stablecoin),
+            bytes32(0),
             orderAmount,
             DEST_CHAIN_ID,
             expectedFees.totalFee // Exact fee amount
         );
         vm.stopPrank();
-        
+
         // Verify that the returned amount is correct (total fees minus insurance fees)
-        assertEq(amountToTransfer, expectedFees.totalFee - expectedFees.insuranceFee);
-        
+        assertEq(
+            amountToTransfer,
+            expectedFees.totalFee - expectedFees.insuranceFee
+        );
+
         // Verify state changes
         assertEq(feeCollector.protocolFeesCollected(), expectedProtocolFee);
         assertEq(feeCollector.lpFeesCollected(), expectedLpFee);
@@ -463,75 +491,80 @@ contract FeeCollectorTest is Test {
 
     function testCollectWithSurplus() public {
         uint256 orderAmount = 500 ether;
-        
+
         // Calculate expected fee breakdown
-        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector.getOrderFees(
-            address(stablecoin),
-            orderAmount,
-            DEST_CHAIN_ID
-        );
-        
+        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector
+            .getOrderFees(orderAmount, DEST_CHAIN_ID);
+
         // Add a surplus to the fee
         uint256 surplus = 0.5 ether;
         uint256 totalFeeWithSurplus = expectedFees.totalFee + surplus;
-        
+
         // Expected fee distribution
-        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) / BASE_PERCENTAGE;
-        uint256 expectedLpFee = (expectedFees.bpsFee * LP_FEE_BPS) / BASE_PERCENTAGE;
+        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+        uint256 expectedLpFee = expectedFees.bpsFee - expectedProtocolFee; // LP fee is remainder
         uint256 expectedOperatorFee = expectedFees.baseFee + surplus; // Base fee plus surplus
-        
+
         // Simulate vault calling collect
         vm.startPrank(address(vault));
         vm.expectEmit(true, true, true, true);
-        emit FeesCollectedFromVault(expectedProtocolFee, expectedLpFee, expectedOperatorFee);
-        
+        emit FeesCollectedFromVault(
+            bytes32(0),
+            expectedProtocolFee,
+            expectedLpFee,
+            expectedOperatorFee
+        );
+
         uint256 amountToTransfer = feeCollector.collectFromVault(
-            address(stablecoin),
+            bytes32(0),
             orderAmount,
             DEST_CHAIN_ID,
             totalFeeWithSurplus // Fee amount with surplus
         );
         vm.stopPrank();
-        
+
         // Verify that the returned amount is correct (total fees with surplus minus insurance fees)
-        assertEq(amountToTransfer, totalFeeWithSurplus - expectedFees.insuranceFee);
-        
+        assertEq(
+            amountToTransfer,
+            totalFeeWithSurplus - expectedFees.insuranceFee
+        );
+
         // Verify state changes
         assertEq(feeCollector.protocolFeesCollected(), expectedProtocolFee);
         assertEq(feeCollector.lpFeesCollected(), expectedLpFee);
         assertEq(feeCollector.operatorFeesCollected(), expectedOperatorFee);
     }
 
-    function testFailCollectInsufficientFees() public {
+    function test_RevertWhen_CollectInsufficientFees() public {
         uint256 orderAmount = 500 ether;
-        
+
         // Calculate expected fee breakdown
-        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector.getOrderFees(
-            address(stablecoin),
-            orderAmount,
-            DEST_CHAIN_ID
-        );
-        
+        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector
+            .getOrderFees(orderAmount, DEST_CHAIN_ID);
+
         // Use insufficient fee (1 wei less than required)
         uint256 insufficientFee = expectedFees.totalFee - 1;
-        
+
         // Simulate vault calling collectFromVault with insufficient fee
         vm.prank(address(vault));
+        vm.expectRevert();
         feeCollector.collectFromVault(
-            address(stablecoin),
+            bytes32(0),
             orderAmount,
             DEST_CHAIN_ID,
             insufficientFee
         );
     }
 
-    function testFailCollectNonVault() public {
+    function test_RevertWhen_CollectNonVault() public {
         uint256 orderAmount = 500 ether;
         uint256 fee = 10 ether;
-        
+
         vm.prank(RANDOM_USER);
+        vm.expectRevert();
         feeCollector.collectFromVault(
-            address(stablecoin),
+            bytes32(0),
             orderAmount,
             DEST_CHAIN_ID,
             fee
@@ -543,143 +576,145 @@ contract FeeCollectorTest is Test {
     function testClaimProtocolFees() public {
         // First, add some fees
         uint256 orderAmount = 1000 ether;
-        
-        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector.getOrderFees(
-            address(stablecoin),
-            orderAmount,
-            DEST_CHAIN_ID
-        );
-        
+
+        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector
+            .getOrderFees(orderAmount, DEST_CHAIN_ID);
+
         // Simulate vault calling collect
         vm.prank(address(vault));
         feeCollector.collectFromVault(
-            address(stablecoin),
+            bytes32(0),
             orderAmount,
             DEST_CHAIN_ID,
             expectedFees.totalFee
         );
-        
+
         // Calculate expected protocol fee
-        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) / BASE_PERCENTAGE;
-        
+        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+
         // Transfer tokens to the fee collector so it can pay out
         stablecoin.mint(address(feeCollector), expectedProtocolFee);
-        
+
         // Claim protocol fees as admin
         vm.startPrank(ADMIN);
         vm.expectEmit(true, true, true, true);
         emit ProtocolFeesClaimed(ADMIN, expectedProtocolFee);
-        
+
         uint256 claimedAmount = feeCollector.claimProtocolFees();
         vm.stopPrank();
-        
+
         // Verify claimed amount
         assertEq(claimedAmount, expectedProtocolFee);
-        
+
         // Verify state changes
         assertEq(feeCollector.protocolFeesClaimed(), expectedProtocolFee);
-        assertEq(stablecoin.balanceOf(ADMIN), INITIAL_SUPPLY + expectedProtocolFee);
+        assertEq(
+            stablecoin.balanceOf(ADMIN),
+            INITIAL_SUPPLY + expectedProtocolFee
+        );
     }
 
-    function testFailClaimProtocolFeesNonAdmin() public {
+    function test_RevertWhen_ClaimProtocolFeesNonAdmin() public {
         vm.prank(RANDOM_USER);
+        vm.expectRevert();
         feeCollector.claimProtocolFees();
     }
 
-    function testFailClaimProtocolFeesNoFees() public {
+    function test_RevertWhen_ClaimProtocolFeesNoFees() public {
         vm.prank(ADMIN);
+        vm.expectRevert();
         feeCollector.claimProtocolFees();
     }
 
     function testClaimLPFees() public {
         // First, add some fees
         uint256 orderAmount = 1000 ether;
-        
-        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector.getOrderFees(
-            address(stablecoin),
-            orderAmount,
-            DEST_CHAIN_ID
-        );
-        
+
+        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector
+            .getOrderFees(orderAmount, DEST_CHAIN_ID);
+
         // Simulate vault calling collect
         vm.prank(address(vault));
         feeCollector.collectFromVault(
-            address(stablecoin),
+            bytes32(0),
             orderAmount,
             DEST_CHAIN_ID,
             expectedFees.totalFee
         );
-        
+
         // Calculate expected LP fee
-        uint256 expectedLpFee = (expectedFees.bpsFee * LP_FEE_BPS) / BASE_PERCENTAGE;
-        
+        // LP fee is now the remainder after protocol fee is taken from bpsFee
+        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+        uint256 expectedLpFee = expectedFees.bpsFee - expectedProtocolFee;
+
         // Transfer tokens to the fee collector so it can pay out
         stablecoin.mint(address(feeCollector), expectedLpFee);
-        
+
         // Claim LP fees as distributor
         vm.startPrank(DISTRIBUTOR);
         vm.expectEmit(true, true, true, true);
         emit LPFeesClaimed(DISTRIBUTOR, expectedLpFee);
-        
+
         uint256 claimedAmount = feeCollector.claimLPFees();
         vm.stopPrank();
-        
+
         // Verify claimed amount
         assertEq(claimedAmount, expectedLpFee);
-        
+
         // Verify state changes
         assertEq(feeCollector.lpFeesClaimed(), expectedLpFee);
         assertEq(stablecoin.balanceOf(DISTRIBUTOR), expectedLpFee);
     }
 
-    function testFailClaimLPFeesNonDistributor() public {
+    function test_RevertWhen_ClaimLPFeesNonDistributor() public {
         vm.prank(RANDOM_USER);
+        vm.expectRevert();
         feeCollector.claimLPFees();
     }
 
     function testClaimOperatorFees() public {
         // First, add some fees
         uint256 orderAmount = 1000 ether;
-        
-        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector.getOrderFees(
-            address(stablecoin),
-            orderAmount,
-            DEST_CHAIN_ID
-        );
-        
+
+        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector
+            .getOrderFees(orderAmount, DEST_CHAIN_ID);
+
         // Simulate vault calling collectFromVault
         vm.prank(address(vault));
         feeCollector.collectFromVault(
-            address(stablecoin),
+            bytes32(0),
             orderAmount,
             DEST_CHAIN_ID,
             expectedFees.totalFee
         );
-        
+
         // Calculate expected operator fee (just the base fee in this case)
         uint256 expectedOperatorFee = expectedFees.baseFee;
-        
+
         // Transfer tokens to the fee collector so it can pay out
         stablecoin.mint(address(feeCollector), expectedOperatorFee);
-        
+
         // Claim operator fees as worker
         vm.startPrank(WORKER);
         vm.expectEmit(true, true, true, true);
         emit OperatorFeesClaimed(WORKER, expectedOperatorFee);
-        
+
         uint256 claimedAmount = feeCollector.claimOperatorFees();
         vm.stopPrank();
-        
+
         // Verify claimed amount
         assertEq(claimedAmount, expectedOperatorFee);
-        
+
         // Verify state changes
         assertEq(feeCollector.operatorFeesClaimed(), expectedOperatorFee);
         assertEq(stablecoin.balanceOf(WORKER), expectedOperatorFee);
     }
 
-    function testFailClaimOperatorFeesNonWorker() public {
+    function test_RevertWhen_ClaimOperatorFeesNonWorker() public {
         vm.prank(RANDOM_USER);
+        vm.expectRevert();
         feeCollector.claimOperatorFees();
     }
 
@@ -688,37 +723,35 @@ contract FeeCollectorTest is Test {
     function testClaimableFeeAmounts() public {
         // First, add some fees
         uint256 orderAmount = 1000 ether;
-        
-        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector.getOrderFees(
-            address(stablecoin),
-            orderAmount,
-            DEST_CHAIN_ID
-        );
-        
+
+        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector
+            .getOrderFees(orderAmount, DEST_CHAIN_ID);
+
         // Simulate vault calling collect
         vm.prank(address(vault));
         feeCollector.collectFromVault(
-            address(stablecoin),
+            bytes32(0),
             orderAmount,
             DEST_CHAIN_ID,
             expectedFees.totalFee
         );
-        
+
         // Calculate expected fees
-        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) / BASE_PERCENTAGE;
-        uint256 expectedLpFee = (expectedFees.bpsFee * LP_FEE_BPS) / BASE_PERCENTAGE;
+        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+        uint256 expectedLpFee = expectedFees.bpsFee - expectedProtocolFee; // LP fee is remainder
         uint256 expectedOperatorFee = expectedFees.baseFee;
-        
+
         // Check claimable amounts
         assertEq(feeCollector.claimableProtocolFees(), expectedProtocolFee);
         assertEq(feeCollector.claimableLPFees(), expectedLpFee);
         assertEq(feeCollector.claimableOperatorFees(), expectedOperatorFee);
-        
+
         // Now claim some fees and check again
         stablecoin.mint(address(feeCollector), expectedProtocolFee);
         vm.prank(ADMIN);
         feeCollector.claimProtocolFees();
-        
+
         // Protocol fees should be 0, others unchanged
         assertEq(feeCollector.claimableProtocolFees(), 0);
         assertEq(feeCollector.claimableLPFees(), expectedLpFee);
@@ -730,57 +763,58 @@ contract FeeCollectorTest is Test {
     function testIntegrationWithVault() public {
         // This test requires a real vault instance
         // For simplicity, we'll use vm.mockCall to simulate vault behavior
-        
+
         uint256 orderAmount = 1000 ether;
-        
+
         // Get expected fees
-        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector.getOrderFees(
-            address(stablecoin),
-            orderAmount,
-            DEST_CHAIN_ID
-        );
-        
+        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector
+            .getOrderFees(orderAmount, DEST_CHAIN_ID);
+
         // Simulate a vault collecting fees
         vm.startPrank(address(vault));
         uint256 amountToTransfer = feeCollector.collectFromVault(
-            address(stablecoin),
+            bytes32(0),
             orderAmount,
             DEST_CHAIN_ID,
             expectedFees.totalFee
         );
         vm.stopPrank();
-        
+
         // Expected fee distribution
-        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) / BASE_PERCENTAGE;
-        uint256 expectedLpFee = (expectedFees.bpsFee * LP_FEE_BPS) / BASE_PERCENTAGE;
+        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+        uint256 expectedLpFee = expectedFees.bpsFee - expectedProtocolFee; // LP fee is remainder
         uint256 expectedOperatorFee = expectedFees.baseFee;
-        
+
         // The vault should transfer amountToTransfer to the fee collector
         stablecoin.mint(address(feeCollector), amountToTransfer);
-        
+
         // Now verify that the fees can be claimed correctly
-        
+
         // Admin claims protocol fees
         vm.startPrank(ADMIN);
         stablecoin.balanceOf(ADMIN);
         feeCollector.claimProtocolFees();
         vm.stopPrank();
-        
+
         // Distributor claims LP fees
         vm.startPrank(DISTRIBUTOR);
         feeCollector.claimLPFees();
         vm.stopPrank();
-        
+
         // Worker claims operator fees
         vm.startPrank(WORKER);
         feeCollector.claimOperatorFees();
         vm.stopPrank();
-        
+
         // Check balances after claims
-        assertEq(stablecoin.balanceOf(ADMIN), INITIAL_SUPPLY + expectedProtocolFee);
+        assertEq(
+            stablecoin.balanceOf(ADMIN),
+            INITIAL_SUPPLY + expectedProtocolFee
+        );
         assertEq(stablecoin.balanceOf(DISTRIBUTOR), expectedLpFee);
         assertEq(stablecoin.balanceOf(WORKER), expectedOperatorFee);
-        
+
         // Check contract state
         assertEq(feeCollector.protocolFeesCollected(), expectedProtocolFee);
         assertEq(feeCollector.protocolFeesClaimed(), expectedProtocolFee);
@@ -791,42 +825,41 @@ contract FeeCollectorTest is Test {
     }
 
     // UPGRADE TESTS
-    
+
     function testAuthorizeUpgrade() public {
         FeeCollector newImplementation = new FeeCollector();
-        
+
         // Only admin should be able to upgrade
         vm.startPrank(ADMIN);
-        
+
         // Use a low-level call to simulate the UUPS upgrade pattern
         (bool success, ) = address(feeCollector).call(
             abi.encodeWithSignature(
-                "upgradeToAndCall(address,bytes)", 
+                "upgradeToAndCall(address,bytes)",
                 address(newImplementation),
                 ""
             )
         );
-        
+
         assertTrue(success, "Upgrade should succeed");
         vm.stopPrank();
     }
 
-    function testFailAuthorizeUpgradeNonAdmin() public {
+    function test_RevertWhen_AuthorizeUpgradeNonAdmin() public {
         FeeCollector newImplementation = new FeeCollector();
-        
+
         vm.startPrank(RANDOM_USER);
-        
+
         // Use a low-level call to simulate the UUPS upgrade pattern
+        vm.expectRevert();
         (bool success, ) = address(feeCollector).call(
             abi.encodeWithSignature(
-                "upgradeToAndCall(address,bytes)", 
+                "upgradeToAndCall(address,bytes)",
                 address(newImplementation),
                 ""
             )
         );
-        
-        // This should fail since RANDOM_USER is not an admin
-        assertTrue(!success, "Upgrade should fail");
+
         vm.stopPrank();
     }
 }

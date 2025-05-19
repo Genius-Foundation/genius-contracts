@@ -77,14 +77,6 @@ contract DeployGeniusEcosystemCore is Script {
         for (uint256 i = 0; i < orchestrators.length; i++) {
             geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
         }
-
-        for (uint256 i = 0; i < targetNetworks.length; i++) {
-            geniusVault.setTargetChainMinFee(
-                feeTokens[i],
-                targetNetworks[i],
-                minFeeAmounts[i]
-            );
-        }
         
         // Set up fee tiers based on order size - moved to fee collector
         // This is handled by the FeeCollector now, not the vault
