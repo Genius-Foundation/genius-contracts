@@ -9,6 +9,8 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 import {GeniusVault} from "../src/GeniusVault.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
+import {FeeCollector} from "../src/fees/FeeCollector.sol";
+import {IFeeCollector} from "../src/interfaces/IFeeCollector.sol";
 
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
@@ -32,6 +34,7 @@ contract GeniusVaultAccounting is Test {
     GeniusVault public VAULT;
     GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
+    FeeCollector public FEE_COLLECTOR;
 
     // ============ Constants ============
     address public PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -138,6 +141,24 @@ contract GeniusVaultAccounting is Test {
         // Deploy mock price feed
         MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
 
+        // Deploy FeeCollector
+        FeeCollector feeCollectorImplementation = new FeeCollector();
+        
+        bytes memory feeCollectorData = abi.encodeWithSelector(
+            FeeCollector.initialize.selector,
+            OWNER,
+            address(USDC),
+            2000, // 20% to protocol
+            5000  // 50% to LPs
+        );
+        
+        ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
+            address(feeCollectorImplementation), 
+            feeCollectorData
+        );
+        
+        FEE_COLLECTOR = FeeCollector(address(feeCollectorProxy));
+
         // Deploy contracts
         GeniusVault implementation = new GeniusVault();
 
@@ -159,6 +180,26 @@ contract GeniusVaultAccounting is Test {
         VAULT = GeniusVault(address(proxy));
 
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
+        
+        // Set up FeeCollector and Vault connections
+        VAULT.setFeeCollector(address(FEE_COLLECTOR));
+        FEE_COLLECTOR.setVault(address(VAULT));
+        
+        // Set up fee tiers in FeeCollector
+        uint256[] memory thresholdAmounts = new uint256[](3);
+        thresholdAmounts[0] = 0;
+        thresholdAmounts[1] = 100 ether;
+        thresholdAmounts[2] = 500 ether;
+        
+        uint256[] memory bpsFees = new uint256[](3);
+        bpsFees[0] = 30; // 0.3%
+        bpsFees[1] = 20; // 0.2%
+        bpsFees[2] = 10; // 0.1%
+        
+        FEE_COLLECTOR.setFeeTiers(thresholdAmounts, bpsFees);
+        
+        // Set min fee in FeeCollector
+        FEE_COLLECTOR.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
 
         DEX_ROUTER = new MockDEXRouter();
 

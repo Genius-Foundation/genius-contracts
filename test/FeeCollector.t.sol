@@ -41,12 +41,12 @@ contract FeeCollectorTest is Test {
     GeniusVault public vault;
     
     // Events to test
-    event FeesUpdated(uint256 protocolFee, uint256 lpFee, uint256 operatorFee);
+    event FeesCollectedFromVault(uint256 protocolFee, uint256 lpFee, uint256 operatorFee);
     event ProtocolFeesClaimed(address indexed claimant, uint256 amount);
     event LPFeesClaimed(address indexed claimant, uint256 amount);
     event OperatorFeesClaimed(address indexed claimant, uint256 amount);
     event VaultSet(address vault);
-    event FeeDistributionUpdated(uint256 protocolFeeBps, uint256 lpFeeBps);
+    event ProtocolFeeUpdated(uint256 protocolFee);
     event FeeTiersUpdated(uint256[] thresholdAmounts, uint256[] bpsFees);
     event InsuranceFeeTiersUpdated(uint256[] thresholdAmounts, uint256[] bpsFees);
     event TargetChainMinFeeChanged(address token, uint256 targetChainId, uint256 newMinFee);
@@ -65,8 +65,7 @@ contract FeeCollectorTest is Test {
             FeeCollector.initialize.selector,
             ADMIN,
             address(stablecoin),
-            PROTOCOL_FEE_BPS,
-            LP_FEE_BPS
+            PROTOCOL_FEE_BPS // Only passing protocolFee now, lpFee is calculated automatically
         );
         
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -116,10 +115,17 @@ contract FeeCollectorTest is Test {
 
     // INITIALIZATION TESTS
 
-    function testInitialization() public {
+    function testInitialization() public view {
         assertEq(address(feeCollector.stablecoin()), address(stablecoin));
-        assertEq(feeCollector.protocolFeeBps(), PROTOCOL_FEE_BPS);
-        assertEq(feeCollector.lpFeeBps(), LP_FEE_BPS);
+        
+        // Use call to access public variable
+        (bool success, bytes memory data) = address(feeCollector).staticcall(
+            abi.encodeWithSignature("protocolFee()")
+        );
+        require(success, "Call failed");
+        uint256 protocolFee = abi.decode(data, (uint256));
+        
+        assertEq(protocolFee, PROTOCOL_FEE_BPS);
         assertEq(feeCollector.vault(), address(vault));
         
         // Check roles
@@ -164,8 +170,7 @@ contract FeeCollectorTest is Test {
             FeeCollector.initialize.selector,
             address(0), // Zero address for admin
             address(stablecoin),
-            PROTOCOL_FEE_BPS,
-            LP_FEE_BPS
+            PROTOCOL_FEE_BPS // Only passing protocolFee now
         );
         
         new ERC1967Proxy(address(implementation), data);
@@ -178,8 +183,7 @@ contract FeeCollectorTest is Test {
             FeeCollector.initialize.selector,
             ADMIN,
             address(0), // Zero address for stablecoin
-            PROTOCOL_FEE_BPS,
-            LP_FEE_BPS
+            PROTOCOL_FEE_BPS // Only passing protocolFee now
         );
         
         new ERC1967Proxy(address(implementation), data);
@@ -192,8 +196,7 @@ contract FeeCollectorTest is Test {
             FeeCollector.initialize.selector,
             ADMIN,
             address(stablecoin),
-            8_000, // 80%
-            3_000  // 30% (total 110%)
+            11_000  // > 100%, which is invalid
         );
         
         new ERC1967Proxy(address(implementation), data);
@@ -225,28 +228,33 @@ contract FeeCollectorTest is Test {
         feeCollector.setVault(address(0));
     }
 
-    function testSetFeeDistribution() public {
-        uint256 newProtocolFeeBps = 1_000; // 10%
-        uint256 newLpFeeBps = 4_000; // 40%
+    function testSetProtocolFee() public {
+        uint256 newProtocolFee = 3_000; // 30%
         
         vm.startPrank(ADMIN);
         vm.expectEmit(true, true, true, true);
-        emit FeeDistributionUpdated(newProtocolFeeBps, newLpFeeBps);
-        feeCollector.setFeeDistribution(newProtocolFeeBps, newLpFeeBps);
+        emit ProtocolFeeUpdated(newProtocolFee);
+        feeCollector.setProtocolFee(newProtocolFee);
         vm.stopPrank();
         
-        assertEq(feeCollector.protocolFeeBps(), newProtocolFeeBps);
-        assertEq(feeCollector.lpFeeBps(), newLpFeeBps);
+        // Access internal variables via low-level call
+        (bool success, bytes memory data) = address(feeCollector).staticcall(
+            abi.encodeWithSignature("protocolFee()")
+        );
+        require(success, "Call failed");
+        uint256 protocolFee = abi.decode(data, (uint256));
+        
+        assertEq(protocolFee, newProtocolFee);
     }
 
-    function testFailSetFeeDistributionNonAdmin() public {
+    function testFailSetProtocolFeeNonAdmin() public {
         vm.prank(RANDOM_USER);
-        feeCollector.setFeeDistribution(1_000, 4_000);
+        feeCollector.setProtocolFee(3_000);
     }
 
-    function testFailSetFeeDistributionInvalidPercentage() public {
+    function testFailSetProtocolFeeInvalidPercentage() public {
         vm.prank(ADMIN);
-        feeCollector.setFeeDistribution(6_000, 5_000); // 110% total
+        feeCollector.setProtocolFee(11_000); // > 100%
     }
 
     function testSetFeeTiers() public {
@@ -370,7 +378,7 @@ contract FeeCollectorTest is Test {
 
     // FEE CALCULATION TESTS
 
-    function testGetOrderFees() public {
+    function testGetOrderFees() public view {
         uint256 orderAmount = 500 ether; // Between first and second tier
         
         IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
@@ -392,7 +400,7 @@ contract FeeCollectorTest is Test {
         assertEq(fees.totalFee, fees.baseFee + fees.bpsFee + fees.insuranceFee);
     }
 
-    function testGetOrderFeesLargeTier() public {
+    function testGetOrderFeesLargeTier() public view {
         uint256 orderAmount = 20000 ether; // Above the highest tier
         
         IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
@@ -412,17 +420,6 @@ contract FeeCollectorTest is Test {
         
         // Total fee should be the sum
         assertEq(fees.totalFee, fees.baseFee + fees.bpsFee + fees.insuranceFee);
-    }
-
-    function testGetOrderFeesWithNoTiers() public {
-        // This test would verify behavior with empty fee tiers
-        // Since we can't easily manipulate storage for dynamic arrays in testing,
-        // this test is skipped. In a real scenario, the contract's behavior is to
-        // return 0 for bpsFee and insuranceFee when no tiers are set.
-        
-        // The proper behavior is verified in the implementation:
-        // - _getBpsFeeForAmount returns 0 when feeTiers.length == 0
-        // - _getInsuranceFeeBpsForAmount returns 0 when insuranceFeeTiers.length == 0
     }
 
     // FEE COLLECTION TESTS
@@ -445,9 +442,9 @@ contract FeeCollectorTest is Test {
         // Simulate vault calling collect
         vm.startPrank(address(vault));
         vm.expectEmit(true, true, true, true);
-        emit FeesUpdated(expectedProtocolFee, expectedLpFee, expectedOperatorFee);
+        emit FeesCollectedFromVault(expectedProtocolFee, expectedLpFee, expectedOperatorFee);
         
-        uint256 amountToTransfer = feeCollector.collect(
+        uint256 amountToTransfer = feeCollector.collectFromVault(
             address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID,
@@ -486,9 +483,9 @@ contract FeeCollectorTest is Test {
         // Simulate vault calling collect
         vm.startPrank(address(vault));
         vm.expectEmit(true, true, true, true);
-        emit FeesUpdated(expectedProtocolFee, expectedLpFee, expectedOperatorFee);
+        emit FeesCollectedFromVault(expectedProtocolFee, expectedLpFee, expectedOperatorFee);
         
-        uint256 amountToTransfer = feeCollector.collect(
+        uint256 amountToTransfer = feeCollector.collectFromVault(
             address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID,
@@ -518,9 +515,9 @@ contract FeeCollectorTest is Test {
         // Use insufficient fee (1 wei less than required)
         uint256 insufficientFee = expectedFees.totalFee - 1;
         
-        // Simulate vault calling collect with insufficient fee
+        // Simulate vault calling collectFromVault with insufficient fee
         vm.prank(address(vault));
-        feeCollector.collect(
+        feeCollector.collectFromVault(
             address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID,
@@ -533,7 +530,7 @@ contract FeeCollectorTest is Test {
         uint256 fee = 10 ether;
         
         vm.prank(RANDOM_USER);
-        feeCollector.collect(
+        feeCollector.collectFromVault(
             address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID,
@@ -555,7 +552,7 @@ contract FeeCollectorTest is Test {
         
         // Simulate vault calling collect
         vm.prank(address(vault));
-        feeCollector.collect(
+        feeCollector.collectFromVault(
             address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID,
@@ -606,7 +603,7 @@ contract FeeCollectorTest is Test {
         
         // Simulate vault calling collect
         vm.prank(address(vault));
-        feeCollector.collect(
+        feeCollector.collectFromVault(
             address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID,
@@ -650,9 +647,9 @@ contract FeeCollectorTest is Test {
             DEST_CHAIN_ID
         );
         
-        // Simulate vault calling collect
+        // Simulate vault calling collectFromVault
         vm.prank(address(vault));
-        feeCollector.collect(
+        feeCollector.collectFromVault(
             address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID,
@@ -700,7 +697,7 @@ contract FeeCollectorTest is Test {
         
         // Simulate vault calling collect
         vm.prank(address(vault));
-        feeCollector.collect(
+        feeCollector.collectFromVault(
             address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID,
@@ -745,7 +742,7 @@ contract FeeCollectorTest is Test {
         
         // Simulate a vault collecting fees
         vm.startPrank(address(vault));
-        uint256 amountToTransfer = feeCollector.collect(
+        uint256 amountToTransfer = feeCollector.collectFromVault(
             address(stablecoin),
             orderAmount,
             DEST_CHAIN_ID,
