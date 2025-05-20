@@ -99,6 +99,7 @@ contract FeeCollector is
         uint256 _orderFee
     ) external returns (uint256 amountToTransfer) {
         if (msg.sender != vault) revert GeniusErrors.NotAuthorized();
+        if (_amountIn == 0) revert GeniusErrors.InvalidAmount();
 
         // Calculate fee breakdown
         FeeBreakdown memory feeBreakdown = _calculateFeeBreakdown(

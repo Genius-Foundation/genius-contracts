@@ -31,6 +31,8 @@ contract GeniusVaultFees is Test {
     address OWNER;
     address TRADER;
     address ORCHESTRATOR;
+    uint256 ORCHESTRATOR_PK;
+
     bytes32 RECEIVER;
 
     ERC20 public USDC;
@@ -50,7 +52,7 @@ contract GeniusVaultFees is Test {
         OWNER = makeAddr("OWNER");
         TRADER = makeAddr("TRADER");
         RECEIVER = bytes32(uint256(uint160(TRADER)));
-        ORCHESTRATOR = 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38; // The hardcoded tx.origin for forge
+        (ORCHESTRATOR, ORCHESTRATOR_PK) = makeAddrAndKey("ORCHESTRATOR");
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
@@ -445,5 +447,429 @@ contract GeniusVaultFees is Test {
             )
         );
         VAULT.fillOrder(order, address(USDC), data, address(0), "");
+    }
+
+    function testInsuranceFeeRetention() public {
+        deal(address(USDC), ORCHESTRATOR, 3_000 ether);
+
+        vm.startPrank(address(ORCHESTRATOR));
+        USDC.approve(address(VAULT), 2_000 ether);
+
+        // Get fee breakdown for two orders
+        IFeeCollector.FeeBreakdown memory feeBreakdown1 = FEE_COLLECTOR
+            .getOrderFees(1000 ether, destChainId);
+
+        IFeeCollector.FeeBreakdown memory feeBreakdown2 = FEE_COLLECTOR
+            .getOrderFees(1000 ether, destChainId);
+
+        // Create first order
+        IGeniusVault.Order memory order1 = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order1"),
+            srcChainId: block.chainid,
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: feeBreakdown1.totalFee,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        VAULT.createOrder(order1);
+
+        // Store insurance fee amount
+        uint256 insuranceFee1 = feeBreakdown1.insuranceFee;
+
+        // Create second order
+        IGeniusVault.Order memory order2 = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order2"),
+            srcChainId: block.chainid,
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: feeBreakdown2.totalFee,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        VAULT.createOrder(order2);
+
+        // Calculate total expected insurance fees
+        uint256 totalInsuranceFees = insuranceFee1 + feeBreakdown2.insuranceFee;
+
+        // Vault balance should include the order amounts plus accumulated insurance fees
+        uint256 expectedVaultBalance = 2000 ether +
+            totalInsuranceFees -
+            (feeBreakdown1.totalFee - feeBreakdown1.insuranceFee) -
+            (feeBreakdown2.totalFee - feeBreakdown2.insuranceFee);
+
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            expectedVaultBalance,
+            "Vault balance should include accumulated insurance fees"
+        );
+
+        assertEq(
+            VAULT.insuranceFeesAccumulated(),
+            totalInsuranceFees,
+            "Insurance fees should be tracked correctly"
+        );
+    }
+
+    function testDifferentFeeTiers() public {
+        vm.startPrank(address(ORCHESTRATOR));
+        USDC.approve(address(VAULT), 2_000 ether);
+
+        // Small order (tier 1)
+        uint256 smallAmount = 50 ether;
+        IFeeCollector.FeeBreakdown memory smallFeeBd = FEE_COLLECTOR
+            .getOrderFees(smallAmount, destChainId);
+
+        // Medium order (tier 2)
+        uint256 mediumAmount = 200 ether;
+        IFeeCollector.FeeBreakdown memory mediumFeeBd = FEE_COLLECTOR
+            .getOrderFees(mediumAmount, destChainId);
+
+        // Large order (tier 3)
+        uint256 largeAmount = 600 ether;
+        IFeeCollector.FeeBreakdown memory largeFeeBd = FEE_COLLECTOR
+            .getOrderFees(largeAmount, destChainId);
+
+        // Verify tier 1 uses 0.3% fee (30 bps)
+        assertEq(
+            smallFeeBd.bpsFee,
+            (smallAmount * 30) / 10000,
+            "Small order should use tier 1 fee"
+        );
+
+        // Verify tier 2 uses 0.2% fee (20 bps)
+        assertEq(
+            mediumFeeBd.bpsFee,
+            (mediumAmount * 20) / 10000,
+            "Medium order should use tier 2 fee"
+        );
+
+        // Verify tier 3 uses 0.1% fee (10 bps)
+        assertEq(
+            largeFeeBd.bpsFee,
+            (largeAmount * 10) / 10000,
+            "Large order should use tier 3 fee"
+        );
+
+        // Create orders with different sizes to hit different tiers
+        createOrderWithAmount(smallAmount, "small");
+        createOrderWithAmount(mediumAmount, "medium");
+        createOrderWithAmount(largeAmount, "large");
+
+        // Calculate expected protocol, LP and operator fees
+        uint256 expectedProtocolFees = ((smallFeeBd.bpsFee +
+            mediumFeeBd.bpsFee +
+            largeFeeBd.bpsFee) * FEE_COLLECTOR.protocolFee()) / 10000;
+
+        // Check FeeCollector accounting
+        assertEq(
+            FEE_COLLECTOR.protocolFeesCollected(),
+            expectedProtocolFees,
+            "Protocol fees should be collected correctly"
+        );
+    }
+
+    // Helper function for creating orders with different amounts
+    function createOrderWithAmount(
+        uint256 amount,
+        string memory seedStr
+    ) internal {
+        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+            .getOrderFees(amount, destChainId);
+
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: amount,
+            seed: keccak256(abi.encodePacked(seedStr)),
+            srcChainId: block.chainid,
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: feeBreakdown.totalFee,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        VAULT.createOrder(order);
+    }
+
+    function testRevertOrderFeeHandling() public {
+        // Create an order
+        vm.startPrank(address(ORCHESTRATOR));
+        USDC.approve(address(VAULT), 1_000 ether);
+
+        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+            .getOrderFees(1000 ether, destChainId);
+
+        IGeniusVault.Order memory order = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order"),
+            srcChainId: block.chainid,
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: feeBreakdown.totalFee,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        VAULT.createOrder(order);
+
+        // Record balances before revert
+        uint256 vaultBalanceBefore = USDC.balanceOf(address(VAULT));
+        uint256 traderBalanceBefore = USDC.balanceOf(TRADER);
+        uint256 feeCollectorBalanceBefore = USDC.balanceOf(
+            address(FEE_COLLECTOR)
+        );
+
+        // Create a valid orchestrator signature for revert
+        bytes32 orderHash = VAULT.orderHash(order);
+        bytes32 revertDigest = _revertOrderDigest(orderHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            ORCHESTRATOR_PK,
+            revertDigest
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        // Revert the order
+        VAULT.revertOrder(order, signature);
+        vm.stopPrank();
+
+        // Verify the trader gets back amountIn - fee
+        assertEq(
+            USDC.balanceOf(TRADER),
+            traderBalanceBefore + order.amountIn - order.fee,
+            "Trader should get back amountIn minus fee"
+        );
+
+        // Verify fees remain with fee collector
+        assertEq(
+            USDC.balanceOf(address(FEE_COLLECTOR)),
+            feeCollectorBalanceBefore,
+            "Fee collector balance should not change after revert"
+        );
+
+        // Vault should have only insurance fee left
+        assertEq(
+            USDC.balanceOf(address(VAULT)),
+            vaultBalanceBefore - (order.amountIn - order.fee),
+            "Vault should retain only insurance fee after revert"
+        );
+    }
+
+    function testFeeParameterUpdates() public {
+        deal(address(USDC), ORCHESTRATOR, 3_000 ether);
+
+        // First create an order with initial fee parameters
+        vm.startPrank(address(ORCHESTRATOR));
+        USDC.approve(address(VAULT), 2_000 ether);
+
+        IFeeCollector.FeeBreakdown memory feeBreakdown1 = FEE_COLLECTOR
+            .getOrderFees(1000 ether, destChainId);
+
+        IGeniusVault.Order memory order1 = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order1"),
+            srcChainId: block.chainid,
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: feeBreakdown1.totalFee,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        VAULT.createOrder(order1);
+        vm.stopPrank();
+
+        // Update fee parameters
+        vm.startPrank(OWNER);
+        // Change protocol fee to 30%
+        FEE_COLLECTOR.setProtocolFee(3000);
+
+        // Update the fee tiers
+        uint256[] memory newThresholdAmounts = new uint256[](3);
+        newThresholdAmounts[0] = 0;
+        newThresholdAmounts[1] = 100 ether;
+        newThresholdAmounts[2] = 500 ether;
+
+        uint256[] memory newBpsFees = new uint256[](3);
+        newBpsFees[0] = 60; // 0.6%
+        newBpsFees[1] = 40; // 0.4%
+        newBpsFees[2] = 20; // 0.2%
+
+        FEE_COLLECTOR.setFeeTiers(newThresholdAmounts, newBpsFees);
+
+        // Update min fee
+        FEE_COLLECTOR.setTargetChainMinFee(destChainId, 2 ether);
+        vm.stopPrank();
+
+        // Create another order with updated parameters
+        vm.startPrank(address(ORCHESTRATOR));
+        IFeeCollector.FeeBreakdown memory feeBreakdown2 = FEE_COLLECTOR
+            .getOrderFees(1000 ether, destChainId);
+
+        IGeniusVault.Order memory order2 = IGeniusVault.Order({
+            trader: VAULT.addressToBytes32(TRADER),
+            receiver: RECEIVER,
+            amountIn: 1_000 ether,
+            seed: keccak256("order2"),
+            srcChainId: block.chainid,
+            destChainId: destChainId,
+            tokenIn: VAULT.addressToBytes32(address(USDC)),
+            fee: feeBreakdown2.totalFee,
+            minAmountOut: 0,
+            tokenOut: bytes32(uint256(1))
+        });
+
+        VAULT.createOrder(order2);
+        vm.stopPrank();
+
+        // Verify the updated fees are applied correctly
+        // Base fee should now be 2 ether instead of 1 ether
+        assertEq(feeBreakdown2.baseFee, 2 ether, "Base fee should be updated");
+
+        // BPS fee should now be 0.2% of 1000 ether (2 ether)
+        assertEq(
+            feeBreakdown2.bpsFee,
+            (1000 ether * 20) / 10000,
+            "BPS fee should be updated"
+        );
+
+        // Protocol portion should be 30% of the BPS fee
+        uint256 expectedProtocolFee = (feeBreakdown2.bpsFee * 3000) / 10000;
+
+        // Check fee accounting
+        assertEq(
+            FEE_COLLECTOR.protocolFeesCollected() - expectedProtocolFee,
+            ((feeBreakdown1.bpsFee * 2000) / 10000), // Previous collection at 20%
+            "Protocol fee accounting should reflect both fee rates"
+        );
+    }
+
+    function testFeeClaimingAfterMultipleOrders() public {
+        // Create multiple orders
+        deal(address(USDC), ORCHESTRATOR, 3_000 ether);
+
+        vm.startPrank(address(ORCHESTRATOR));
+        USDC.approve(address(VAULT), 3_000 ether);
+
+        for (uint256 i = 0; i < 3; i++) {
+            IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+                .getOrderFees(1000 ether, destChainId);
+
+            IGeniusVault.Order memory order = IGeniusVault.Order({
+                trader: VAULT.addressToBytes32(TRADER),
+                receiver: RECEIVER,
+                amountIn: 1_000 ether,
+                seed: keccak256(abi.encodePacked("order", i)),
+                srcChainId: block.chainid,
+                destChainId: destChainId,
+                tokenIn: VAULT.addressToBytes32(address(USDC)),
+                fee: feeBreakdown.totalFee,
+                minAmountOut: 0,
+                tokenOut: bytes32(uint256(1))
+            });
+
+            VAULT.createOrder(order);
+        }
+        vm.stopPrank();
+
+        // Verify accumulated fees in FeeCollector
+        uint256 protocolFeesCollected = FEE_COLLECTOR.protocolFeesCollected();
+        uint256 lpFeesCollected = FEE_COLLECTOR.lpFeesCollected();
+        uint256 operatorFeesCollected = FEE_COLLECTOR.operatorFeesCollected();
+
+        assertTrue(
+            protocolFeesCollected > 0,
+            "Protocol fees should be collected"
+        );
+        assertTrue(lpFeesCollected > 0, "LP fees should be collected");
+        assertTrue(
+            operatorFeesCollected > 0,
+            "Operator fees should be collected"
+        );
+
+        // Set up claimants with roles for claiming
+        address DISTRIBUTOR = makeAddr("DISTRIBUTOR");
+        address WORKER = makeAddr("WORKER");
+
+        vm.startPrank(OWNER);
+        FEE_COLLECTOR.grantRole(FEE_COLLECTOR.DISTRIBUTOR_ROLE(), DISTRIBUTOR);
+        FEE_COLLECTOR.grantRole(FEE_COLLECTOR.WORKER_ROLE(), WORKER);
+        vm.stopPrank();
+
+        // Claim fees for each role
+        // First ensure FeeCollector has enough tokens to pay out
+        deal(
+            address(USDC),
+            address(FEE_COLLECTOR),
+            protocolFeesCollected + lpFeesCollected + operatorFeesCollected
+        );
+
+        vm.prank(OWNER);
+        uint256 protocolFeeClaimed = FEE_COLLECTOR.claimProtocolFees();
+
+        vm.prank(DISTRIBUTOR);
+        uint256 lpFeeClaimed = FEE_COLLECTOR.claimLPFees();
+
+        vm.prank(WORKER);
+        uint256 operatorFeeClaimed = FEE_COLLECTOR.claimOperatorFees();
+
+        // Verify claimed amounts match collected amounts
+        assertEq(
+            protocolFeeClaimed,
+            protocolFeesCollected,
+            "Protocol fee claim should match collected amount"
+        );
+
+        assertEq(
+            lpFeeClaimed,
+            lpFeesCollected,
+            "LP fee claim should match collected amount"
+        );
+
+        assertEq(
+            operatorFeeClaimed,
+            operatorFeesCollected,
+            "Operator fee claim should match collected amount"
+        );
+
+        // Verify balances
+        assertEq(
+            USDC.balanceOf(OWNER),
+            protocolFeeClaimed,
+            "Owner should receive protocol fees"
+        );
+
+        assertEq(
+            USDC.balanceOf(DISTRIBUTOR),
+            lpFeeClaimed,
+            "Distributor should receive LP fees"
+        );
+
+        assertEq(
+            USDC.balanceOf(WORKER),
+            operatorFeeClaimed,
+            "Worker should receive operator fees"
+        );
+    }
+
+    function _revertOrderDigest(
+        bytes32 _orderHash
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(abi.encodePacked("PREFIX_CANCEL_ORDER_HASH", _orderHash));
     }
 }

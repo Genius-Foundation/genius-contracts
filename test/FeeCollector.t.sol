@@ -862,4 +862,253 @@ contract FeeCollectorTest is Test {
 
         vm.stopPrank();
     }
+
+    function testZeroAmountOrder() public {
+        uint256 orderAmount = 0;
+
+        vm.prank(address(vault));
+        vm.expectRevert(); // Should revert with InvalidAmount or similar
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount,
+            DEST_CHAIN_ID,
+            1 ether // Some arbitrary fee
+        );
+    }
+
+    function testVeryLargeAmountOrder() public view {
+        uint256 orderAmount = type(uint128).max; // Very large but not max uint256 to avoid overflow
+
+        IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
+            orderAmount,
+            DEST_CHAIN_ID
+        );
+
+        // Verify calculations don't overflow
+        assertTrue(fees.bpsFee > 0);
+        assertTrue(fees.insuranceFee > 0);
+        assertTrue(fees.totalFee > 0);
+    }
+
+    function testExactTierBoundaryAmount() public view {
+        // Test exactly at a tier boundary (1000 ether is the second tier threshold)
+        uint256 orderAmount = 1000 ether;
+
+        IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
+            orderAmount,
+            DEST_CHAIN_ID
+        );
+
+        // Should use the second tier fee (30 bps)
+        assertEq(fees.bpsFee, (orderAmount * 30) / BASE_PERCENTAGE);
+    }
+
+    function testMultipleCollections() public {
+        // First collection
+        uint256 orderAmount1 = 500 ether;
+        IFeeCollector.FeeBreakdown memory fees1 = feeCollector.getOrderFees(
+            orderAmount1,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount1,
+            DEST_CHAIN_ID,
+            fees1.totalFee
+        );
+
+        // Second collection
+        uint256 orderAmount2 = 2000 ether;
+        IFeeCollector.FeeBreakdown memory fees2 = feeCollector.getOrderFees(
+            orderAmount2,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount2,
+            DEST_CHAIN_ID,
+            fees2.totalFee
+        );
+
+        // Calculate expected cumulative fees
+        uint256 expectedProtocolFee1 = (fees1.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+        uint256 expectedLpFee1 = fees1.bpsFee - expectedProtocolFee1;
+
+        uint256 expectedProtocolFee2 = (fees2.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+        uint256 expectedLpFee2 = fees2.bpsFee - expectedProtocolFee2;
+
+        // Check cumulative accounting
+        assertEq(
+            feeCollector.protocolFeesCollected(),
+            expectedProtocolFee1 + expectedProtocolFee2
+        );
+        assertEq(
+            feeCollector.lpFeesCollected(),
+            expectedLpFee1 + expectedLpFee2
+        );
+        assertEq(
+            feeCollector.operatorFeesCollected(),
+            fees1.baseFee + fees2.baseFee
+        );
+    }
+
+    function testPartialClaimsWithMoreCollections() public {
+        // Set up initial fees
+        uint256 orderAmount1 = 1000 ether;
+        IFeeCollector.FeeBreakdown memory fees1 = feeCollector.getOrderFees(
+            orderAmount1,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount1,
+            DEST_CHAIN_ID,
+            fees1.totalFee
+        );
+
+        // Calculate initial fees
+        uint256 protocolFee1 = (fees1.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+
+        // Transfer tokens for claims
+        stablecoin.mint(address(feeCollector), protocolFee1);
+
+        // Partial claim
+        vm.prank(ADMIN);
+        feeCollector.claimProtocolFees();
+
+        // More fee collection
+        uint256 orderAmount2 = 2000 ether;
+        IFeeCollector.FeeBreakdown memory fees2 = feeCollector.getOrderFees(
+            orderAmount2,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount2,
+            DEST_CHAIN_ID,
+            fees2.totalFee
+        );
+
+        // Calculate second batch fees
+        uint256 protocolFee2 = (fees2.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+
+        // Check state
+        assertEq(
+            feeCollector.protocolFeesCollected(),
+            protocolFee1 + protocolFee2
+        );
+        assertEq(feeCollector.protocolFeesClaimed(), protocolFee1);
+        assertEq(feeCollector.claimableProtocolFees(), protocolFee2);
+    }
+
+    function testZeroInsuranceFee() public {
+        // Set insurance tiers to zero
+        uint256[] memory insThresholdAmounts = new uint256[](1);
+        insThresholdAmounts[0] = 0;
+
+        uint256[] memory insBpsFees = new uint256[](1);
+        insBpsFees[0] = 0; // 0%
+
+        vm.prank(ADMIN);
+        feeCollector.setInsuranceFeeTiers(insThresholdAmounts, insBpsFees);
+
+        // Test order with zero insurance fee
+        uint256 orderAmount = 1000 ether;
+        IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
+            orderAmount,
+            DEST_CHAIN_ID
+        );
+
+        // Insurance fee should be zero
+        assertEq(fees.insuranceFee, 0);
+
+        // amountToTransfer should equal total fee
+        vm.prank(address(vault));
+        uint256 amountToTransfer = feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount,
+            DEST_CHAIN_ID,
+            fees.totalFee
+        );
+
+        assertEq(amountToTransfer, fees.totalFee);
+    }
+
+    function testInsuranceFeeIsExcludedFromTransfer() public {
+        uint256 orderAmount = 1000 ether;
+        IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
+            orderAmount,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        uint256 amountToTransfer = feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount,
+            DEST_CHAIN_ID,
+            fees.totalFee
+        );
+
+        // Verify amount to transfer excludes insurance fee
+        assertEq(amountToTransfer, fees.totalFee - fees.insuranceFee);
+    }
+
+    function testRevokeAndReassignRoles() public {
+        // Test revoking and reassigning roles
+        address newDistributor = makeAddr("NEW_DISTRIBUTOR");
+
+        vm.startPrank(ADMIN);
+        feeCollector.revokeRole(feeCollector.DISTRIBUTOR_ROLE(), DISTRIBUTOR);
+        feeCollector.grantRole(feeCollector.DISTRIBUTOR_ROLE(), newDistributor);
+        vm.stopPrank();
+
+        // Old distributor should no longer be able to claim
+        vm.startPrank(DISTRIBUTOR);
+        vm.expectRevert();
+        feeCollector.claimLPFees();
+        vm.stopPrank();
+
+        // Set up some fees first
+        uint256 orderAmount = 1000 ether;
+        IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
+            orderAmount,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount,
+            DEST_CHAIN_ID,
+            fees.totalFee
+        );
+
+        // Calculate LP fee
+        uint256 protocolFee = (fees.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+        uint256 lpFee = fees.bpsFee - protocolFee;
+
+        // Mint tokens for claiming
+        stablecoin.mint(address(feeCollector), lpFee);
+
+        // New distributor should be able to claim
+        vm.startPrank(newDistributor);
+        feeCollector.claimLPFees();
+        vm.stopPrank();
+
+        // Verify the new distributor got the funds
+        assertEq(stablecoin.balanceOf(newDistributor), lpFee);
+    }
 }
