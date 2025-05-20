@@ -32,6 +32,7 @@ interface IFeeCollector {
 
     /**
      * @notice Emitted when fees are updated by the vault
+     * @param orderHash The hash of the order processed
      * @param protocolFee Amount of protocol fees added
      * @param lpFee Amount of LP fees added
      * @param operatorFee Amount of operator fees added
@@ -45,24 +46,57 @@ interface IFeeCollector {
 
     /**
      * @notice Emitted when protocol fees are claimed
-     * @param claimant The address that claimed the fees
+     * @param claimant The address that initiated the claim
+     * @param receiver The address that received the fees
      * @param amount The amount claimed
      */
-    event ProtocolFeesClaimed(address indexed claimant, uint256 amount);
+    event ProtocolFeesClaimed(
+        address indexed claimant,
+        address indexed receiver,
+        uint256 amount
+    );
 
     /**
      * @notice Emitted when LP fees are claimed
-     * @param claimant The address that claimed the fees
+     * @param claimant The address that initiated the claim
+     * @param receiver The address that received the fees
      * @param amount The amount claimed
      */
-    event LPFeesClaimed(address indexed claimant, uint256 amount);
+    event LPFeesClaimed(
+        address indexed claimant,
+        address indexed receiver,
+        uint256 amount
+    );
 
     /**
      * @notice Emitted when operator fees are claimed
-     * @param claimant The address that claimed the fees
+     * @param claimant The address that initiated the claim
+     * @param receiver The address that received the fees
      * @param amount The amount claimed
      */
-    event OperatorFeesClaimed(address indexed claimant, uint256 amount);
+    event OperatorFeesClaimed(
+        address indexed claimant,
+        address indexed receiver,
+        uint256 amount
+    );
+
+    /**
+     * @notice Emitted when the protocol fee receiver is set
+     * @param receiver The new protocol fee receiver
+     */
+    event ProtocolFeeReceiverSet(address receiver);
+
+    /**
+     * @notice Emitted when the LP fee receiver is set
+     * @param receiver The new LP fee receiver
+     */
+    event LPFeeReceiverSet(address receiver);
+
+    /**
+     * @notice Emitted when the operator fee receiver is set
+     * @param receiver The new operator fee receiver
+     */
+    event OperatorFeeReceiverSet(address receiver);
 
     /**
      * @notice Emitted when the vault address is set
@@ -115,22 +149,40 @@ interface IFeeCollector {
     ) external returns (uint256 amountToTransfer);
 
     /**
-     * @notice Allows admins to claim protocol fees
+     * @notice Allows admins to claim protocol fees for the designated receiver
      * @return amount The amount of fees claimed
      */
     function claimProtocolFees() external returns (uint256 amount);
 
     /**
-     * @notice Allows LP fee distributors to claim LP fees
+     * @notice Allows LP fee distributors to claim LP fees for the designated receiver
      * @return amount The amount of fees claimed
      */
     function claimLPFees() external returns (uint256 amount);
 
     /**
-     * @notice Allows workers to claim operator fees for operational expenses
+     * @notice Allows workers to claim operator fees for the designated receiver
      * @return amount The amount of fees claimed
      */
     function claimOperatorFees() external returns (uint256 amount);
+
+    /**
+     * @notice Sets the protocol fee receiver address
+     * @param _receiver The address to receive protocol fees
+     */
+    function setProtocolFeeReceiver(address _receiver) external;
+
+    /**
+     * @notice Sets the LP fee receiver address
+     * @param _receiver The address to receive LP fees
+     */
+    function setLPFeeReceiver(address _receiver) external;
+
+    /**
+     * @notice Sets the operator fee receiver address
+     * @param _receiver The address to receive operator fees
+     */
+    function setOperatorFeeReceiver(address _receiver) external;
 
     /**
      * @notice Sets the vault address that can update fees

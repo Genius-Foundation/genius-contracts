@@ -34,6 +34,11 @@ contract FeeCollector is
     uint256 public operatorFeesCollected;
     uint256 public operatorFeesClaimed;
 
+    // Fee receivers for each fee type
+    address public protocolFeeReceiver;
+    address public lpFeeReceiver;
+    address public operatorFeeReceiver;
+
     // Fee settings
     uint256 public protocolFee; // What percentage of the bps fees goes to protocol
 
@@ -79,6 +84,11 @@ contract FeeCollector is
 
         stablecoin = IERC20(_stablecoin);
         protocolFee = _protocolFee;
+
+        // Set default receivers to admin
+        protocolFeeReceiver = _admin;
+        lpFeeReceiver = _admin;
+        operatorFeeReceiver = _admin;
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
@@ -145,7 +155,7 @@ contract FeeCollector is
     }
 
     /**
-     * @notice Allows admins to claim protocol fees
+     * @notice Allows admins to claim protocol fees for the designated receiver
      * @return amount The amount of fees claimed
      */
     function claimProtocolFees()
@@ -156,16 +166,18 @@ contract FeeCollector is
     {
         amount = protocolFeesCollected - protocolFeesClaimed;
         if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (protocolFeeReceiver == address(0))
+            revert GeniusErrors.NonAddress0();
 
         protocolFeesClaimed += amount;
-        stablecoin.safeTransfer(msg.sender, amount);
+        stablecoin.safeTransfer(protocolFeeReceiver, amount);
 
-        emit ProtocolFeesClaimed(msg.sender, amount);
+        emit ProtocolFeesClaimed(msg.sender, protocolFeeReceiver, amount);
         return amount;
     }
 
     /**
-     * @notice Allows LP fee distributors to claim LP fees
+     * @notice Allows LP fee distributors to claim LP fees for the designated receiver
      * @return amount The amount of fees claimed
      */
     function claimLPFees()
@@ -176,16 +188,17 @@ contract FeeCollector is
     {
         amount = lpFeesCollected - lpFeesClaimed;
         if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (lpFeeReceiver == address(0)) revert GeniusErrors.NonAddress0();
 
         lpFeesClaimed += amount;
-        stablecoin.safeTransfer(msg.sender, amount);
+        stablecoin.safeTransfer(lpFeeReceiver, amount);
 
-        emit LPFeesClaimed(msg.sender, amount);
+        emit LPFeesClaimed(msg.sender, lpFeeReceiver, amount);
         return amount;
     }
 
     /**
-     * @notice Allows workers to claim operator fees for operational expenses
+     * @notice Allows workers to claim operator fees for the designated receiver
      * @return amount The amount of fees claimed
      */
     function claimOperatorFees()
@@ -196,12 +209,50 @@ contract FeeCollector is
     {
         amount = operatorFeesCollected - operatorFeesClaimed;
         if (amount == 0) revert GeniusErrors.InvalidAmount();
+        if (operatorFeeReceiver == address(0))
+            revert GeniusErrors.NonAddress0();
 
         operatorFeesClaimed += amount;
-        stablecoin.safeTransfer(msg.sender, amount);
+        stablecoin.safeTransfer(operatorFeeReceiver, amount);
 
-        emit OperatorFeesClaimed(msg.sender, amount);
+        emit OperatorFeesClaimed(msg.sender, operatorFeeReceiver, amount);
         return amount;
+    }
+
+    /**
+     * @notice Sets the protocol fee receiver address
+     * @param _receiver The address to receive protocol fees
+     */
+    function setProtocolFeeReceiver(
+        address _receiver
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_receiver == address(0)) revert GeniusErrors.NonAddress0();
+        protocolFeeReceiver = _receiver;
+        emit ProtocolFeeReceiverSet(_receiver);
+    }
+
+    /**
+     * @notice Sets the LP fee receiver address
+     * @param _receiver The address to receive LP fees
+     */
+    function setLPFeeReceiver(
+        address _receiver
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_receiver == address(0)) revert GeniusErrors.NonAddress0();
+        lpFeeReceiver = _receiver;
+        emit LPFeeReceiverSet(_receiver);
+    }
+
+    /**
+     * @notice Sets the operator fee receiver address
+     * @param _receiver The address to receive operator fees
+     */
+    function setOperatorFeeReceiver(
+        address _receiver
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_receiver == address(0)) revert GeniusErrors.NonAddress0();
+        operatorFeeReceiver = _receiver;
+        emit OperatorFeeReceiverSet(_receiver);
     }
 
     /**
