@@ -143,20 +143,22 @@ contract GeniusVaultAccounting is Test {
 
         // Deploy FeeCollector
         FeeCollector feeCollectorImplementation = new FeeCollector();
-        
+
         bytes memory feeCollectorData = abi.encodeWithSelector(
             FeeCollector.initialize.selector,
             OWNER,
             address(USDC),
             2000, // 20% to protocol
-            5000  // 50% to LPs
+            OWNER,
+            OWNER,
+            OWNER
         );
-        
+
         ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
-            address(feeCollectorImplementation), 
+            address(feeCollectorImplementation),
             feeCollectorData
         );
-        
+
         FEE_COLLECTOR = FeeCollector(address(feeCollectorProxy));
 
         // Deploy contracts
@@ -180,24 +182,24 @@ contract GeniusVaultAccounting is Test {
         VAULT = GeniusVault(address(proxy));
 
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
-        
+
         // Set up FeeCollector and Vault connections
         VAULT.setFeeCollector(address(FEE_COLLECTOR));
         FEE_COLLECTOR.setVault(address(VAULT));
-        
+
         // Set up fee tiers in FeeCollector
         uint256[] memory thresholdAmounts = new uint256[](3);
         thresholdAmounts[0] = 0;
         thresholdAmounts[1] = 100 ether;
         thresholdAmounts[2] = 500 ether;
-        
+
         uint256[] memory bpsFees = new uint256[](3);
         bpsFees[0] = 30; // 0.3%
         bpsFees[1] = 20; // 0.2%
         bpsFees[2] = 10; // 0.1%
-        
+
         FEE_COLLECTOR.setFeeTiers(thresholdAmounts, bpsFees);
-        
+
         // Set min fee in FeeCollector
         FEE_COLLECTOR.setTargetChainMinFee(destChainId, 1 ether);
 

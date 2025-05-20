@@ -107,7 +107,10 @@ contract GeniusSponsoredOrdersTest is Test {
             FeeCollector.initialize.selector,
             ADMIN,
             address(USDC),
-            2000 // 20% to protocol
+            2000, // 20% to protocol,
+            ADMIN,
+            ADMIN,
+            ADMIN
         );
 
         ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(

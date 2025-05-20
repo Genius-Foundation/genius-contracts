@@ -73,7 +73,10 @@ contract FeeCollectorTest is Test {
             FeeCollector.initialize.selector,
             ADMIN,
             address(stablecoin),
-            PROTOCOL_FEE_BPS // Only passing protocolFee now, lpFee is calculated automatically
+            PROTOCOL_FEE_BPS, // Only passing protocolFee now, lpFee is calculated automatically
+            ADMIN,
+            ADMIN,
+            ADMIN
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -182,7 +185,10 @@ contract FeeCollectorTest is Test {
             FeeCollector.initialize.selector,
             address(0), // Zero address for admin
             address(stablecoin),
-            PROTOCOL_FEE_BPS // Only passing protocolFee now
+            PROTOCOL_FEE_BPS, // Only passing protocolFee now
+            ADMIN,
+            ADMIN,
+            ADMIN
         );
 
         vm.expectRevert();
@@ -196,7 +202,10 @@ contract FeeCollectorTest is Test {
             FeeCollector.initialize.selector,
             ADMIN,
             address(0), // Zero address for stablecoin
-            PROTOCOL_FEE_BPS // Only passing protocolFee now
+            PROTOCOL_FEE_BPS, // Only passing protocolFee now
+            ADMIN,
+            ADMIN,
+            ADMIN
         );
 
         vm.expectRevert();
@@ -210,7 +219,10 @@ contract FeeCollectorTest is Test {
             FeeCollector.initialize.selector,
             ADMIN,
             address(stablecoin),
-            11_000 // > 100%, which is invalid
+            11_000, // > 100%, which is invalid
+            ADMIN,
+            ADMIN,
+            ADMIN
         );
 
         vm.expectRevert();

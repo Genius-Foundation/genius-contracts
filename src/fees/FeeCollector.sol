@@ -55,6 +55,12 @@ contract FeeCollector is
     // Only the vault can add fees
     address public vault;
 
+    modifier onlyAdmin() {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
+            revert GeniusErrors.IsNotAdmin();
+        _;
+    }
+
     // Constructor disables initialization for implementation contract
     constructor() {
         _disableInitializers();
@@ -69,7 +75,10 @@ contract FeeCollector is
     function initialize(
         address _admin,
         address _stablecoin,
-        uint256 _protocolFee
+        uint256 _protocolFee,
+        address _protocolFeeReceiver,
+        address _lpFeeReceiver,
+        address _operatorFeeReceiver
     ) external initializer {
         if (_admin == address(0)) revert GeniusErrors.NonAddress0();
         if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
@@ -82,13 +91,13 @@ contract FeeCollector is
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
 
-        stablecoin = IERC20(_stablecoin);
-        protocolFee = _protocolFee;
+        _setStablecoin(_stablecoin);
+        _setProtocolFee(_protocolFee);
 
         // Set default receivers to admin
-        protocolFeeReceiver = _admin;
-        lpFeeReceiver = _admin;
-        operatorFeeReceiver = _admin;
+        _setProtocolFeeReceiver(_protocolFeeReceiver);
+        _setLPFeeReceiver(_lpFeeReceiver);
+        _setOperatorFeeReceiver(_operatorFeeReceiver);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
@@ -161,7 +170,7 @@ contract FeeCollector is
     function claimProtocolFees()
         external
         nonReentrant
-        onlyRole(DEFAULT_ADMIN_ROLE)
+        onlyAdmin
         returns (uint256 amount)
     {
         amount = protocolFeesCollected - protocolFeesClaimed;
@@ -223,62 +232,40 @@ contract FeeCollector is
      * @notice Sets the protocol fee receiver address
      * @param _receiver The address to receive protocol fees
      */
-    function setProtocolFeeReceiver(
-        address _receiver
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_receiver == address(0)) revert GeniusErrors.NonAddress0();
-        protocolFeeReceiver = _receiver;
-        emit ProtocolFeeReceiverSet(_receiver);
+    function setProtocolFeeReceiver(address _receiver) external onlyAdmin {
+        _setProtocolFeeReceiver(_receiver);
     }
 
     /**
      * @notice Sets the LP fee receiver address
      * @param _receiver The address to receive LP fees
      */
-    function setLPFeeReceiver(
-        address _receiver
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_receiver == address(0)) revert GeniusErrors.NonAddress0();
-        lpFeeReceiver = _receiver;
-        emit LPFeeReceiverSet(_receiver);
+    function setLPFeeReceiver(address _receiver) external onlyAdmin {
+        _setLPFeeReceiver(_receiver);
     }
 
     /**
      * @notice Sets the operator fee receiver address
      * @param _receiver The address to receive operator fees
      */
-    function setOperatorFeeReceiver(
-        address _receiver
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_receiver == address(0)) revert GeniusErrors.NonAddress0();
-        operatorFeeReceiver = _receiver;
-        emit OperatorFeeReceiverSet(_receiver);
+    function setOperatorFeeReceiver(address _receiver) external onlyAdmin {
+        _setOperatorFeeReceiver(_receiver);
     }
 
     /**
      * @notice Sets the vault address that can update fees
      * @param _vault The vault contract address
      */
-    function setVault(address _vault) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        if (_vault == address(0)) revert GeniusErrors.NonAddress0();
-        vault = _vault;
-        emit VaultSet(_vault);
+    function setVault(address _vault) external onlyAdmin {
+        _setVault(_vault);
     }
 
     /**
      * @notice Sets the protocol fee percentage
-     * @param _protocolFee Percentage of the BPS feesallocated to protocol
+     * @param _protocolFee Percentage of the BPS fees allocated to protocol
      */
-    function setProtocolFee(
-        uint256 _protocolFee
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        // Protocol + LP fees cannot exceed 100%
-        if (_protocolFee > BASE_PERCENTAGE)
-            revert GeniusErrors.InvalidPercentage();
-
-        protocolFee = _protocolFee;
-
-        emit ProtocolFeeUpdated(_protocolFee);
+    function setProtocolFee(uint256 _protocolFee) external onlyAdmin {
+        _setProtocolFee(_protocolFee);
     }
 
     /**
@@ -289,7 +276,7 @@ contract FeeCollector is
     function setTargetChainMinFee(
         uint256 _targetChainId,
         uint256 _minFee
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyAdmin {
         _setTargetChainMinFee(_targetChainId, _minFee);
     }
 
@@ -301,7 +288,7 @@ contract FeeCollector is
     function setFeeTiers(
         uint256[] calldata _thresholdAmounts,
         uint256[] calldata _bpsFees
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyAdmin {
         _setFeeTiers(_thresholdAmounts, _bpsFees);
     }
 
@@ -313,7 +300,7 @@ contract FeeCollector is
     function setInsuranceFeeTiers(
         uint256[] calldata _thresholdAmounts,
         uint256[] calldata _bpsFees
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyAdmin {
         _setInsuranceFeeTiers(_thresholdAmounts, _bpsFees);
     }
 
@@ -352,6 +339,68 @@ contract FeeCollector is
         uint256 _destChainId
     ) external view returns (FeeBreakdown memory) {
         return _calculateFeeBreakdown(_amount, _destChainId);
+    }
+
+    /**
+     * @dev Internal function to set the stablecoin address
+     * @param _stablecoin The address of the stablecoin
+     */
+    function _setStablecoin(address _stablecoin) internal {
+        if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
+        stablecoin = IERC20(_stablecoin);
+    }
+
+    /**
+     * @dev Internal function to set the protocol fee receiver address
+     * @param _receiver The address to receive protocol fees
+     */
+    function _setProtocolFeeReceiver(address _receiver) internal {
+        if (_receiver == address(0)) revert GeniusErrors.NonAddress0();
+        protocolFeeReceiver = _receiver;
+        emit ProtocolFeeReceiverSet(_receiver);
+    }
+
+    /**
+     * @dev Internal function to set the LP fee receiver address
+     * @param _receiver The address to receive LP fees
+     */
+    function _setLPFeeReceiver(address _receiver) internal {
+        if (_receiver == address(0)) revert GeniusErrors.NonAddress0();
+        lpFeeReceiver = _receiver;
+        emit LPFeeReceiverSet(_receiver);
+    }
+
+    /**
+     * @dev Internal function to set the operator fee receiver address
+     * @param _receiver The address to receive operator fees
+     */
+    function _setOperatorFeeReceiver(address _receiver) internal {
+        if (_receiver == address(0)) revert GeniusErrors.NonAddress0();
+        operatorFeeReceiver = _receiver;
+        emit OperatorFeeReceiverSet(_receiver);
+    }
+
+    /**
+     * @dev Internal function to set the vault address
+     * @param _vault The vault contract address
+     */
+    function _setVault(address _vault) internal {
+        if (_vault == address(0)) revert GeniusErrors.NonAddress0();
+        vault = _vault;
+        emit VaultSet(_vault);
+    }
+
+    /**
+     * @dev Internal function to set the protocol fee percentage
+     * @param _protocolFee Percentage of the BPS fees allocated to protocol
+     */
+    function _setProtocolFee(uint256 _protocolFee) internal {
+        // Protocol + LP fees cannot exceed 100%
+        if (_protocolFee > BASE_PERCENTAGE)
+            revert GeniusErrors.InvalidPercentage();
+
+        protocolFee = _protocolFee;
+        emit ProtocolFeeUpdated(_protocolFee);
     }
 
     /**
@@ -559,5 +608,5 @@ contract FeeCollector is
      */
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    ) internal override onlyAdmin {}
 }

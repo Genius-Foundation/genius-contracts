@@ -84,7 +84,10 @@ contract GeniusVaultOrders is Test {
             FeeCollector.initialize.selector,
             OWNER,
             address(USDC),
-            2000 // 20% to protocol
+            2000, // 20% to protocol
+            OWNER,
+            OWNER,
+            OWNER
         );
 
         ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(

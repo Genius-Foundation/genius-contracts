@@ -73,7 +73,10 @@ contract GeniusVaultFeeTiers is Test {
             FeeCollector.initialize.selector,
             OWNER,
             address(USDC), // stablecoin
-            2000 // 20% of fees go to protocol
+            2000, // 20% of fees go to protocol
+            OWNER,
+            OWNER,
+            OWNER
         );
 
         ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
