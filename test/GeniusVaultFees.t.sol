@@ -32,7 +32,9 @@ contract GeniusVaultFees is Test {
     address TRADER;
     address ORCHESTRATOR;
     uint256 ORCHESTRATOR_PK;
-
+    // Set up claimants with roles for claiming
+    address DISTRIBUTOR;
+    address WORKER;
     bytes32 RECEIVER;
 
     ERC20 public USDC;
@@ -54,6 +56,10 @@ contract GeniusVaultFees is Test {
         RECEIVER = bytes32(uint256(uint160(TRADER)));
         (ORCHESTRATOR, ORCHESTRATOR_PK) = makeAddrAndKey("ORCHESTRATOR");
 
+        // Set up claimants with roles for claiming
+        DISTRIBUTOR = makeAddr("DISTRIBUTOR");
+        WORKER = makeAddr("WORKER");
+
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E); // USDC on Avalanche
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB); // WETH on Avalanche
         PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
@@ -70,8 +76,8 @@ contract GeniusVaultFees is Test {
             address(USDC),
             2000, // 20% to protocol
             OWNER,
-            OWNER,
-            OWNER
+            DISTRIBUTOR,
+            WORKER
         );
 
         ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
@@ -803,10 +809,6 @@ contract GeniusVaultFees is Test {
             operatorFeesCollected > 0,
             "Operator fees should be collected"
         );
-
-        // Set up claimants with roles for claiming
-        address DISTRIBUTOR = makeAddr("DISTRIBUTOR");
-        address WORKER = makeAddr("WORKER");
 
         vm.startPrank(OWNER);
         FEE_COLLECTOR.grantRole(FEE_COLLECTOR.DISTRIBUTOR_ROLE(), DISTRIBUTOR);

@@ -47,9 +47,21 @@ contract FeeCollectorTest is Test {
         uint256 lpFee,
         uint256 operatorFee
     );
-    event ProtocolFeesClaimed(address indexed claimant, uint256 amount);
-    event LPFeesClaimed(address indexed claimant, uint256 amount);
-    event OperatorFeesClaimed(address indexed claimant, uint256 amount);
+    event ProtocolFeesClaimed(
+        address indexed claimant,
+        address indexed receiver,
+        uint256 amount
+    );
+    event LPFeesClaimed(
+        address indexed claimant,
+        address indexed receiver,
+        uint256 amount
+    );
+    event OperatorFeesClaimed(
+        address indexed claimant,
+        address indexed receiver,
+        uint256 amount
+    );
     event VaultSet(address vault);
     event ProtocolFeeUpdated(uint256 protocolFee);
     event FeeTiersUpdated(uint256[] thresholdAmounts, uint256[] bpsFees);
@@ -75,8 +87,8 @@ contract FeeCollectorTest is Test {
             address(stablecoin),
             PROTOCOL_FEE_BPS, // Only passing protocolFee now, lpFee is calculated automatically
             ADMIN,
-            ADMIN,
-            ADMIN
+            DISTRIBUTOR,
+            WORKER
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -187,8 +199,8 @@ contract FeeCollectorTest is Test {
             address(stablecoin),
             PROTOCOL_FEE_BPS, // Only passing protocolFee now
             ADMIN,
-            ADMIN,
-            ADMIN
+            DISTRIBUTOR,
+            WORKER
         );
 
         vm.expectRevert();
@@ -204,8 +216,8 @@ contract FeeCollectorTest is Test {
             address(0), // Zero address for stablecoin
             PROTOCOL_FEE_BPS, // Only passing protocolFee now
             ADMIN,
-            ADMIN,
-            ADMIN
+            DISTRIBUTOR,
+            WORKER
         );
 
         vm.expectRevert();
@@ -221,8 +233,8 @@ contract FeeCollectorTest is Test {
             address(stablecoin),
             11_000, // > 100%, which is invalid
             ADMIN,
-            ADMIN,
-            ADMIN
+            DISTRIBUTOR,
+            WORKER
         );
 
         vm.expectRevert();
@@ -611,7 +623,7 @@ contract FeeCollectorTest is Test {
         // Claim protocol fees as admin
         vm.startPrank(ADMIN);
         vm.expectEmit(true, true, true, true);
-        emit ProtocolFeesClaimed(ADMIN, expectedProtocolFee);
+        emit ProtocolFeesClaimed(ADMIN, ADMIN, expectedProtocolFee);
 
         uint256 claimedAmount = feeCollector.claimProtocolFees();
         vm.stopPrank();
@@ -667,7 +679,7 @@ contract FeeCollectorTest is Test {
         // Claim LP fees as distributor
         vm.startPrank(DISTRIBUTOR);
         vm.expectEmit(true, true, true, true);
-        emit LPFeesClaimed(DISTRIBUTOR, expectedLpFee);
+        emit LPFeesClaimed(DISTRIBUTOR, DISTRIBUTOR, expectedLpFee);
 
         uint256 claimedAmount = feeCollector.claimLPFees();
         vm.stopPrank();
@@ -711,7 +723,7 @@ contract FeeCollectorTest is Test {
         // Claim operator fees as worker
         vm.startPrank(WORKER);
         vm.expectEmit(true, true, true, true);
-        emit OperatorFeesClaimed(WORKER, expectedOperatorFee);
+        emit OperatorFeesClaimed(WORKER, WORKER, expectedOperatorFee);
 
         uint256 claimedAmount = feeCollector.claimOperatorFees();
         vm.stopPrank();
@@ -1084,6 +1096,7 @@ contract FeeCollectorTest is Test {
         vm.startPrank(ADMIN);
         feeCollector.revokeRole(feeCollector.DISTRIBUTOR_ROLE(), DISTRIBUTOR);
         feeCollector.grantRole(feeCollector.DISTRIBUTOR_ROLE(), newDistributor);
+        feeCollector.setLPFeeReceiver(newDistributor);
         vm.stopPrank();
 
         // Old distributor should no longer be able to claim

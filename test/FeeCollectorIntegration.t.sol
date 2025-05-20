@@ -73,8 +73,8 @@ contract FeeCollectorIntegrationTest is Test {
             address(stablecoin),
             PROTOCOL_FEE_BPS, // Only passing protocolFee now
             ADMIN,
-            ADMIN,
-            ADMIN
+            DISTRIBUTOR,
+            WORKER
         );
 
         ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
