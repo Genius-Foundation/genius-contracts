@@ -269,4 +269,5 @@ library GeniusErrors {
     error NewLabelExists();
     error StatusAlreadySet();
     error NotAuthorized();
+    error InvalidFeeAmount();
 }

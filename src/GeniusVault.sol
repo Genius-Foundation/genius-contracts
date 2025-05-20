@@ -19,6 +19,14 @@ contract GeniusVault is GeniusVaultCore {
     uint256 public deprecated_feesCollected;
     uint256 public deprecated_feesClaimed;
 
+    /**
+     * @notice Insurance fees are retained in the vault as additional liquidity to protect
+     * against market volatility and potential losses during cross-chain operations.
+     * Unlike protocol and LP fees which are transferred to the FeeCollector,
+     * insurance fees remain in the vault to increase its stability and resilience.
+     */
+    uint256 public insuranceFeesAccumulated;
+
     constructor() {
         _disableInitializers();
     }
@@ -91,13 +99,17 @@ contract GeniusVault is GeniusVaultCore {
             order.fee
         );
 
+        insuranceFeesAccumulated += order.fee - amountToTransfer;
+
         STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
 
         // Transfer the appropriate amount to the fee collector
-        if (amountToTransfer > 0) {
-            // Transfer fees to fee collector contract
-            STABLECOIN.safeTransfer(address(feeCollector), amountToTransfer);
+        if (amountToTransfer == 0 || amountToTransfer > order.fee) {
+            revert GeniusErrors.InvalidFeeAmount();
         }
+
+        // Transfer fees to fee collector contract
+        STABLECOIN.safeTransfer(address(feeCollector), amountToTransfer);
 
         orderStatus[orderHash_] = OrderStatus.Created;
 
