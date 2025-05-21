@@ -11,14 +11,14 @@ import {FeeCollector} from "../src/fees/FeeCollector.sol";
  * @title DeployFeeCollectorAndUpgradeVault
  * @dev Script to deploy FeeCollector, upgrade GeniusVault, and configure the fee system in one transaction
  * Deployment command:
- * forge script script/fees/DeployFeeCollectorAndUpgradeVault.s.sol --rpc-url $NETWORK_RPC_URL --broadcast --verify -vvvv --via-ir
+ * source .env &&forge script script/DeployFeeCollectorAndUpgradeVault.sol --rpc-url $BASE_RPC_URL --broadcast --verify --etherscan-api-key $BASESCAN_API_KEY --verifier-url $BASESCAN_VERIFIER_URL -vvvv --via-ir
  */
 contract DeployFeeCollectorAndUpgradeVault is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address vaultAddress = vm.envAddress("GENIUS_VAULT_ADDRESS");
+        address vaultAddress = vm.envAddress("VAULT_BASE_DEV");
         address owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909; // Match with DeployEthereumGeniusEcosystem
-        address stablecoin = vm.envAddress("STABLECOIN_ADDRESS");
+        address stablecoin = vm.envAddress("STABLECOIN_BASE_DEV");
 
         address protocolFeeReceiver = owner;
         address lpFeeReceiver = owner;
@@ -84,7 +84,7 @@ contract DeployFeeCollectorAndUpgradeVault is Script {
         thresholdAmounts[2] = 1_000_000_000; // Large orders (above 1000 dollars)
         thresholdAmounts[3] = 10_000_000_000; // Large orders (above 10k dollars)
 
-        uint256[] memory bpsFees = new uint256[](3);
+        uint256[] memory bpsFees = new uint256[](4);
         bpsFees[0] = 25; // 0.25% for smallest orders
         bpsFees[1] = 15; // 0.15% for medium orders
         bpsFees[2] = 10; // 0.1% for large orders
@@ -121,6 +121,9 @@ contract DeployFeeCollectorAndUpgradeVault is Script {
         minFees[8] = 1_000_000; // $1 ETHEREUM
 
         for (uint256 i = 0; i < chainIds.length; i++) {
+            if (chainIds[i] == block.chainid) {
+                continue; // Skip if chain ID is 0
+            }
             feeCollector.setTargetChainMinFee(chainIds[i], minFees[i]);
             console.log("Set min fee for chain", chainIds[i], "to", minFees[i]);
         }
