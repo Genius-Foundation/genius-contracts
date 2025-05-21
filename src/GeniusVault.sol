@@ -15,9 +15,17 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
 contract GeniusVault is GeniusVaultCore {
     using SafeERC20 for IERC20;
 
-    // State variables
-    uint256 public feesCollected;
-    uint256 public feesClaimed;
+    // State variables for fee accounting
+    uint256 public deprecated_feesCollected;
+    uint256 public deprecated_feesClaimed;
+
+    /**
+     * @notice Insurance fees are retained in the vault as additional liquidity to protect
+     * against market volatility and potential losses during cross-chain operations.
+     * Unlike protocol and LP fees which are transferred to the FeeCollector,
+     * insurance fees remain in the vault to increase its stability and resilience.
+     */
+    uint256 public insuranceFeesAccumulated;
 
     constructor() {
         _disableInitializers();
@@ -64,7 +72,6 @@ contract GeniusVault is GeniusVaultCore {
         // Check stablecoin price before accepting the order
         _verifyStablecoinPrice();
 
-        address tokenIn = address(STABLECOIN);
         if (order.trader == bytes32(0) || order.receiver == bytes32(0))
             revert GeniusErrors.NonAddress0();
         if (
@@ -72,7 +79,7 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn <= order.fee ||
             order.amountIn > maxOrderAmount
         ) revert GeniusErrors.InvalidAmount();
-        if (order.tokenIn != addressToBytes32(tokenIn))
+        if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
             revert GeniusErrors.InvalidTokenIn();
         if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
         if (order.destChainId == _currentChainId())
@@ -80,19 +87,30 @@ contract GeniusVault is GeniusVaultCore {
         if (order.srcChainId != _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
-        uint256 minFee = targetChainMinFee[tokenIn][order.destChainId];
-        if (minFee == 0 || chainStablecoinDecimals[order.destChainId] == 0)
-            revert GeniusErrors.TokenOrTargetChainNotSupported();
-        if (order.fee < minFee)
-            revert GeniusErrors.InsufficientFees(order.fee, minFee, tokenIn);
-
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
 
+        // Call the fee collector to process fees
+        uint256 amountToTransfer = feeCollector.collectFromVault(
+            orderHash_,
+            order.amountIn,
+            order.destChainId,
+            order.fee
+        );
+
+        insuranceFeesAccumulated += order.fee - amountToTransfer;
+
         STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
 
-        feesCollected += order.fee;
+        // Transfer the appropriate amount to the fee collector
+        if (amountToTransfer == 0 || amountToTransfer > order.fee) {
+            revert GeniusErrors.InvalidFeeAmount();
+        }
+
+        // Transfer fees to fee collector contract
+        STABLECOIN.safeTransfer(address(feeCollector), amountToTransfer);
+
         orderStatus[orderHash_] = OrderStatus.Created;
 
         emit OrderCreated(
@@ -110,37 +128,6 @@ contract GeniusVault is GeniusVaultCore {
     }
 
     /**
-     * @notice Fetches the amount of fees that can be claimed
-     */
-    function claimableFees() public view returns (uint256) {
-        return feesCollected - feesClaimed;
-    }
-
-    /**
-     * @dev See {IGeniusVault-claimFees}.
-     */
-    function claimFees(
-        uint256 amount,
-        address token
-    ) external virtual override onlyOrchestratorOrAdmin whenNotPaused {
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (amount > claimableFees())
-            revert GeniusErrors.InsufficientFees(
-                amount,
-                claimableFees(),
-                address(STABLECOIN)
-            );
-        if (token != address(STABLECOIN))
-            revert GeniusErrors.InvalidToken(token);
-
-        feesClaimed += amount;
-
-        STABLECOIN.safeTransfer(msg.sender, amount);
-
-        emit FeesClaimed(address(STABLECOIN), amount);
-    }
-
-    /**
      * @dev See {IGeniusVault-minLiquidity}.
      */
     function minLiquidity() public view override returns (uint256) {
@@ -148,6 +135,7 @@ contract GeniusVault is GeniusVaultCore {
         uint256 reduction = (_totalStaked * rebalanceThreshold) /
             BASE_PERCENTAGE;
         uint256 minBalance = _totalStaked - reduction;
-        return minBalance + claimableFees();
+        // claimableFees is no longer relevant since fees are transferred directly
+        return minBalance;
     }
 }

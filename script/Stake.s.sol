@@ -14,18 +14,16 @@ import {GeniusVault} from "../../src/GeniusVault.sol";
 contract DeployGasTank is Script {
     bytes32 constant ORCHESTRATOR_ROLE = keccak256("ORCHESTRATOR_ROLE");
 
-    GeniusVault public geniusVault;
-
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
         // geniusActions = new GeniusActions(admin);
 
-        GeniusVault geniusVault = GeniusVault(
+        GeniusVault vaultInstance = GeniusVault(
             payable(vm.envAddress("GENIUS_VAULT_ADDRESS"))
         );
 
-        geniusVault.stakeDeposit(
+        vaultInstance.stakeDeposit(
             100_000_000,
             0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909
         );

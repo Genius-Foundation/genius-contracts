@@ -77,14 +77,20 @@ contract DeployGeniusEcosystemCore is Script {
         for (uint256 i = 0; i < orchestrators.length; i++) {
             geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
         }
-
-        for (uint256 i = 0; i < targetNetworks.length; i++) {
-            geniusVault.setTargetChainMinFee(
-                feeTokens[i],
-                targetNetworks[i],
-                minFeeAmounts[i]
-            );
-        }
+        
+        // Set up fee tiers based on order size - moved to fee collector
+        // This is handled by the FeeCollector now, not the vault
+        // uint256[] memory thresholdAmounts = new uint256[](3);
+        // thresholdAmounts[0] = 0;       // First tier starts at 0 (smallest orders)
+        // thresholdAmounts[1] = 1000000; // 1000 USD (with 6 decimals)
+        // thresholdAmounts[2] = 10000000; // 10000 USD (with 6 decimals)
+        
+        // uint256[] memory bpsFees = new uint256[](3);
+        // bpsFees[0] = 30; // 0.3% for smallest orders
+        // bpsFees[1] = 20; // 0.2% for medium orders
+        // bpsFees[2] = 10; // 0.1% for large orders
+        
+        // FeeCollector deployment and setup should be handled separately
 
         geniusProxyCall.grantRole(
             keccak256("CALLER_ROLE"),

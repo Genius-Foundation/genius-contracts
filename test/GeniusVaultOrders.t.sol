@@ -9,6 +9,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {GeniusVault} from "../src/GeniusVault.sol";
+import {FeeCollector} from "../src/fees/FeeCollector.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
@@ -35,6 +36,7 @@ contract GeniusVaultOrders is Test {
     ERC20 public TOKEN1;
 
     GeniusVault public VAULT;
+    FeeCollector public FEE_COLLECTOR;
 
     GeniusProxyCall public PROXYCALL;
     MockDEXRouter public DEX_ROUTER;
@@ -75,10 +77,64 @@ contract GeniusVaultOrders is Test {
 
         VAULT = GeniusVault(address(proxy));
 
+        // Deploy FeeCollector
+        FeeCollector feeCollectorImplementation = new FeeCollector();
+
+        bytes memory feeCollectorData = abi.encodeWithSelector(
+            FeeCollector.initialize.selector,
+            OWNER,
+            address(USDC),
+            2000, // 20% to protocol
+            OWNER,
+            OWNER,
+            OWNER
+        );
+
+        ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
+            address(feeCollectorImplementation),
+            feeCollectorData
+        );
+
+        FEE_COLLECTOR = FeeCollector(address(feeCollectorProxy));
+
+        // Set FeeCollector in vault
+        VAULT.setFeeCollector(address(FEE_COLLECTOR));
+
+        // Set vault in FeeCollector
+        FEE_COLLECTOR.setVault(address(VAULT));
+
+        // Set up fee tiers in FeeCollector
+        uint256[] memory thresholdAmounts = new uint256[](3);
+        thresholdAmounts[0] = 0;
+        thresholdAmounts[1] = 100 ether;
+        thresholdAmounts[2] = 500 ether;
+
+        uint256[] memory bpsFees = new uint256[](3);
+        bpsFees[0] = 30; // 0.3%
+        bpsFees[1] = 20; // 0.2%
+        bpsFees[2] = 10; // 0.1%
+
+        FEE_COLLECTOR.setFeeTiers(thresholdAmounts, bpsFees);
+
+        // Set up insurance fee tiers
+        uint256[] memory insThresholdAmounts = new uint256[](3);
+        insThresholdAmounts[0] = 0;
+        insThresholdAmounts[1] = 100 ether;
+        insThresholdAmounts[2] = 500 ether;
+
+        uint256[] memory insBpsFees = new uint256[](3);
+        insBpsFees[0] = 30; // 0.3%
+        insBpsFees[1] = 20; // 0.2%
+        insBpsFees[2] = 10; // 0.1%
+
+        FEE_COLLECTOR.setInsuranceFeeTiers(insThresholdAmounts, insBpsFees);
+
+        // Set min fee in FeeCollector
+        FEE_COLLECTOR.setTargetChainMinFee(targetChainId, 10000);
+
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(VAULT));
 
         DEX_ROUTER = new MockDEXRouter();
-        VAULT.setTargetChainMinFee(address(USDC), targetChainId, 1 ether);
         VAULT.setChainStablecoinDecimals(targetChainId, 6);
 
         vm.stopPrank();
@@ -144,11 +200,6 @@ contract GeniusVaultOrders is Test {
             USDC.balanceOf(address(DEX_ROUTER)),
             999 ether,
             "Executor balance should be 999 USDC"
-        );
-        assertEq(
-            VAULT.claimableFees(),
-            0 ether,
-            "Total unclaimed fees should be 0 ether"
         );
         assertEq(
             VAULT.availableAssets(),

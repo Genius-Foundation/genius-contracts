@@ -14,6 +14,7 @@ import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
+import {IFeeCollector} from "./interfaces/IFeeCollector.sol";
 import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusVault} from "./interfaces/IGeniusVault.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -56,13 +57,17 @@ abstract contract GeniusVaultCore is
     uint256 public stablePriceLowerBound;
     uint256 public stablePriceUpperBound;
 
-    mapping(address => mapping(uint256 => uint256)) public targetChainMinFee;
+    mapping(address => mapping(uint256 => uint256))
+        public deprecated_targetChainMinFee;
     mapping(bytes32 => OrderStatus) public orderStatus;
 
     uint256 public maxOrderAmount;
     uint256 public priceFeedHeartbeat;
 
     mapping(uint256 => uint256) public chainStablecoinDecimals;
+
+    // Fee collector contract
+    IFeeCollector public feeCollector;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                         MODIFIERS                         ║
@@ -484,21 +489,18 @@ abstract contract GeniusVaultCore is
     }
 
     /**
+     * @notice Set the fee collector contract
+     * @param _feeCollector Address of the fee collector contract
+     */
+    function setFeeCollector(address _feeCollector) external onlyAdmin {
+        _setFeeCollector(_feeCollector);
+    }
+
+    /**
      * @dev See {IGeniusVault-setPriceFeed}.
      */
     function setPriceFeed(address _priceFeed) external onlyAdmin {
         _setPriceFeed(_priceFeed);
-    }
-
-    /**
-     * @dev See {IGeniusVault-setTargetChainMinFee}.
-     */
-    function setTargetChainMinFee(
-        address _token,
-        uint256 _targetChainId,
-        uint256 _minFee
-    ) external override onlyAdmin {
-        _setTargetChainMinFee(_token, _targetChainId, _minFee);
     }
 
     /**
@@ -627,25 +629,6 @@ abstract contract GeniusVaultCore is
     }
 
     /**
-     * @dev Internal function to spend an allowance.
-     *
-     * @param _token The address of the token to spend.
-     * @param _targetChainId The target chain ID.
-     * @param _minFee The minimum fee required.
-     */
-    function _setTargetChainMinFee(
-        address _token,
-        uint256 _targetChainId,
-        uint256 _minFee
-    ) internal {
-        if (_targetChainId == block.chainid)
-            revert GeniusErrors.InvalidDestChainId(_targetChainId);
-
-        targetChainMinFee[_token][_targetChainId] = _minFee;
-        emit TargetChainMinFeeChanged(_token, _targetChainId, _minFee);
-    }
-
-    /**
      * @dev Internal function to set the number of decimals for a stablecoin on a given chain.
      *
      * @param _chainId The chain ID.
@@ -669,6 +652,18 @@ abstract contract GeniusVaultCore is
 
         PROXYCALL = IGeniusProxyCall(_proxyCall);
         emit ProxyCallChanged(_proxyCall);
+    }
+
+    /**
+     * @dev Internal function to set the address of the fee collector contract.
+     *
+     * @param _feeCollector The address of the fee collector contract.
+     */
+    function _setFeeCollector(address _feeCollector) internal {
+        if (_feeCollector == address(0)) revert GeniusErrors.NonAddress0();
+
+        feeCollector = IFeeCollector(_feeCollector);
+        emit FeeCollectorChanged(_feeCollector);
     }
 
     /**
@@ -790,5 +785,5 @@ abstract contract GeniusVaultCore is
     ) internal override onlyAdmin {}
 
     // Storage gap for future upgrades
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 }

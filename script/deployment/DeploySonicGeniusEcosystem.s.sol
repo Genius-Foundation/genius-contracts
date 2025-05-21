@@ -47,6 +47,8 @@ contract DeployPolygonGeniusEcosystem is DeployGeniusEcosystemCore {
         targetNetworks[6] = 56; //BSC
         targetNetworks[7] = 137; //POLYGON
 
+        // Fee tiers will be set in the _run function
+        
         _run(
             permit2Address,
             stableAddress,

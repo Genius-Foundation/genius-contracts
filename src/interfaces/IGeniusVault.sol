@@ -48,6 +48,23 @@ interface IGeniusVault {
         uint256 fee;
     }
 
+    /**
+     * @notice Struct representing a fee tier based on order size
+     * @param thresholdAmount Minimum amount for this tier
+     * @param bpsFee Basis points fee for this tier
+     */
+    struct FeeTier {
+        uint256 thresholdAmount; // Minimum amount for this tier
+        uint256 bpsFee; // Basis points fee for this tier
+    }
+
+    struct FeeBreakdown {
+        uint256 baseFee; // Base fee that goes to operations
+        uint256 bpsFee; // BPS fee that goes to fee collector
+        uint256 insuranceFee; // Insurance fee that gets re-injected into liquidity
+        uint256 totalFee; // Total fee (sum of all components)
+    }
+
     event StablePriceBoundsChanged(uint256 lower, uint256 upper);
 
     /**
@@ -143,10 +160,10 @@ interface IGeniusVault {
 
     /**
      * @notice Emitted when fees are claimed from the Vault contract.
-     * @param token The address of the token the fees were claimed in.
-     * @param amount The amount of fees claimed.
+     * @param feesAmount The amount of fees claimesd.
+     * @param baseFeesAmount The amount of base fees claimed.
      */
-    event FeesClaimed(address indexed token, uint256 amount);
+    event FeesClaimed(uint256 feesAmount, uint256 baseFeesAmount);
 
     /**
      * @notice Emitted when the rebalance threshold is changed.
@@ -161,17 +178,11 @@ interface IGeniusVault {
     event ProxyCallChanged(address newProxyCall);
 
     /**
-     * @notice Emitted when the minimum fees for a target chain has changed
-     * note: if the min fees are set to 0, the chain or token are not supported
-     * @param token the address of the token used as a fee
-     * @param targetChainId The id of the target chain
-     * @param newMinFee The new minimum fee for the target chain
+     * @notice Emitted when the fee tiers based on order size are updated
+     * @param thresholdAmounts Array of threshold amounts for each tier
+     * @param bpsFees Array of basis point fees for each tier
      */
-    event TargetChainMinFeeChanged(
-        address token,
-        uint256 targetChainId,
-        uint256 newMinFee
-    );
+    event FeeTiersUpdated(uint256[] thresholdAmounts, uint256[] bpsFees);
 
     event MaxOrderAmountChanged(uint256 newMaxOrderAmount);
 
@@ -189,6 +200,35 @@ interface IGeniusVault {
      * @param newPriceFeed The address of the new price feed.
      */
     event PriceFeedUpdated(address newPriceFeed);
+
+    /**
+     * @dev Emitted when insurance fee tiers are updated
+     */
+    event InsuranceFeeTiersUpdated(
+        uint256[] thresholdAmounts,
+        uint256[] bpsFees
+    );
+
+    /**
+     * @dev Emitted when the fee collector contract is set
+     */
+    event FeeCollectorChanged(address feeCollector);
+
+    /**
+     * @dev Emitted when the fee calculator contract is set
+     */
+    event FeeCalculatorSet(address feeCalculator);
+
+    /**
+     * @dev Emitted when an order is created, showing detailed fee breakdown
+     */
+    event OrderFeeBreakdown(
+        bytes32 indexed orderHash,
+        uint256 baseFee,
+        uint256 bpsFee,
+        uint256 insuranceFee,
+        uint256 totalFee
+    );
 
     /**
      * @notice Returns the total balance of the vault.
@@ -293,13 +333,6 @@ interface IGeniusVault {
     ) external;
 
     /**
-     * @notice Claims fees from the GeniusVault contract.
-     * @param amount The amount of fees to claim.
-     * @param token The address of the token to claim fees in.
-     */
-    function claimFees(uint256 amount, address token) external;
-
-    /**
      * @notice Sets the rebalance threshold for the GeniusVault contract.
      * @param threshold The new rebalance threshold to be set.
      */
@@ -310,19 +343,6 @@ interface IGeniusVault {
      * @param _proxyCall The new proxy call contract address
      */
     function setProxyCall(address _proxyCall) external;
-
-    /**
-     * @notice Sets the minimum fees for a target chain has changed
-     * note: if the min fees are set to 0, the chain or token are not supported
-     * @param _token the address of the token used for the fees
-     * @param _targetChainId The id of the target chain
-     * @param _minFee The new minimum fee for the target chain
-     */
-    function setTargetChainMinFee(
-        address _token,
-        uint256 _targetChainId,
-        uint256 _minFee
-    ) external;
 
     /**
      * @notice Sets the stable price bounds for the chainlink price feed checks.
@@ -355,6 +375,12 @@ interface IGeniusVault {
      * @param _newHeartbeat The new heartbeat
      */
     function setPriceFeedHeartbeat(uint256 _newHeartbeat) external;
+
+    /**
+     * @notice Sets the fee collector contract
+     * @param _feeCollector Address of the fee collector contract
+     */
+    function setFeeCollector(address _feeCollector) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.

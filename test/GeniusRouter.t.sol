@@ -15,6 +15,8 @@ import {GeniusVault} from "../src/GeniusVault.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IGeniusVault} from "../src/interfaces/IGeniusVault.sol";
 import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
+import {FeeCollector} from "../src/fees/FeeCollector.sol";
+import {IFeeCollector} from "../src/interfaces/IFeeCollector.sol";
 
 contract GeniusRouterTest is Test {
     int256 public constant INITIAL_STABLECOIN_PRICE = 100_000_000;
@@ -36,6 +38,7 @@ contract GeniusRouterTest is Test {
     GeniusProxyCall public PROXYCALL;
     GeniusRouter public GENIUS_ROUTER;
     GeniusVault public GENIUS_VAULT;
+    FeeCollector public FEE_COLLECTOR;
 
     ERC20 public USDC;
     ERC20 public WETH;
@@ -92,6 +95,64 @@ contract GeniusRouterTest is Test {
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
 
         GENIUS_VAULT = GeniusVault(address(proxy));
+        // Deploy FeeCollector
+        FeeCollector feeCollectorImplementation = new FeeCollector();
+
+        bytes memory feeCollectorData = abi.encodeWithSelector(
+            FeeCollector.initialize.selector,
+            ADMIN,
+            address(USDC),
+            2000, // 20% to protocol
+            ADMIN,
+            ADMIN,
+            ADMIN
+        );
+
+        ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
+            address(feeCollectorImplementation),
+            feeCollectorData
+        );
+
+        FEE_COLLECTOR = FeeCollector(address(feeCollectorProxy));
+
+        // Set FeeCollector in vault
+        GENIUS_VAULT.setFeeCollector(address(FEE_COLLECTOR));
+
+        // Set vault in FeeCollector
+        FEE_COLLECTOR.setVault(address(GENIUS_VAULT));
+
+        // Set up fee tiers in FeeCollector
+        uint256[] memory thresholdAmounts = new uint256[](3);
+        thresholdAmounts[0] = 0;
+        thresholdAmounts[1] = 100 ether;
+        thresholdAmounts[2] = 500 ether;
+
+        uint256[] memory bpsFees = new uint256[](3);
+        bpsFees[0] = 30; // 0.3%
+        bpsFees[1] = 20; // 0.2%
+        bpsFees[2] = 10; // 0.1%
+
+        FEE_COLLECTOR.setFeeTiers(thresholdAmounts, bpsFees);
+
+        // Set up insurance fee tiers
+        uint256[] memory insThresholdAmounts = new uint256[](3);
+        insThresholdAmounts[0] = 0;
+        insThresholdAmounts[1] = 100 ether;
+        insThresholdAmounts[2] = 500 ether;
+
+        uint256[] memory insBpsFees = new uint256[](3);
+        insBpsFees[0] = 30; // 0.3%
+        insBpsFees[1] = 20; // 0.2%
+        insBpsFees[2] = 10; // 0.1%
+
+        FEE_COLLECTOR.setInsuranceFeeTiers(insThresholdAmounts, insBpsFees);
+
+        // Set min fee in FeeCollector
+        FEE_COLLECTOR.setTargetChainMinFee(destChainId, 1 ether);
+
+        // Set decimals in Vault
+        GENIUS_VAULT.setChainStablecoinDecimals(destChainId, 6);
+
         GENIUS_ROUTER = new GeniusRouter(
             address(PERMIT2),
             address(GENIUS_VAULT),
@@ -100,8 +161,6 @@ contract GeniusRouterTest is Test {
 
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_ROUTER));
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(GENIUS_VAULT));
-        GENIUS_VAULT.setTargetChainMinFee(address(USDC), destChainId, 1 ether);
-        GENIUS_VAULT.setChainStablecoinDecimals(destChainId, 6);
 
         RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
         TOKEN_OUT = GENIUS_VAULT.addressToBytes32(address(USDC));
@@ -132,7 +191,8 @@ contract GeniusRouterTest is Test {
             address(GENIUS_ROUTER)
         );
 
-        uint256 fee = 1 ether;
+        // Use correct fee based on actual calculation (baseFee + bpsFee + insuranceFee)
+        uint256 fee = 1.3 ether;
         uint256 minAmountOut = 49 ether;
 
         IGeniusVault.Order memory order = IGeniusVault.Order({
@@ -181,10 +241,12 @@ contract GeniusRouterTest is Test {
             TOKEN_OUT
         );
 
-        assertEq(
-            USDC.balanceOf(address(GENIUS_VAULT)),
-            BASE_ROUTER_USDC_BALANCE / 2
-        );
+        // Account for fee distribution - vault keeps insurance fee
+        uint256 expectedVaultBalance = BASE_ROUTER_USDC_BALANCE /
+            2 -
+            1.3 ether +
+            0.15 ether; // amountIn - (fee - insuranceFee)
+        assertEq(USDC.balanceOf(address(GENIUS_VAULT)), expectedVaultBalance);
     }
 
     function testSwapAndCreateOrderPermit2() public {
@@ -214,7 +276,8 @@ contract GeniusRouterTest is Test {
             address(GENIUS_ROUTER)
         );
 
-        uint256 fee = 1 ether;
+        // Use correct fee based on actual calculation (baseFee + bpsFee + insuranceFee)
+        uint256 fee = 1.3 ether;
         uint256 minAmountOut = 49 ether;
 
         vm.startPrank(USER);
@@ -262,10 +325,12 @@ contract GeniusRouterTest is Test {
             TOKEN_OUT
         );
 
-        assertEq(
-            USDC.balanceOf(address(GENIUS_VAULT)),
-            BASE_ROUTER_USDC_BALANCE / 2
-        );
+        // Account for fee distribution - vault keeps insurance fee
+        uint256 expectedVaultBalance = BASE_ROUTER_USDC_BALANCE /
+            2 -
+            1.3 ether +
+            0.15 ether; // amountIn - (fee - insuranceFee)
+        assertEq(USDC.balanceOf(address(GENIUS_VAULT)), expectedVaultBalance);
     }
 
     function _generatePermitBatchSignature(
@@ -337,7 +402,8 @@ contract GeniusRouterTest is Test {
             values[i] = 0;
         }
 
-        uint256 fee = 1 ether;
+        // Use correct fee based on actual calculation (baseFee + bpsFee + insuranceFee)
+        uint256 fee = 1.45 ether; // Higher amount for multiple tokens
         uint256 minAmountOut = 98 ether;
 
         vm.startPrank(USER);
@@ -389,10 +455,12 @@ contract GeniusRouterTest is Test {
             TOKEN_OUT
         );
 
-        assertEq(
-            USDC.balanceOf(address(GENIUS_VAULT)),
-            (BASE_ROUTER_USDC_BALANCE * 75) / 100
-        );
+        // Account for fee distribution - vault keeps insurance fee
+        uint256 expectedVaultBalance = (BASE_ROUTER_USDC_BALANCE * 75) /
+            100 -
+            1.45 ether +
+            0.225 ether; // amountIn - (fee - insuranceFee)
+        assertEq(USDC.balanceOf(address(GENIUS_VAULT)), expectedVaultBalance);
     }
 
     function testSwapAndCreateOrderWithInsufficientAllowance() public {
@@ -456,12 +524,12 @@ contract GeniusRouterTest is Test {
 
         DAI.approve(address(GENIUS_ROUTER), type(uint256).max);
 
+        // Expect InsufficientFees error from the GeniusErrors library
         vm.expectRevert(
             abi.encodeWithSelector(
                 GeniusErrors.InsufficientFees.selector,
                 fee,
-                1 ether,
-                address(USDC)
+                1.3 ether
             )
         );
 
@@ -689,7 +757,8 @@ contract GeniusRouterTest is Test {
             address(GENIUS_ROUTER)
         );
 
-        uint256 fee = 1 ether;
+        // Use correct fee based on actual calculation (baseFee + bpsFee + insuranceFee)
+        uint256 fee = 1.3 ether;
         uint256 minAmountOut = 49 ether;
 
         vm.deal(USER, ethAmount); // Give USER some ETH
@@ -739,10 +808,12 @@ contract GeniusRouterTest is Test {
         );
 
         // Verify USDC was received and deposited in vault
-        assertEq(
-            USDC.balanceOf(address(GENIUS_VAULT)),
-            BASE_ROUTER_USDC_BALANCE / 2
-        );
+        // Account for fee distribution - vault keeps insurance fee
+        uint256 expectedVaultBalance = BASE_ROUTER_USDC_BALANCE /
+            2 -
+            1.3 ether +
+            0.15 ether; // amountIn - (fee - insuranceFee)
+        assertEq(USDC.balanceOf(address(GENIUS_VAULT)), expectedVaultBalance);
 
         // Verify ETH was spent
         assertEq(address(USER).balance, 0);
