@@ -9,7 +9,7 @@ import {GeniusVault} from "../src/GeniusVault.sol";
 contract UpgradeGeniusVault is Script {
     function run() external {
         // Load deployment addresses from environment variables
-        address geniusVaultProxy = vm.envAddress("GENIUS_VAULT_ADDRESS");
+        address geniusVaultProxy = vm.envAddress("VAULT_BASE_DEV");
 
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
