@@ -1,27 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Script, console} from "forge-std/Script.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {FeeCollector} from "../../src/fees/FeeCollector.sol";
+import {BaseScriptContext} from "../utils/BaseScriptContext.sol";
+import {console} from "forge-std/Script.sol";
 
 /**
  * @title DeployFeeCollector
  * @dev Script to deploy FeeCollector implementation and proxy
  * Deployment command:
- * source .env && forge script script/DeployFeeCollector.sol --rpc-url $BASE_RPC_URL --broadcast -vvvv --via-ir
+ * source .env && forge script script/deploy/DeployFeeCollector.sol --rpc-url $<NETWORK>_RPC_URL --broadcast -vvvv --via-ir
+ * Optionally specify environment: DEPLOY_ENV=STAGING forge script...
  */
-contract DeployFeeCollector is Script {
+contract DeployFeeCollector is BaseScriptContext {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909;
-        address stablecoin = vm.envAddress("STABLECOIN_BASE_DEV");
+        vm.startBroadcast(deployerPrivateKey);
+
+        // Get the stablecoin address for this network and environment
+        address stablecoin = getStablecoinAddress();
 
         address protocolFeeReceiver = owner;
         address lpFeeReceiver = owner;
         address operatorFeeReceiver = owner;
-
-        vm.startBroadcast(deployerPrivateKey);
 
         // Deploy FeeCollector implementation
         FeeCollector feeCollectorImpl = new FeeCollector();
@@ -53,7 +54,9 @@ contract DeployFeeCollector is Script {
 
         console.log("FeeCollector deployment complete");
         console.log(
-            "IMPORTANT: Set FEE_COLLECTOR_BASE_DEV=%s in your .env file",
+            "IMPORTANT: Set FEE_COLLECTOR_%s_%s=%s in your .env file",
+            network,
+            deployEnv,
             address(feeCollectorProxy)
         );
 

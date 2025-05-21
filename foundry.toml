@@ -6,6 +6,7 @@ gas_reports = ["*"]
 cbor_metadata = true
 optimizer = true
 optimizer_runs = 200
+etherscan_api_version = "v2"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 [invariant]
@@ -14,11 +15,21 @@ depth = 100           # Number of calls per invariant test campaign
 fail_on_revert = true # Whether or not to fail the test if a call reverts
 
 [rpc_endpoints]
-bnb = "${BSC_RPC_URL}"
 base = "${BASE_RPC_URL}"
 sonic = "${SONIC_RPC_URL}"
+polygon = "${POLYGON_RPC_URL}"
+avax = "${AVAX_RPC_URL}"
+arbitrum = "${ARBITRUM_RPC_URL}"
+bsc = "${BSC_RPC_URL}"
+optimism = "${OPTIMISM_RPC_URL}"
+ethereum = "${ETHEREUM_RPC_URL}"
 
 [etherscan]
-sonic = { key = "${SONICSCAN_API_KEY}", url = "https://api.sonicscan.org/api" }
-bnb = { key = "${BSCSCAN_API_KEY}", url = "https://api.bscscan.com/api" }
-base = { key = "${BASESCAN_API_KEY}", url = "https://api.sonicscan.org/api" }
+optimism = { key = "${ETHERSCAN_API_KEY}" }
+arbitrum = { key = "${ETHERSCAN_API_KEY}" }
+ethereum = { key = "${ETHERSCAN_API_KEY}" }
+sonic = { key = "${ETHERSCAN_API_KEY}" }
+bsc = { key = "${ETHERSCAN_API_KEY}" }
+base = { key = "${ETHERSCAN_API_KEY}" }
+polygon = { key = "${ETHERSCAN_API_KEY}" }
+avax = { key = "${ETHERSCAN_API_KEY}" }

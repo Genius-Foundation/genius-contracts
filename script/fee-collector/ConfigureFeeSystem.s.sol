@@ -1,27 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Script, console} from "forge-std/Script.sol";
 import {FeeCollector} from "../../src/fees/FeeCollector.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
+import {BaseScriptContext} from "../utils/BaseScriptContext.sol";
+import {console} from "forge-std/Script.sol";
 
 /**
  * @title ConfigureFeeSystem
  * @dev Script to configure fee tiers and parameters
  * Deployment command:
- * source .env && forge script script/ConfigureFeeSystem.sol --rpc-url $BASE_RPC_URL --broadcast -vvvv --via-ir
+ * source .env && DEPLOY_ENV=DEV forge script script/deploy/ConfigureFeeSystem.sol --rpc-url $<NETWORK>_RPC_URL --broadcast -vvvv --via-ir
+ * Optionally specify environment: DEPLOY_ENV=STAGING forge script...
  */
-contract ConfigureFeeSystem is Script {
+contract ConfigureFeeSystem is BaseScriptContext {
     function run() external {
-        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address feeCollectorAddress = vm.envAddress("FEE_COLLECTOR_BASE_DEV");
-        address vaultAddress = vm.envAddress("VAULT_BASE_DEV");
-
         vm.startBroadcast(deployerPrivateKey);
+
+        // Get addresses for this network and environment
+        address feeCollectorAddress = getFeeCollectorAddress();
+        address vaultAddress = getVaultAddress();
 
         FeeCollector feeCollector = FeeCollector(feeCollectorAddress);
         GeniusVault vault = GeniusVault(vaultAddress);
 
+        // Link contracts
         vault.setFeeCollector(feeCollectorAddress);
         console.log("Set FeeCollector in Vault");
 
@@ -49,16 +52,25 @@ contract ConfigureFeeSystem is Script {
         console.log("Set insurance fee tiers");
 
         // Set minimum fees for target chains
-        uint256[] memory chainIds = new uint256[](9);
-        chainIds[0] = 56; // BSC
-        chainIds[1] = 8453; // BASE
-        chainIds[2] = 42161; // ARBITRUM
-        chainIds[3] = 10; // OPTIMISM
-        chainIds[4] = 43114; // AVALANCHE
-        chainIds[5] = 1399811149; // SOLANA
-        chainIds[6] = 137; // POLYGON
-        chainIds[7] = 146; // SONIC
-        chainIds[8] = 1; // ETHEREUM
+        configureTargetChainMinFees(feeCollector);
+
+        console.log("Fee system configuration complete");
+
+        vm.stopBroadcast();
+    }
+
+    function configureTargetChainMinFees(FeeCollector feeCollector) internal {
+        // Define all supported chains and their min fees
+        uint256[] memory allChainIds = new uint256[](9);
+        allChainIds[0] = BSC; // BSC
+        allChainIds[1] = BASE; // BASE
+        allChainIds[2] = ARBITRUM; // ARBITRUM
+        allChainIds[3] = OPTIMISM; // OPTIMISM
+        allChainIds[4] = AVAX; // AVALANCHE
+        allChainIds[5] = SOLANA; // SOLANA
+        allChainIds[6] = POLYGON; // POLYGON
+        allChainIds[7] = SONIC; // SONIC
+        allChainIds[8] = ETHEREUM; // ETHEREUM
 
         uint256[] memory minFees = new uint256[](9);
         minFees[0] = 100_000; // $0.1 BSC
@@ -71,20 +83,18 @@ contract ConfigureFeeSystem is Script {
         minFees[7] = 100_000; // $0.1 SONIC
         minFees[8] = 1_000_000; // $1 ETHEREUM
 
-        for (uint256 i = 0; i < chainIds.length; i++) {
-            if (chainIds[i] == block.chainid) {
+        // Set min fees for all chains except the current one
+        for (uint256 i = 0; i < allChainIds.length; i++) {
+            if (allChainIds[i] == chainId) {
                 continue; // Skip current chain
             }
-            feeCollector.setTargetChainMinFee(chainIds[i], minFees[i]);
+            feeCollector.setTargetChainMinFee(allChainIds[i], minFees[i]);
             console.log(
-                "Set min fee for chain %s to %s",
-                chainIds[i],
+                "Set min fee for chain %s (%s) to %s",
+                allChainIds[i],
+                getNetworkName(allChainIds[i]),
                 minFees[i]
             );
         }
-
-        console.log("Fee system configuration complete");
-
-        vm.stopBroadcast();
     }
 }
