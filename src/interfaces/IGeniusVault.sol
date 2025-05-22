@@ -159,13 +159,6 @@ interface IGeniusVault {
     event RebalancedLiquidity(uint256 amount, uint256 indexed chainId);
 
     /**
-     * @notice Emitted when fees are claimed from the Vault contract.
-     * @param feesAmount The amount of fees claimesd.
-     * @param baseFeesAmount The amount of base fees claimed.
-     */
-    event FeesClaimed(uint256 feesAmount, uint256 baseFeesAmount);
-
-    /**
      * @notice Emitted when the rebalance threshold is changed.
      * @param newThreshold The new rebalance threshold.
      */
@@ -176,13 +169,6 @@ interface IGeniusVault {
      * @param newProxyCall The new proxy call address.
      */
     event ProxyCallChanged(address newProxyCall);
-
-    /**
-     * @notice Emitted when the fee tiers based on order size are updated
-     * @param thresholdAmounts Array of threshold amounts for each tier
-     * @param bpsFees Array of basis point fees for each tier
-     */
-    event FeeTiersUpdated(uint256[] thresholdAmounts, uint256[] bpsFees);
 
     event MaxOrderAmountChanged(uint256 newMaxOrderAmount);
 
@@ -202,33 +188,9 @@ interface IGeniusVault {
     event PriceFeedUpdated(address newPriceFeed);
 
     /**
-     * @dev Emitted when insurance fee tiers are updated
-     */
-    event InsuranceFeeTiersUpdated(
-        uint256[] thresholdAmounts,
-        uint256[] bpsFees
-    );
-
-    /**
      * @dev Emitted when the fee collector contract is set
      */
     event FeeCollectorChanged(address feeCollector);
-
-    /**
-     * @dev Emitted when the fee calculator contract is set
-     */
-    event FeeCalculatorSet(address feeCalculator);
-
-    /**
-     * @dev Emitted when an order is created, showing detailed fee breakdown
-     */
-    event OrderFeeBreakdown(
-        bytes32 indexed orderHash,
-        uint256 baseFee,
-        uint256 bpsFee,
-        uint256 insuranceFee,
-        uint256 totalFee
-    );
 
     /**
      * @notice Returns the total balance of the vault.
