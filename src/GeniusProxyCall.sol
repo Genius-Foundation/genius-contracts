@@ -18,6 +18,8 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
     using SafeERC20 for IERC20;
 
+    address public constant NATIVE_TOKEN =
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     bytes32 public constant CALLER_ROLE = keccak256("CALLER_ROLE");
 
     constructor(address _admin, address[] memory callers) {
@@ -111,6 +113,8 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
             }
         }
 
+        uint256 nativeBalance = address(this).balance;
+
         if (isCall) {
             bytes memory wrappedCallData = abi.encodeWithSelector(
                 IGeniusProxyCall.transferTokenAndExecute.selector,
@@ -119,7 +123,9 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
                 callData
             );
 
-            (success, ) = address(this).call(wrappedCallData);
+            (success, ) = address(this).call{value: nativeBalance}(
+                wrappedCallData
+            );
         }
 
         uint256 balance = IERC20(effectiveTokenOut).balanceOf(address(this));
@@ -131,6 +137,12 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
             uint256 balanceStable = IERC20(stablecoin).balanceOf(address(this));
             if (balanceStable != 0)
                 IERC20(stablecoin).safeTransfer(receiver, balanceStable);
+        }
+
+        if (nativeBalance != 0) {
+            (bool successNative, ) = receiver.call{value: nativeBalance}("");
+            if (!successNative)
+                revert GeniusErrors.ExternalCallFailed(receiver);
         }
     }
 
@@ -145,14 +157,25 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         uint256 minAmountOut,
         address expectedTokenReceiver
     ) external payable override onlyCallerOrSelf returns (uint256) {
-        uint256 balancePreSwap = IERC20(tokenOut).balanceOf(
-            expectedTokenReceiver
-        );
-        _approveTokenAndExecute(token, target, data);
+        uint256 balancePreSwap;
+        uint256 balancePostSwap;
+        bool isNative = token == NATIVE_TOKEN;
 
-        uint256 balancePostSwap = IERC20(tokenOut).balanceOf(
-            expectedTokenReceiver
-        );
+        if (isNative) {
+            balancePreSwap = address(expectedTokenReceiver).balance;
+
+            (bool success, ) = target.call{value: msg.value}(data);
+            if (!success) revert GeniusErrors.ExternalCallFailed(target);
+
+            balancePostSwap = address(expectedTokenReceiver).balance;
+        } else {
+            balancePreSwap = IERC20(tokenOut).balanceOf(expectedTokenReceiver);
+
+            _approveTokenAndExecute(token, target, data);
+
+            balancePostSwap = IERC20(tokenOut).balanceOf(expectedTokenReceiver);
+        }
+
         uint256 amountOut = balancePostSwap - balancePreSwap;
         if (amountOut < minAmountOut)
             revert GeniusErrors.InvalidAmountOut(amountOut, minAmountOut);
