@@ -146,4 +146,25 @@ abstract contract BaseScriptContext is Script {
     function getFeeCollectorAddress() internal view returns (address) {
         return getContractAddress("FEE_COLLECTOR");
     }
+
+    /**
+     * @dev Gets the proxy call address for the current network
+     */
+    function getProxyCallAddress() internal view returns (address) {
+        return getContractAddress("PROXY_CALL");
+    }
+
+    /**
+     * @dev Gets the router address for the current network
+     */
+    function getRouterAddress() internal view returns (address) {
+        return getContractAddress("ROUTER");
+    }
+
+    /**
+     * @dev Gets the gas tank address for the current network
+     */
+    function getGasTankAddress() internal view returns (address) {
+        return getContractAddress("GAS_TANK");
+    }
 }
