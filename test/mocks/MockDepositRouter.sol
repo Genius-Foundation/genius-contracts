@@ -11,7 +11,7 @@ contract MockDepositRouter {
     MockDepositContract public depositContract;
 
     constructor(address _depositContract) {
-        depositContract = MockDepositContract(_depositContract);
+        depositContract = MockDepositContract(payable(_depositContract));
     }
 
     function depositBalance(address token) public payable {
@@ -29,4 +29,36 @@ contract MockDepositRouter {
             IERC20(tokens[i]).approve(address(depositContract), 0);
         }
     }
+
+    function depositETH() external payable {
+        require(msg.value > 0, "No ETH sent");
+        (bool success, ) = address(depositContract).call{value: msg.value}("");
+        require(success, "ETH deposit failed");
+    }
+
+    // New function that deposits both token balance and ETH
+    function depositBalanceAndETH(address token) external payable {
+        // Deposit token balance
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        if (balance > 0) {
+            IERC20(token).approve(address(depositContract), balance);
+            depositContract.deposit(token, balance);
+        }
+
+        // Deposit ETH
+        if (msg.value > 0) {
+            (bool success, ) = address(depositContract).call{value: msg.value}(
+                ""
+            );
+            require(success, "ETH deposit failed");
+        }
+    }
+
+    // Function that always reverts (for testing)
+    function depositETHWithRevert() external payable {
+        revert("Deposit failed");
+    }
+
+    // Receive function to accept ETH
+    receive() external payable {}
 }

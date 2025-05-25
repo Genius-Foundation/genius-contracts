@@ -17,6 +17,10 @@ contract MockDEXRouter {
     // Fixed amount to mint when swapping (e.g., 1000 tokens)
     uint256 public constant MINT_AMOUNT = 1000 * 10 ** 18;
 
+    // Native token address constant (same as in GeniusProxyCall)
+    address public constant NATIVE_TOKEN =
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+
     function swapToStables(address usdc) external payable {
         if (msg.value < 1 wei) {
             revert("Must pay for USDC");
@@ -65,7 +69,7 @@ contract MockDEXRouter {
         require(tokenIn != tokenOut, "Cannot swap same token");
 
         // Handle native token (ETH) as input
-        if (tokenIn == address(0)) {
+        if (tokenIn == address(0) || tokenIn == NATIVE_TOKEN) {
             require(msg.value == amountIn, "Incorrect ETH amount sent");
         } else {
             IERC20(tokenIn).safeTransferFrom(
@@ -75,11 +79,18 @@ contract MockDEXRouter {
             );
         }
 
-        // Mint or transfer output tokens
-        IERC20(tokenOut).safeTransfer(
-            to,
-            IERC20(tokenOut).balanceOf(address(this)) / 2
-        );
+        // Handle native token (ETH) as output
+        if (tokenOut == NATIVE_TOKEN) {
+            // Send half of the contract's ETH balance
+            amountOut = address(this).balance / 2;
+            require(amountOut > 0, "No ETH balance to swap");
+            (bool success, ) = to.call{value: amountOut}("");
+            require(success, "ETH transfer failed");
+        } else {
+            // Transfer ERC20 tokens
+            amountOut = IERC20(tokenOut).balanceOf(address(this)) / 2;
+            IERC20(tokenOut).safeTransfer(to, amountOut);
+        }
 
         return amountOut;
     }
@@ -92,7 +103,7 @@ contract MockDEXRouter {
         require(tokenIn != tokenOut, "Cannot swap same token");
 
         // Handle native token (ETH) as input
-        if (tokenIn == address(0)) {
+        if (tokenIn == address(0) || tokenIn == NATIVE_TOKEN) {
             require(msg.value == amountIn, "Incorrect ETH amount sent");
         } else {
             // For ERC20 input, we don't actually need to transfer tokens
@@ -104,10 +115,19 @@ contract MockDEXRouter {
             );
         }
 
-        // Mint or transfer output tokens
-        address mockToken = _getOrCreateMockToken(tokenOut);
-        MockERC20(mockToken).mint(msg.sender, MINT_AMOUNT);
-        amountOut = MINT_AMOUNT;
+        // Handle native token (ETH) as output
+        if (tokenOut == NATIVE_TOKEN) {
+            // Send half of the contract's ETH balance
+            amountOut = address(this).balance / 2;
+            require(amountOut > 0, "No ETH balance to swap");
+            (bool success, ) = msg.sender.call{value: amountOut}("");
+            require(success, "ETH transfer failed");
+        } else {
+            // Mint or transfer output tokens
+            address mockToken = _getOrCreateMockToken(tokenOut);
+            MockERC20(mockToken).mint(msg.sender, MINT_AMOUNT);
+            amountOut = MINT_AMOUNT;
+        }
 
         return amountOut;
     }
@@ -128,6 +148,25 @@ contract MockDEXRouter {
         // In a real DEX, this would calculate the amount based on the ETH sent
         uint256 outAmount = IERC20(token).balanceOf(address(this)) / 2;
         IERC20(token).transfer(to, outAmount);
+    }
+
+    // New function to swap token to ETH
+    function swapTokenToETH(
+        address token,
+        uint256 amountIn,
+        address to
+    ) external returns (uint256 amountOut) {
+        // Transfer tokens from sender
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amountIn);
+
+        // Send half of contract's ETH balance
+        amountOut = address(this).balance / 2;
+        require(amountOut > 0, "No ETH balance to swap");
+
+        (bool success, ) = to.call{value: amountOut}("");
+        require(success, "ETH transfer failed");
+
+        return amountOut;
     }
 
     // Fallback function to receive ETH

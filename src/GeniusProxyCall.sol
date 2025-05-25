@@ -18,6 +18,8 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
     using SafeERC20 for IERC20;
 
+    address public constant NATIVE_TOKEN =
+        0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     bytes32 public constant CALLER_ROLE = keccak256("CALLER_ROLE");
 
     constructor(address _admin, address[] memory callers) {
@@ -85,11 +87,6 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         effectiveTokenOut = stablecoin;
         success = true;
 
-        if (!isCall && !isSwap) {
-            IERC20(stablecoin).safeTransfer(receiver, stablecoinBalance);
-            return (stablecoin, stablecoinBalance, success);
-        }
-
         if (isSwap) {
             bytes memory wrappedSwapData = abi.encodeWithSelector(
                 IGeniusProxyCall.approveTokenExecuteAndVerify.selector,
@@ -119,18 +116,35 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
                 callData
             );
 
-            (success, ) = address(this).call(wrappedCallData);
+            (success, ) = address(this).call{value: address(this).balance}(
+                wrappedCallData
+            );
         }
 
-        uint256 balance = IERC20(effectiveTokenOut).balanceOf(address(this));
+        // If tokenOut is an ErC20 token, transfer the balance to the receiver.
+        if (effectiveTokenOut != NATIVE_TOKEN) {
+            uint256 balance = IERC20(effectiveTokenOut).balanceOf(
+                address(this)
+            );
 
-        if (balance != 0)
-            IERC20(effectiveTokenOut).safeTransfer(receiver, balance);
+            if (balance != 0)
+                IERC20(effectiveTokenOut).safeTransfer(receiver, balance);
+        }
 
-        if (stablecoin != effectiveTokenOut) {
+        // If tokenOut is not a stablecoin, verify and transfer any remaining stablecoin balance.
+        if (effectiveTokenOut != stablecoin) {
             uint256 balanceStable = IERC20(stablecoin).balanceOf(address(this));
             if (balanceStable != 0)
                 IERC20(stablecoin).safeTransfer(receiver, balanceStable);
+        }
+
+        uint256 nativeBalance = address(this).balance;
+
+        // If there is any native balance, transfer it to the receiver.
+        if (nativeBalance != 0) {
+            (bool successNative, ) = receiver.call{value: nativeBalance}("");
+            if (!successNative)
+                revert GeniusErrors.ExternalCallFailed(receiver);
         }
     }
 
@@ -145,14 +159,24 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         uint256 minAmountOut,
         address expectedTokenReceiver
     ) external payable override onlyCallerOrSelf returns (uint256) {
-        uint256 balancePreSwap = IERC20(tokenOut).balanceOf(
-            expectedTokenReceiver
-        );
-        _approveTokenAndExecute(token, target, data);
+        uint256 balancePreSwap;
+        uint256 balancePostSwap;
+        bool isNativeOut = tokenOut == NATIVE_TOKEN;
 
-        uint256 balancePostSwap = IERC20(tokenOut).balanceOf(
-            expectedTokenReceiver
-        );
+        if (isNativeOut) {
+            balancePreSwap = address(expectedTokenReceiver).balance;
+
+            _approveTokenAndExecute(token, target, data);
+
+            balancePostSwap = address(expectedTokenReceiver).balance;
+        } else {
+            balancePreSwap = IERC20(tokenOut).balanceOf(expectedTokenReceiver);
+
+            _approveTokenAndExecute(token, target, data);
+
+            balancePostSwap = IERC20(tokenOut).balanceOf(expectedTokenReceiver);
+        }
+
         uint256 amountOut = balancePostSwap - balancePreSwap;
         if (amountOut < minAmountOut)
             revert GeniusErrors.InvalidAmountOut(amountOut, minAmountOut);
