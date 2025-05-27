@@ -160,7 +160,8 @@ contract GeniusSponsoredOrdersTest is Test {
         GENIUS_ROUTER = new GeniusRouter(
             address(PERMIT2),
             address(GENIUS_VAULT),
-            address(PROXYCALL)
+            address(PROXYCALL),
+            address(FEE_COLLECTOR)
         );
 
         RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
@@ -210,7 +211,9 @@ contract GeniusSponsoredOrdersTest is Test {
             address(GENIUS_ROUTER)
         );
 
-        uint256 bridgeFee = 1.3 ether;
+        uint256 bridgeFee = FEE_COLLECTOR
+            .getOrderFees(BASE_ROUTER_USDC_BALANCE / 2, destChainId)
+            .totalFee;
         uint256 minAmountOut = 49 ether;
 
         bytes memory gasTankData = abi.encodeWithSelector(
@@ -223,7 +226,7 @@ contract GeniusSponsoredOrdersTest is Test {
             data,
             USER,
             destChainId,
-            bridgeFee,
+            0, // feeSurplus
             RECEIVER,
             minAmountOut,
             TOKEN_OUT

@@ -8,6 +8,7 @@ import {GeniusProxyCall} from "../../src/GeniusProxyCall.sol";
 import {GeniusVault} from "../../src/GeniusVault.sol";
 import {GeniusRouter} from "../../src/GeniusRouter.sol";
 import {GeniusGasTank} from "../../src/GeniusGasTank.sol";
+import {FeeCollector} from "../../src/fees/FeeCollector.sol";
 
 /**
  * @title DeployPolygonGeniusEcosystem
@@ -60,10 +61,43 @@ contract DeployGeniusEcosystemCore is Script {
 
         geniusVault = GeniusVault(address(proxy));
 
+        // Deploy FeeCollector implementation
+        FeeCollector feeCollectorImpl = new FeeCollector();
+        console.log(
+            "FeeCollector implementation deployed at:",
+            address(feeCollectorImpl)
+        );
+
+        address protocolFeeReceiver = _owner;
+        address lpFeeReceiver = _owner;
+        address operatorFeeReceiver = _owner;
+
+        // Prepare initialization data
+        bytes memory feeCollectorInitData = abi.encodeWithSelector(
+            FeeCollector.initialize.selector,
+            _owner, // admin address
+            _stableAddress, // stablecoin address
+            1000, // 10% protocol fee
+            protocolFeeReceiver,
+            lpFeeReceiver,
+            operatorFeeReceiver
+        );
+
+        // Deploy proxy
+        ERC1967Proxy feeCollectorProxy = new ERC1967Proxy(
+            address(feeCollectorImpl),
+            feeCollectorInitData
+        );
+        console.log(
+            "FeeCollector proxy deployed at:",
+            address(feeCollectorProxy)
+        );
+
         geniusRouter = new GeniusRouter(
             _permit2Address,
             address(geniusVault),
-            address(geniusProxyCall)
+            address(geniusProxyCall),
+            address(feeCollectorProxy) // Assuming feeCollector is set up elsewhere
         );
 
         geniusGasTank = new GeniusGasTank(
@@ -77,19 +111,19 @@ contract DeployGeniusEcosystemCore is Script {
         for (uint256 i = 0; i < orchestrators.length; i++) {
             geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
         }
-        
+
         // Set up fee tiers based on order size - moved to fee collector
         // This is handled by the FeeCollector now, not the vault
         // uint256[] memory thresholdAmounts = new uint256[](3);
         // thresholdAmounts[0] = 0;       // First tier starts at 0 (smallest orders)
         // thresholdAmounts[1] = 1000000; // 1000 USD (with 6 decimals)
         // thresholdAmounts[2] = 10000000; // 10000 USD (with 6 decimals)
-        
+
         // uint256[] memory bpsFees = new uint256[](3);
         // bpsFees[0] = 30; // 0.3% for smallest orders
         // bpsFees[1] = 20; // 0.2% for medium orders
         // bpsFees[2] = 10; // 0.1% for large orders
-        
+
         // FeeCollector deployment and setup should be handled separately
 
         geniusProxyCall.grantRole(

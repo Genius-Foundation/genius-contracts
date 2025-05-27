@@ -9,6 +9,7 @@ import {GeniusErrors} from "./libs/GeniusErrors.sol";
 import {IGeniusRouter} from "./interfaces/IGeniusRouter.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
+import {IFeeCollector} from "./interfaces/IFeeCollector.sol";
 
 /**
  * @title GeniusRouter
@@ -28,15 +29,22 @@ contract GeniusRouter is IGeniusRouter {
     IGeniusVault public immutable VAULT;
     IAllowanceTransfer public immutable PERMIT2;
     IGeniusProxyCall public immutable PROXYCALL;
+    IFeeCollector public immutable FEE_COLLECTOR;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        CONSTRUCTOR                        ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    constructor(address permit2, address vault, address proxycall) {
+    constructor(
+        address permit2,
+        address vault,
+        address proxycall,
+        address feeCollector
+    ) {
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IGeniusVault(vault);
         PROXYCALL = IGeniusProxyCall(proxycall);
+        FEE_COLLECTOR = IFeeCollector(feeCollector);
 
         STABLECOIN = VAULT.STABLECOIN();
         STABLECOIN.approve(address(VAULT), type(uint256).max);
@@ -54,7 +62,7 @@ contract GeniusRouter is IGeniusRouter {
         bytes calldata data,
         address owner,
         uint256 destChainId,
-        uint256 fee,
+        uint256 feeSurplus,
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
@@ -84,6 +92,10 @@ contract GeniusRouter is IGeniusRouter {
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
+        // Get the minimum fee for the destination chain
+        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+            .getOrderFees(delta, destChainId);
+
         IGeniusVault.Order memory order = IGeniusVault.Order({
             seed: seed,
             trader: VAULT.addressToBytes32(owner),
@@ -94,7 +106,7 @@ contract GeniusRouter is IGeniusRouter {
             minAmountOut: minAmountOut,
             destChainId: destChainId,
             srcChainId: block.chainid,
-            fee: fee
+            fee: feeBreakdown.totalFee + feeSurplus
         });
 
         VAULT.createOrder(order);
@@ -111,7 +123,7 @@ contract GeniusRouter is IGeniusRouter {
         address toApprove,
         bytes calldata data,
         uint256 destChainId,
-        uint256 fee,
+        uint256 feeSurplus,
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
@@ -136,6 +148,9 @@ contract GeniusRouter is IGeniusRouter {
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
+        IFeeCollector.FeeBreakdown memory feeBreakdown = FEE_COLLECTOR
+            .getOrderFees(delta, destChainId);
+
         IGeniusVault.Order memory order = IGeniusVault.Order({
             seed: seed,
             trader: VAULT.addressToBytes32(owner),
@@ -146,7 +161,7 @@ contract GeniusRouter is IGeniusRouter {
             minAmountOut: minAmountOut,
             destChainId: destChainId,
             srcChainId: block.chainid,
-            fee: fee
+            fee: feeBreakdown.totalFee + feeSurplus
         });
 
         VAULT.createOrder(order);

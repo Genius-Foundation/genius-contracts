@@ -28,7 +28,7 @@ interface IGeniusRouter {
      * @param data The calldata for executing the swap
      * @param owner The address that owns the tokens and will create the order
      * @param destChainId The destination chain ID for the cross-chain order
-     * @param fee The fee to be paid for the cross-chain transaction
+     * @param feeSurplus The fee surplus to be added to the order fees (for enhanced features or priority from solvers)
      * @param receiver The receiver address on the destination chain (in bytes32 format)
      * @param minAmountOut The minimum amount of tokens to receive on the destination chain
      * @param tokenOut The token to receive on the destination chain (in bytes32 format)
@@ -42,7 +42,7 @@ interface IGeniusRouter {
         bytes calldata data,
         address owner,
         uint256 destChainId,
-        uint256 fee,
+        uint256 feeSurplus,
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
@@ -58,7 +58,7 @@ interface IGeniusRouter {
      * @param toApprove The address to approve for the swap
      * @param data The calldata for executing the swap
      * @param destChainId The destination chain ID for the cross-chain order
-     * @param fee The fee to be paid for the cross-chain transaction
+     * @param feeSurplus The fee surplus to be added to the order fees (for enhanced features or priority from solvers)
      * @param receiver The receiver address on the destination chain (in bytes32 format)
      * @param minAmountOut The minimum amount of tokens to receive on the destination chain
      * @param tokenOut The token to receive on the destination chain (in bytes32 format)
@@ -71,7 +71,7 @@ interface IGeniusRouter {
         address toApprove,
         bytes calldata data,
         uint256 destChainId,
-        uint256 fee,
+        uint256 feeSurplus,
         bytes32 receiver,
         uint256 minAmountOut,
         bytes32 tokenOut
