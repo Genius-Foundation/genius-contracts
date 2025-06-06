@@ -47,8 +47,17 @@ contract ConfigureFeeSystem is BaseScriptContext {
         feeCollector.setFeeTiers(thresholdAmounts, bpsFees);
         console.log("Set fee tiers");
 
+        uint256[] memory insuranceThresholdAmounts = new uint256[](1);
+        thresholdAmounts[0] = 0; // Smallest orders
+
+        uint256[] memory insuranceFees = new uint256[](1);
+        bpsFees[0] = 1; // 0.01% for smallest orders
+
         // Set insurance fee tiers
-        feeCollector.setInsuranceFeeTiers(thresholdAmounts, bpsFees);
+        feeCollector.setInsuranceFeeTiers(
+            insuranceThresholdAmounts,
+            insuranceFees
+        );
         console.log("Set insurance fee tiers");
 
         // Set minimum fees for target chains
