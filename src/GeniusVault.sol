@@ -87,6 +87,13 @@ contract GeniusVault is GeniusVaultCore {
         if (order.srcChainId != _currentChainId())
             revert GeniusErrors.InvalidSourceChainId(order.srcChainId);
 
+        // Verify the order's amount it valid
+        _convertDecimals(
+            order.amountIn - order.fee,
+            decimals(),
+            uint8(chainStablecoinDecimals[order.destChainId])
+        );
+
         bytes32 orderHash_ = orderHash(order);
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
