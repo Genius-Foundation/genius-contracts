@@ -161,47 +161,6 @@ contract ERC4626FeaturesTest is Test {
         vm.stopPrank();
     }
 
-    function test_Mint() public {
-        vm.startPrank(user1);
-        
-        uint256 initialBalance = mockStablecoin.balanceOf(user1);
-        uint256 initialVaultBalance = mockStablecoin.balanceOf(address(vault));
-        uint256 initialTotalStakedAssets = vault.totalStakedAssets();
-        
-        uint256 sharesToMint = 100e18; // 100 shares
-        uint256 assets = vault.mint(sharesToMint, user1);
-        
-        assertEq(mockStablecoin.balanceOf(user1), initialBalance - assets);
-        assertEq(mockStablecoin.balanceOf(address(vault)), initialVaultBalance + assets);
-        assertEq(vault.totalStakedAssets(), initialTotalStakedAssets + assets);
-        assertEq(vault.balanceOf(user1), assets); // ERC20 balance shows asset value
-        assertEq(assets, sharesToMint); // Since 1:1 ratio initially (no shares exist yet)
-        
-        vm.stopPrank();
-    }
-
-    function test_Redeem() public {
-        // First mint
-        vm.startPrank(user1);
-        uint256 sharesToMint = 100e18; // 100 shares
-        vault.mint(sharesToMint, user1);
-        
-        uint256 initialBalance = mockStablecoin.balanceOf(user1);
-        uint256 initialVaultBalance = mockStablecoin.balanceOf(address(vault));
-        uint256 initialTotalStakedAssets = vault.totalStakedAssets();
-        
-        // Then redeem
-        uint256 sharesToRedeem = 50e18; // 50 shares
-        uint256 assets = vault.redeem(sharesToRedeem, user1, user1);
-        
-        assertEq(mockStablecoin.balanceOf(user1), initialBalance + assets);
-        assertEq(mockStablecoin.balanceOf(address(vault)), initialVaultBalance - assets);
-        assertEq(vault.totalStakedAssets(), initialTotalStakedAssets - assets);
-        assertEq(assets, sharesToRedeem); // Since 1:1 ratio initially
-        
-        vm.stopPrank();
-    }
-
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                    SUBMIT REWARDS TESTS                   ║
     // ╚═══════════════════════════════════════════════════════════╝
@@ -630,19 +589,6 @@ contract ERC4626FeaturesTest is Test {
         vm.stopPrank();
     }
 
-    function test_PreviewMint() public {
-        vm.startPrank(user1);
-        
-        uint256 sharesToMint = 100e18;
-        uint256 previewAssets = vault.previewMint(sharesToMint);
-        uint256 actualAssets = vault.mint(sharesToMint, user1);
-        
-        // Preview should match actual mint
-        assertEq(previewAssets, actualAssets);
-        
-        vm.stopPrank();
-    }
-
     function test_PreviewWithdraw() public {
         vm.startPrank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
@@ -653,21 +599,6 @@ contract ERC4626FeaturesTest is Test {
         
         // Preview should match actual withdraw
         assertEq(previewShares, actualShares);
-        
-        vm.stopPrank();
-    }
-
-    function test_PreviewRedeem() public {
-        vm.startPrank(user1);
-        uint256 sharesToMint = 100e18;
-        vault.mint(sharesToMint, user1);
-        
-        uint256 sharesToRedeem = 50e18;
-        uint256 previewAssets = vault.previewRedeem(sharesToRedeem);
-        uint256 actualAssets = vault.redeem(sharesToRedeem, user1, user1);
-        
-        // Preview should match actual redeem
-        assertEq(previewAssets, actualAssets);
         
         vm.stopPrank();
     }
@@ -711,7 +642,7 @@ contract ERC4626FeaturesTest is Test {
         // Should be able to redeem remaining balance
         uint256 remainingBalance = vault.balanceOf(user1);
         if (remainingBalance > 0) {
-            vault.redeem(remainingBalance, user1, user1);
+            vault.withdraw(remainingBalance, user1, user1);
         }
         
         vm.stopPrank();
@@ -771,29 +702,6 @@ contract ERC4626FeaturesTest is Test {
         vm.stopPrank();
     }
 
-    function test_MintZeroAmount() public {
-        vm.startPrank(user1);
-        
-        // ERC4626 allows zero mints, they just return 0 assets
-        uint256 assets = vault.mint(0, user1);
-        assertEq(assets, 0);
-        assertEq(vault.balanceOf(user1), 0);
-        
-        vm.stopPrank();
-    }
-
-    function test_RedeemZeroAmount() public {
-        vm.startPrank(user1);
-        vault.deposit(DEPOSIT_AMOUNT, user1);
-        
-        // ERC4626 allows zero redeems, they just return 0 assets
-        uint256 assets = vault.redeem(0, user1, user1);
-        assertEq(assets, 0);
-        assertEq(vault.balanceOf(user1), DEPOSIT_AMOUNT);
-        
-        vm.stopPrank();
-    }
-
     function test_TransferZeroAmount() public {
         vm.startPrank(user1);
         vault.deposit(DEPOSIT_AMOUNT, user1);
@@ -828,16 +736,6 @@ contract ERC4626FeaturesTest is Test {
         
         vm.expectRevert();
         vault.withdraw(DEPOSIT_AMOUNT + 1, user1, user1);
-        
-        vm.stopPrank();
-    }
-
-    function test_RedeemInsufficientBalance() public {
-        vm.startPrank(user1);
-        vault.deposit(DEPOSIT_AMOUNT, user1);
-        
-        vm.expectRevert();
-        vault.redeem(DEPOSIT_AMOUNT + 1, user1, user1);
         
         vm.stopPrank();
     }
@@ -914,21 +812,6 @@ contract ERC4626FeaturesTest is Test {
         vm.startPrank(user1);
         vm.expectRevert();
         vault.mint(100e18, user1);
-        vm.stopPrank();
-    }
-
-    function test_RedeemWhenPaused() public {
-        vm.startPrank(user1);
-        vault.deposit(DEPOSIT_AMOUNT, user1);
-        vm.stopPrank();
-        
-        vm.startPrank(admin);
-        vault.pause();
-        vm.stopPrank();
-        
-        vm.startPrank(user1);
-        vm.expectRevert();
-        vault.redeem(50e18, user1, user1);
         vm.stopPrank();
     }
 
@@ -1316,7 +1199,7 @@ contract ERC4626FeaturesTest is Test {
         
         // These operations should not revert due to reentrancy protection
         vault.withdraw(50e18, user1, user1);
-        vault.redeem(25e18, user1, user1);
+        vault.withdraw(25e18, user1, user1);
         
         vm.stopPrank();
     }

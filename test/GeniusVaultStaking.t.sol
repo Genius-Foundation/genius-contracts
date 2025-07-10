@@ -149,7 +149,7 @@ contract GeniusVaultStakingTest is Test {
         usdc.approve(address(geniusVault), 1_000 ether);
         geniusVault.deposit(1_000 ether, address(this));
         geniusVault.approve(address(this), 1_000 ether);
-        geniusVault.redeem(1_000 ether, address(this), address(this));
+        geniusVault.withdraw(1_000 ether, address(this), address(this));
 
         assertEq(
             usdc.balanceOf(address(this)),
@@ -196,7 +196,7 @@ contract GeniusVaultStakingTest is Test {
 
         // Withdraw the deposited USDC back to the trader
         vm.prank(trader);
-        geniusVault.redeem(1_000 ether, trader, trader);
+        geniusVault.withdraw(1_000 ether, trader, trader);
 
         assertEq(
             usdc.balanceOf(trader),
@@ -243,7 +243,7 @@ contract GeniusVaultStakingTest is Test {
         geniusVault.approve(trader, 1_000 ether);
         vm.expectRevert();
         vm.prank(trader);
-        geniusVault.redeem(1_000 ether, trader, trader);
+        geniusVault.withdraw(1_000 ether, trader, trader);
     }
 
     function testStakeDepositConversion() public {
@@ -284,7 +284,7 @@ contract GeniusVaultStakingTest is Test {
 
         uint256 initialStablecoinBalance = usdc.balanceOf(trader);
 
-        geniusVault.redeem(expectedStablecoin, trader, trader);
+        geniusVault.withdraw(expectedStablecoin, trader, trader);
 
         assertEq(
             usdc.balanceOf(trader) - initialStablecoinBalance,
@@ -313,7 +313,7 @@ contract GeniusVaultStakingTest is Test {
 
         // Withdraw full amount
         uint256 initialStablecoinBalance = usdc.balanceOf(trader);
-        geniusVault.redeem(depositAmount, trader, trader);
+        geniusVault.withdraw(depositAmount, trader, trader);
 
         assertEq(
             usdc.balanceOf(trader) - initialStablecoinBalance,

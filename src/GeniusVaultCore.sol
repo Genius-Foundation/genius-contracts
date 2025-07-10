@@ -183,6 +183,7 @@ abstract contract GeniusVaultCore is
      * @dev Override withdraw to update totalStakedAssets and emit custom event
      */
     function withdraw(uint256 assets, address receiver, address owner) public virtual override(ERC4626Upgradeable, IERC4626) whenNotPaused nonReentrant returns (uint256) {
+        if (assets > stablecoinBalance()) revert GeniusErrors.InvalidAmount();
         uint256 shares = super.withdraw(assets, receiver, owner);
         totalStakedAssets -= assets;
         return shares;
@@ -192,18 +193,14 @@ abstract contract GeniusVaultCore is
      * @dev Override mint to update totalStakedAssets and emit custom event
      */
     function mint(uint256 shares, address receiver) public virtual override(ERC4626Upgradeable, IERC4626) whenNotPaused returns (uint256) {
-        uint256 assets = super.mint(shares, receiver);
-        totalStakedAssets += assets;
-        return assets;
+        revert GeniusErrors.InvalidFunction();
     }
 
     /**
      * @dev Override redeem to update totalStakedAssets and emit custom event
      */
     function redeem(uint256 shares, address receiver, address owner) public virtual override(ERC4626Upgradeable, IERC4626) whenNotPaused nonReentrant returns (uint256) {
-        uint256 assets = super.redeem(shares, receiver, owner);
-        totalStakedAssets -= assets;
-        return assets;
+        revert GeniusErrors.InvalidFunction();
     }
 
     /**

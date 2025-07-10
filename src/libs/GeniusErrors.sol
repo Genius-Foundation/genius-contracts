@@ -270,4 +270,5 @@ library GeniusErrors {
     error StatusAlreadySet();
     error NotAuthorized();
     error InvalidFeeAmount();
+    error InvalidFunction();
 }
