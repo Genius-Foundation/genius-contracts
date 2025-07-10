@@ -441,7 +441,7 @@ contract GeniusVaultTest is Test {
     function testStakeLiquidity() public {
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.stakeDeposit(1_000 ether, TRADER);
+        VAULT.deposit(1_000 ether, TRADER);
 
         assertEq(
             VAULT.stablecoinBalance(),
@@ -469,7 +469,7 @@ contract GeniusVaultTest is Test {
 
         vm.startPrank(TRADER);
         USDC.approve(address(VAULT), 1_000 ether);
-        VAULT.stakeDeposit(1_000 ether, TRADER);
+        VAULT.deposit(1_000 ether, TRADER);
 
         assertEq(
             VAULT.stablecoinBalance(),
@@ -490,7 +490,7 @@ contract GeniusVaultTest is Test {
 
         // Remove staked liquidity
         vm.startPrank(TRADER);
-        VAULT.stakeWithdraw(1_000 ether, TRADER, TRADER);
+        VAULT.withdraw(1_000 ether, TRADER, TRADER);
 
         assertEq(
             VAULT.stablecoinBalance(),

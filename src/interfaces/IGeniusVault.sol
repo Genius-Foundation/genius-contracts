@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 /**
  * @title IGeniusVault
@@ -11,7 +12,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *         trader STABLECOIN balances for cross-chain swaps,
  *         and other Genius related activities.
  */
-interface IGeniusVault {
+interface IGeniusVault is IERC4626 {
     /**
      * @notice Enum representing the possible statuses of an order.
      */
@@ -66,32 +67,6 @@ interface IGeniusVault {
     }
 
     event StablePriceBoundsChanged(uint256 lower, uint256 upper);
-
-    /**
-     * @notice Emitted when assets are staked in the GeniusVault contract.
-     * @param caller The address of the caller.
-     * @param owner The address of the owner of the staked assets.
-     * @param amount The amount of assets staked.
-     */
-    event StakeDeposit(
-        address indexed caller,
-        address indexed owner,
-        uint256 amount
-    );
-
-    /**
-     * @notice Emitted when assets are withdrawn from the GeniusVault contract.
-     * @param caller The address of the caller.
-     * @param receiver The address of the receiver of the withdrawn assets.
-     * @param owner The address of the owner of the staked assets.
-     * @param amount The amount of assets withdrawn.
-     */
-    event StakeWithdraw(
-        address indexed caller,
-        address indexed receiver,
-        address indexed owner,
-        uint256 amount
-    );
 
     /**
      * @notice Emitted on the source chain when a swap deposit is made.
@@ -193,6 +168,13 @@ interface IGeniusVault {
     event FeeCollectorChanged(address feeCollector);
 
     /**
+     * @notice Emitted when rewards are submitted to the vault
+     * @param sender The address that submitted the rewards
+     * @param amount The amount of rewards submitted
+     */
+    event RewardsSubmitted(address indexed sender, uint256 amount);
+
+    /**
      * @notice Returns the total balance of the vault.
      * @return The total balance of the vault.
      */
@@ -203,27 +185,6 @@ interface IGeniusVault {
      * @return The minimum asset balance.
      */
     function minLiquidity() external view returns (uint256);
-
-    /**
-     * @notice Stake assets in the GeniusVault contract.
-     * @param amount The amount of assets to stake.
-     * @param receiver The address of the receiver of the staked assets.
-     * @dev The receiver is the address that will receive gUSD tokens
-     * in exchange for the staked assets with a 1:1 ratio.
-     */
-    function stakeDeposit(uint256 amount, address receiver) external;
-
-    /**
-     * @notice Withdraws staked assets from the GeniusVault contract.
-     * @param amount The amount of assets to withdraw.
-     * @param receiver The address of the receiver of the withdrawn assets.
-     * @param owner The address of the owner of the staked assets.
-     */
-    function stakeWithdraw(
-        uint256 amount,
-        address receiver,
-        address owner
-    ) external;
 
     /**
      * @notice Removes liquidity from a bridge vault
@@ -343,6 +304,12 @@ interface IGeniusVault {
      * @param _feeCollector Address of the fee collector contract
      */
     function setFeeCollector(address _feeCollector) external;
+
+    /**
+     * @notice Submit rewards to the vault without minting shares
+     * @param amount The amount of rewards to submit
+     */
+    function submitRewards(uint256 amount) external;
 
     /**
      * @notice Pauses the contract and locks all functionality in case of an emergency.

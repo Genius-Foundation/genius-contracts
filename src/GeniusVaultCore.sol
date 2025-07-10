@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC4626Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC4626Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {IAllowanceTransfer} from "permit2/interfaces/IAllowanceTransfer.sol";
@@ -12,6 +12,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 import {IFeeCollector} from "./interfaces/IFeeCollector.sol";
@@ -29,8 +31,8 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
  */
 abstract contract GeniusVaultCore is
     IGeniusVault,
+    ERC4626Upgradeable,
     UUPSUpgradeable,
-    ERC20Upgradeable,
     AccessControlUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable
@@ -120,6 +122,7 @@ abstract contract GeniusVaultCore is
         if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
         if (_admin == address(0)) revert GeniusErrors.NonAddress0();
 
+        __ERC4626_init(IERC20(_stablecoin));
         __ERC20_init("Genius USD", "gUSD");
         __AccessControl_init();
         __Pausable_init();
@@ -162,53 +165,126 @@ abstract contract GeniusVaultCore is
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
-    // ║                    STAKING FUNCTIONS                      ║
+    // ║                    ERC4626 OVERRIDES                      ║
     // ╚═══════════════════════════════════════════════════════════╝
 
     /**
-     * @dev See {IGeniusVault-stakeDeposit}.
+     * @dev Override deposit to update totalStakedAssets and emit custom event
      */
-    function stakeDeposit(
-        uint256 amount,
-        address receiver
-    ) external override whenNotPaused {
-        if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (receiver == address(0)) revert GeniusErrors.NonAddress0();
-
-        totalStakedAssets += amount;
-
-        STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
-        _mint(receiver, amount);
-
-        emit StakeDeposit(msg.sender, receiver, amount);
+    function deposit(uint256 assets, address receiver) public virtual override(ERC4626Upgradeable, IERC4626) whenNotPaused returns (uint256) {
+        uint256 shares = super.deposit(assets, receiver);
+        totalStakedAssets += assets;
+        return shares;
     }
 
     /**
-     * @dev See {IGeniusVault-stakeWithdraw}.
+     * @dev Override withdraw to update totalStakedAssets and emit custom event
      */
-    function stakeWithdraw(
-        uint256 amount,
-        address receiver,
-        address owner
-    ) external override whenNotPaused nonReentrant {
-        if (_msgSender() != owner) {
-            _spendAllowance(owner, _msgSender(), amount);
-        }
+    function withdraw(uint256 assets, address receiver, address owner) public virtual override(ERC4626Upgradeable, IERC4626) whenNotPaused nonReentrant returns (uint256) {
+        uint256 shares = super.withdraw(assets, receiver, owner);
+        totalStakedAssets -= assets;
+        return shares;
+    }
 
-        if (amount > stablecoinBalance()) revert GeniusErrors.InvalidAmount();
-        if (amount > totalStakedAssets)
-            revert GeniusErrors.InsufficientBalance(
-                address(STABLECOIN),
-                amount,
-                totalStakedAssets
-            );
+    /**
+     * @dev Override mint to update totalStakedAssets and emit custom event
+     */
+    function mint(uint256 shares, address receiver) public virtual override(ERC4626Upgradeable, IERC4626) whenNotPaused returns (uint256) {
+        uint256 assets = super.mint(shares, receiver);
+        totalStakedAssets += assets;
+        return assets;
+    }
 
-        totalStakedAssets -= amount;
-        _burn(owner, amount);
+    /**
+     * @dev Override redeem to update totalStakedAssets and emit custom event
+     */
+    function redeem(uint256 shares, address receiver, address owner) public virtual override(ERC4626Upgradeable, IERC4626) whenNotPaused nonReentrant returns (uint256) {
+        uint256 assets = super.redeem(shares, receiver, owner);
+        totalStakedAssets -= assets;
+        return assets;
+    }
 
-        emit StakeWithdraw(msg.sender, receiver, owner, amount);
+    /**
+     * @dev Override totalAssets to return the stablecoin balance
+     */
+    function totalAssets() public view virtual override(ERC4626Upgradeable, IERC4626) returns (uint256) {
+        return totalStakedAssets;
+    }
 
-        STABLECOIN.safeTransfer(receiver, amount);
+    /**
+     * @dev Override asset to return the stablecoin address
+     */
+    function asset() public view virtual override(ERC4626Upgradeable, IERC4626) returns (address) {
+        return address(STABLECOIN);
+    }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                    ERC20 OVERRIDES                        ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    /**
+     * @dev Override balanceOf to return asset value instead of shares
+     */
+    function balanceOf(address account) public view virtual override(ERC20Upgradeable, IERC20) returns (uint256) {
+        return convertToAssets(super.balanceOf(account));
+    }
+
+    /**
+     * @dev Override totalSupply to return total assets instead of total shares
+     */
+    function totalSupply() public view virtual override(ERC20Upgradeable, IERC20) returns (uint256) {
+        return totalAssets();
+    }
+
+    /**
+     * @dev Override transfer to work with asset amounts
+     */
+    function transfer(address to, uint256 amount) public virtual override(ERC20Upgradeable, IERC20) returns (bool) {
+        uint256 shares = convertToShares(amount);
+        return super.transfer(to, shares);
+    }
+
+    /**
+     * @dev Override transferFrom to work with asset amounts
+     */
+    function transferFrom(address from, address to, uint256 amount) public virtual override(ERC20Upgradeable, IERC20) returns (bool) {
+        uint256 shares = convertToShares(amount);
+        return super.transferFrom(from, to, shares);
+    }
+
+    /**
+     * @dev Override approve to work with asset amounts
+     */
+    function approve(address spender, uint256 amount) public virtual override(ERC20Upgradeable, IERC20) returns (bool) {
+        uint256 shares = convertToShares(amount);
+        return super.approve(spender, shares);
+    }
+
+    /**
+     * @dev Override allowance to return asset value instead of shares
+     */
+    function allowance(address owner, address spender) public view virtual override(ERC20Upgradeable, IERC20) returns (uint256) {
+        return convertToAssets(super.allowance(owner, spender));
+    }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                    REWARDS FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    /**
+     * @dev Submit rewards to the vault without minting shares
+     * @param amount The amount of rewards to submit
+     */
+    function submitRewards(uint256 amount) external override whenNotPaused {
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+        
+        // Transfer assets from sender to contract
+        STABLECOIN.safeTransferFrom(msg.sender, address(this), amount);
+        
+        // Increase totalStakedAssets by the reward amount
+        totalStakedAssets += amount;
+        
+        emit RewardsSubmitted(msg.sender, amount);
     }
 
     function revertOrder(
@@ -541,9 +617,6 @@ abstract contract GeniusVaultCore is
         _setPriceFeedHeartbeat(_priceFeedHeartbeat);
     }
 
-    function decimals() public view override returns (uint8) {
-        return IERC20Metadata(address(STABLECOIN)).decimals();
-    }
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                   INTERNAL FUNCTIONS                      ║

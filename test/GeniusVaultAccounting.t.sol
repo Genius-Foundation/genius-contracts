@@ -240,7 +240,7 @@ contract GeniusVaultAccounting is Test {
         USDC.approve(address(VAULT), 1_000 ether);
 
         // Deposit 100 USDC into the vault
-        VAULT.stakeDeposit(100 ether, TRADER);
+        VAULT.deposit(100 ether, TRADER);
 
         // Check the staked value
         assertEq(
@@ -289,7 +289,7 @@ contract GeniusVaultAccounting is Test {
         USDC.approve(address(VAULT), 1_000 ether);
 
         // Deposit 100 USDC into the vault
-        VAULT.stakeDeposit(100 ether, TRADER);
+        VAULT.deposit(100 ether, TRADER);
 
         // Check the staked value
         assertEq(

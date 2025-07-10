@@ -23,7 +23,7 @@ contract DeployGasTank is Script {
             payable(vm.envAddress("GENIUS_VAULT_ADDRESS"))
         );
 
-        vaultInstance.stakeDeposit(
+        vaultInstance.deposit(
             100_000_000,
             0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909
         );
