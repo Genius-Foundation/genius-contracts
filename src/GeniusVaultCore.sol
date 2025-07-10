@@ -224,11 +224,21 @@ abstract contract GeniusVaultCore is
      * @dev Override internal conversion functions to use real share count
      */
     function _convertToShares(uint256 assets, Math.Rounding rounding) internal view virtual override returns (uint256) {
-        return assets.mulDiv(super.totalSupply() + 10 ** _decimalsOffset(), totalAssets() + 1, rounding);
+        uint256 supply = ERC20Upgradeable.totalSupply();
+        if (supply == 0) {
+            // Always mint 1:1 for the first deposit, even if rewards exist
+            return assets;
+        }
+        return assets.mulDiv(supply, totalAssets(), rounding);
     }
 
     function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view virtual override returns (uint256) {
-        return shares.mulDiv(totalAssets() + 1, super.totalSupply() + 10 ** _decimalsOffset(), rounding);
+        uint256 supply = ERC20Upgradeable.totalSupply();
+        if (supply == 0) {
+            // For the first mint, return shares directly (1:1 ratio)
+            return shares;
+        }
+        return shares.mulDiv(totalAssets(), supply, rounding);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
