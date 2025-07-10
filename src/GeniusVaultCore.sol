@@ -14,6 +14,7 @@ import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
 import {IGeniusProxyCall} from "./interfaces/IGeniusProxyCall.sol";
 import {IFeeCollector} from "./interfaces/IFeeCollector.sol";
@@ -40,6 +41,7 @@ abstract contract GeniusVaultCore is
     using SafeERC20 for IERC20;
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
+    using Math for uint256;
 
     uint256 public constant BASE_PERCENTAGE = 10_000;
 
@@ -216,6 +218,17 @@ abstract contract GeniusVaultCore is
      */
     function asset() public view virtual override(ERC4626Upgradeable, IERC4626) returns (address) {
         return address(STABLECOIN);
+    }
+
+    /**
+     * @dev Override internal conversion functions to use real share count
+     */
+    function _convertToShares(uint256 assets, Math.Rounding rounding) internal view virtual override returns (uint256) {
+        return assets.mulDiv(super.totalSupply() + 10 ** _decimalsOffset(), totalAssets() + 1, rounding);
+    }
+
+    function _convertToAssets(uint256 shares, Math.Rounding rounding) internal view virtual override returns (uint256) {
+        return shares.mulDiv(totalAssets() + 1, super.totalSupply() + 10 ** _decimalsOffset(), rounding);
     }
 
     // ╔═══════════════════════════════════════════════════════════╗
