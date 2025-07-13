@@ -8,16 +8,17 @@ import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProo
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IMerkleDistributor} from "../interfaces/IMerkleDistributor.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {GeniusErrors} from "../libs/GeniusErrors.sol";
 
 /**
  * @title MerkleDistributor
  *
  * @dev MerkleDistributor contract distributes.
  */
-contract MerkleDistributor is IMerkleDistributor, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
+contract MerkleDistributor is IMerkleDistributor, UUPSUpgradeable, AccessControlUpgradeable, PausableUpgradeable {
     using SafeERC20 for IERC20;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -30,7 +31,7 @@ contract MerkleDistributor is IMerkleDistributor, AccessControlUpgradeable, Paus
     // @dev Merkle nonce is used to protect from submitting the same merkle root vote several times.
     uint256 private merkleNonce;
 
-    uint256 public oracleCount;
+    uint256 public override oracleCount;
 
     // @dev Last merkle root update block number.
     uint256 public override lastMerkleUpdateBlockNumber;
@@ -41,11 +42,20 @@ contract MerkleDistributor is IMerkleDistributor, AccessControlUpgradeable, Paus
     // This is a packed array of booleans.
     mapping (bytes32 => mapping (uint256 => uint256)) private _claimedBitMap;
 
-    /**
-     * @dev See {IOracles-isOracle}.
+        /**
+     * @dev See {IGeniusVault-initialize}.
      */
-    function isOracle(address account) external view override returns (bool) {
-        return hasRole(ORACLE_ROLE, account);
+    function initialize(
+        address _admin
+    ) external initializer {
+        if (_admin == address(0)) revert GeniusErrors.NonAddress0();
+
+        __AccessControl_init();
+        __Pausable_init();
+        __UUPSUpgradeable_init();
+
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(PAUSER_ROLE, _admin);
     }
 
     /**
@@ -69,8 +79,8 @@ contract MerkleDistributor is IMerkleDistributor, AccessControlUpgradeable, Paus
         emit OracleRemoved(account);
     }
 
-        /**
-     * @dev See {IOracles-isMerkleRootVoting}.
+    /**
+     * @dev See {IMerkleDistributor-isMerkleRootVoting}.
      */
     function isMerkleRootVoting() public view override returns (bool) {
         uint256 lastRewardBlockNumber = lastRewardsUpdateBlockNumber;
@@ -86,7 +96,6 @@ contract MerkleDistributor is IMerkleDistributor, AccessControlUpgradeable, Paus
     function isEnoughSignatures(uint256 signaturesCount) internal view returns (bool) {
         return oracleCount >= signaturesCount && signaturesCount * 3 > oracleCount * 2;
     }
-
 
     /**
      * @dev See {IMerkleDistributor-claimedBitMap}.
@@ -180,7 +189,7 @@ contract MerkleDistributor is IMerkleDistributor, AccessControlUpgradeable, Paus
         emit Claimed(account, index, tokens, amounts);
     }
 
-        /**
+    /**
      * @dev verifySignatures
      *
      * @param candidateId - The hashed value signed by the oracles
@@ -207,4 +216,9 @@ contract MerkleDistributor is IMerkleDistributor, AccessControlUpgradeable, Paus
         }
         return signedOracles;
     }
+
+    /**
+     * @dev Required by the OZ UUPSUpgradeable contract
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 }

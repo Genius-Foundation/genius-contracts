@@ -82,12 +82,6 @@ interface IMerkleDistributor {
     function claimedBitMap(bytes32 _merkleRoot, uint256 _wordIndex) external view returns (uint256);
 
     /**
-    * @dev Function for checking whether an account is an oracle.
-    * @param account - address to check.
-    */
-    function isOracle(address account) external view returns (bool);
-
-    /**
     * @dev Function for adding a new oracle. Can only be called by admin.
     * @param account - address of the oracle to add.
     */
