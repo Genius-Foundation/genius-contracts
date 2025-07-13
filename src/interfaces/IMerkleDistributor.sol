@@ -81,6 +81,17 @@ interface IMerkleDistributor {
     */
     function claimedBitMap(bytes32 _merkleRoot, uint256 _wordIndex) external view returns (uint256);
 
+
+    /**
+    * @dev Function for pausing the contract. Can only be called by admin.
+    */
+    function pause() external;
+
+    /**
+    * @dev Function for unpausing the contract. Can only be called by admin.
+    */
+    function unpause() external;
+
     /**
     * @dev Function for adding a new oracle. Can only be called by admin.
     * @param account - address of the oracle to add.

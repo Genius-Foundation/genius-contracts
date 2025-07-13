@@ -59,6 +59,20 @@ contract MerkleDistributor is IMerkleDistributor, UUPSUpgradeable, AccessControl
     }
 
     /**
+     * @dev See {IGeniusVault-emergencyLock}.
+     */
+    function pause() external override onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    /**
+     * @dev See {IGeniusVault-emergencyUnlock}.
+     */
+    function unpause() external override onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
+
+    /**
      * @dev See {IOracles-addOracle}.
      */
     function addOracle(address account) external override {

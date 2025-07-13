@@ -6,6 +6,7 @@ gas_reports = ["*"]
 cbor_metadata = true
 optimizer = true
 optimizer_runs = 200
+via_ir = true
 etherscan_api_version = "v2"
 
 
