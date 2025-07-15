@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import {MerkleDistributor} from "../src/distributor/MerkleDistributor.sol";
 import {IMerkleDistributor} from "../src/interfaces/IMerkleDistributor.sol";
@@ -292,7 +293,7 @@ contract MerkleDistributorTest is Test {
 
     function test_RevertWhen_NonAdminAddsOracle() public {
         vm.startPrank(RANDOM_USER);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, RANDOM_USER, merkleDistributor.DEFAULT_ADMIN_ROLE()));
         merkleDistributor.addOracle(ORACLE_1);
         vm.stopPrank();
     }
@@ -303,7 +304,66 @@ contract MerkleDistributorTest is Test {
         vm.stopPrank();
         
         vm.startPrank(RANDOM_USER);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, RANDOM_USER, merkleDistributor.DEFAULT_ADMIN_ROLE()));
+        merkleDistributor.removeOracle(ORACLE_1);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_DistributorAddsOracle() public {
+        vm.startPrank(DISTRIBUTOR);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, DISTRIBUTOR, merkleDistributor.DEFAULT_ADMIN_ROLE()));
+        merkleDistributor.addOracle(ORACLE_1);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_DistributorRemovesOracle() public {
+        vm.startPrank(ADMIN);
+        merkleDistributor.addOracle(ORACLE_1);
+        vm.stopPrank();
+        
+        vm.startPrank(DISTRIBUTOR);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, DISTRIBUTOR, merkleDistributor.DEFAULT_ADMIN_ROLE()));
+        merkleDistributor.removeOracle(ORACLE_1);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_OracleAddsOracle() public {
+        vm.startPrank(ADMIN);
+        merkleDistributor.addOracle(ORACLE_1);
+        vm.stopPrank();
+        
+        vm.startPrank(ORACLE_1);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, ORACLE_1, merkleDistributor.DEFAULT_ADMIN_ROLE()));
+        merkleDistributor.addOracle(ORACLE_2);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_OracleRemovesOracle() public {
+        vm.startPrank(ADMIN);
+        merkleDistributor.addOracle(ORACLE_1);
+        merkleDistributor.addOracle(ORACLE_2);
+        vm.stopPrank();
+        
+        vm.startPrank(ORACLE_1);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, ORACLE_1, merkleDistributor.DEFAULT_ADMIN_ROLE()));
+        merkleDistributor.removeOracle(ORACLE_2);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_UserAddsOracle() public {
+        vm.startPrank(USER_1);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, USER_1, merkleDistributor.DEFAULT_ADMIN_ROLE()));
+        merkleDistributor.addOracle(ORACLE_1);
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_UserRemovesOracle() public {
+        vm.startPrank(ADMIN);
+        merkleDistributor.addOracle(ORACLE_1);
+        vm.stopPrank();
+        
+        vm.startPrank(USER_1);
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, USER_1, merkleDistributor.DEFAULT_ADMIN_ROLE()));
         merkleDistributor.removeOracle(ORACLE_1);
         vm.stopPrank();
     }
@@ -342,7 +402,8 @@ contract MerkleDistributorTest is Test {
 
     function test_RevertWhen_NonDistributorSubmitsRewards() public {
         vm.startPrank(RANDOM_USER);
-        vm.expectRevert("MerkleDistributor: access denied");
+        // Expect revert with the correct error selector AccessControlUnauthorizedAccount
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, RANDOM_USER, merkleDistributor.DISTRIBUTOR_ROLE()));
         merkleDistributor.submitRewards(address(token1), REWARD_AMOUNT);
         vm.stopPrank();
     }
@@ -490,7 +551,7 @@ contract MerkleDistributorTest is Test {
         bytes[] memory signatures = _createSignatures(merkleRoot, "test_proofs");
         
         vm.startPrank(RANDOM_USER);
-        vm.expectRevert("MerkleDistributor: access denied");
+        vm.expectRevert(abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, RANDOM_USER, merkleDistributor.ORACLE_ROLE()));
         merkleDistributor.setMerkleRoot(merkleRoot, "test_proofs", signatures);
         vm.stopPrank();
     }

@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {MerkleProofLib} from "@solady/utils/MerkleProofLib.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
@@ -42,7 +42,7 @@ contract MerkleDistributor is IMerkleDistributor, UUPSUpgradeable, AccessControl
     // This is a packed array of booleans.
     mapping (bytes32 => mapping (uint256 => uint256)) private _claimedBitMap;
 
-        /**
+    /**
      * @dev See {IGeniusVault-initialize}.
      */
     function initialize(
@@ -75,7 +75,7 @@ contract MerkleDistributor is IMerkleDistributor, UUPSUpgradeable, AccessControl
     /**
      * @dev See {IOracles-addOracle}.
      */
-    function addOracle(address account) external override {
+    function addOracle(address account) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(account != address(0), "Oracles: invalid oracle address");
         require(!hasRole(ORACLE_ROLE, account), "Oracles: oracle already exists");
         grantRole(ORACLE_ROLE, account);
@@ -86,7 +86,7 @@ contract MerkleDistributor is IMerkleDistributor, UUPSUpgradeable, AccessControl
     /**
      * @dev See {IOracles-removeOracle}.
      */
-    function removeOracle(address account) external override {
+    function removeOracle(address account) external override onlyRole(DEFAULT_ADMIN_ROLE) {
         require(hasRole(ORACLE_ROLE, account), "Oracles: oracle do not exists");
         revokeRole(ORACLE_ROLE, account);
         oracleCount--;
@@ -121,10 +121,9 @@ contract MerkleDistributor is IMerkleDistributor, UUPSUpgradeable, AccessControl
     /**
      * @dev See {IMerkleDistributor-setMerkleRoot}.
      */
-    function setMerkleRoot(bytes32 newMerkleRoot, string calldata newMerkleProofs, bytes[] calldata signatures) external override {
+    function setMerkleRoot(bytes32 newMerkleRoot, string calldata newMerkleProofs, bytes[] calldata signatures) external override onlyRole(ORACLE_ROLE) {
         require(isMerkleRootVoting(), "Oracles: too early");
         require(isEnoughSignatures(signatures.length), "Oracles: invalid number of signatures");
-        require(hasRole(ORACLE_ROLE, msg.sender), "MerkleDistributor: access denied");
 
         uint256 nonce = merkleNonce;
         bytes32 candidateId = keccak256(abi.encode(nonce, newMerkleProofs, newMerkleRoot));
@@ -140,8 +139,7 @@ contract MerkleDistributor is IMerkleDistributor, UUPSUpgradeable, AccessControl
         emit MerkleRootUpdated(msg.sender, newMerkleRoot, newMerkleProofs);
     }
 
-    function submitRewards(address token, uint256 amount) external override {
-        require(hasRole(DISTRIBUTOR_ROLE, msg.sender), "MerkleDistributor: access denied");
+    function submitRewards(address token, uint256 amount) external override onlyRole(DISTRIBUTOR_ROLE) {
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
         lastRewardsUpdateBlockNumber = block.number;
         emit RewardsSubmitted(msg.sender, token, amount, block.number);
@@ -188,7 +186,7 @@ contract MerkleDistributor is IMerkleDistributor, UUPSUpgradeable, AccessControl
         // verify the merkle proof
         bytes32 _merkleRoot = merkleRoot; // gas savings
         bytes32 node = keccak256(abi.encode(index, tokens, account, amounts));
-        require(MerkleProof.verify(merkleProof, _merkleRoot, node), "MerkleDistributor: invalid proof");
+        require(MerkleProofLib.verify(merkleProof, _merkleRoot, node), "MerkleDistributor: invalid proof");
 
         // mark index claimed
         _setClaimed(index, _merkleRoot);
