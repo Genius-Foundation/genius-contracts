@@ -14,6 +14,7 @@ import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 
 import {MockERC20} from "./mocks/MockERC20.sol";
 import {MockV3Aggregator} from "./mocks/MockV3Aggregator.sol";
+import {MockMerkleDistributor} from "./mocks/MockMerkleDistributor.sol";
 import {GeniusProxyCall} from "../src/GeniusProxyCall.sol";
 
 contract FeeCollectorTest is Test {
@@ -39,6 +40,7 @@ contract FeeCollectorTest is Test {
     // Test contracts
     FeeCollector public feeCollector;
     GeniusVault public vault;
+    MockMerkleDistributor public mockDistributor;
 
     // Events to test
     event FeesCollectedFromVault(
@@ -79,6 +81,9 @@ contract FeeCollectorTest is Test {
         stablecoin.mint(ADMIN, INITIAL_SUPPLY);
         stablecoin.mint(TRADER, INITIAL_SUPPLY);
         stablecoin.mint(RANDOM_USER, INITIAL_SUPPLY);
+
+        // Deploy mock distributor
+        mockDistributor = new MockMerkleDistributor();
 
         // Deploy FeeCollector
         FeeCollector implementation = new FeeCollector();
@@ -136,7 +141,7 @@ contract FeeCollectorTest is Test {
         feeCollector.setTargetChainMinFee(DEST_CHAIN_ID, 1 ether);
 
         // Set up distributor
-        feeCollector.setDistributor(DISTRIBUTOR);
+        feeCollector.setDistributor(address(mockDistributor));
 
         vm.stopPrank();
     }
@@ -195,7 +200,7 @@ contract FeeCollectorTest is Test {
         assertEq(feeCollector.targetChainMinFee(DEST_CHAIN_ID), 1 ether);
 
         // Check distributor
-        assertEq(feeCollector.distributor(), DISTRIBUTOR);
+        assertEq(address(feeCollector.distributor()), address(mockDistributor));
     }
 
     function test_RevertWhen_InitializeWithZeroAddress() public {
@@ -1209,7 +1214,7 @@ contract FeeCollectorTest is Test {
 
         // Verify state changes
         assertEq(feeCollector.lpFeesClaimed(), expectedLpFee);
-        assertEq(stablecoin.balanceOf(DISTRIBUTOR), expectedLpFee);
+        assertEq(stablecoin.balanceOf(address(mockDistributor)), expectedLpFee);
     }
 
     function testSendLpFeesToDistributorMultipleTimes() public {
@@ -1262,7 +1267,7 @@ contract FeeCollectorTest is Test {
 
         // Verify state
         assertEq(feeCollector.lpFeesClaimed(), totalLpFee);
-        assertEq(stablecoin.balanceOf(DISTRIBUTOR), totalLpFee);
+        assertEq(stablecoin.balanceOf(address(mockDistributor)), totalLpFee);
         assertEq(feeCollector.claimableLPFees(), 0);
     }
 
@@ -1347,10 +1352,10 @@ contract FeeCollectorTest is Test {
         // Transfer tokens
         stablecoin.mint(address(feeCollector), lpFee);
 
-        // Change distributor
-        address newDistributor = makeAddr("NEW_DISTRIBUTOR");
+        // Change distributor to a new mock distributor
+        MockMerkleDistributor newMockDistributor = new MockMerkleDistributor();
         vm.startPrank(ADMIN);
-        feeCollector.setDistributor(newDistributor);
+        feeCollector.setDistributor(address(newMockDistributor));
         vm.stopPrank();
 
         // Send fees to new distributor
@@ -1359,26 +1364,26 @@ contract FeeCollectorTest is Test {
         vm.stopPrank();
 
         // Verify fees went to new distributor
-        assertEq(stablecoin.balanceOf(newDistributor), lpFee);
+        assertEq(stablecoin.balanceOf(address(newMockDistributor)), lpFee);
         assertEq(feeCollector.lpFeesClaimed(), lpFee);
     }
 
     function testSetDistributor() public {
-        address newDistributor = makeAddr("NEW_DISTRIBUTOR");
+        MockMerkleDistributor newDistributor = new MockMerkleDistributor();
 
         vm.startPrank(ADMIN);
-        feeCollector.setDistributor(newDistributor);
+        feeCollector.setDistributor(address(newDistributor));
         vm.stopPrank();
 
-        assertEq(feeCollector.distributor(), newDistributor);
+        assertEq(address(feeCollector.distributor()), address(newDistributor));
     }
 
     function test_RevertWhen_SetDistributorNonAdmin() public {
-        address newDistributor = makeAddr("NEW_DISTRIBUTOR");
+        MockMerkleDistributor newDistributor = new MockMerkleDistributor();
 
         vm.prank(RANDOM_USER);
         vm.expectRevert();
-        feeCollector.setDistributor(newDistributor);
+        feeCollector.setDistributor(address(newDistributor));
     }
 
     function test_RevertWhen_SetDistributorZeroAddress() public {
@@ -1388,20 +1393,20 @@ contract FeeCollectorTest is Test {
     }
 
     function testSetDistributorMultipleTimes() public {
-        address newDistributor1 = makeAddr("NEW_DISTRIBUTOR_1");
-        address newDistributor2 = makeAddr("NEW_DISTRIBUTOR_2");
+        MockMerkleDistributor newDistributor1 = new MockMerkleDistributor();
+        MockMerkleDistributor newDistributor2 = new MockMerkleDistributor();
 
         vm.startPrank(ADMIN);
         
         // Set first distributor
-        feeCollector.setDistributor(newDistributor1);
+        feeCollector.setDistributor(address(newDistributor1));
 
         // Set second distributor
-        feeCollector.setDistributor(newDistributor2);
+        feeCollector.setDistributor(address(newDistributor2));
         
         vm.stopPrank();
 
         // Verify final distributor
-        assertEq(feeCollector.distributor(), newDistributor2);
+        assertEq(address(feeCollector.distributor()), address(newDistributor2));
     }
 }

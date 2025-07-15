@@ -8,6 +8,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusErrors} from "../libs/GeniusErrors.sol";
 import {IFeeCollector} from "../interfaces/IFeeCollector.sol";
+import {IMerkleDistributor} from "../interfaces/IMerkleDistributor.sol";
+
 
 /**
  * @title FeeCollector
@@ -56,7 +58,7 @@ contract FeeCollector is
     address public vault;
 
     // The distributor address
-    address public distributor;
+    IMerkleDistributor public distributor;
 
     modifier onlyAdmin() {
         if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
@@ -216,14 +218,17 @@ contract FeeCollector is
      * @dev Can only be called by a DISTRIBUTOR_ROLE
      */
     function sendLpFeesToDistributor() external onlyRole(DISTRIBUTOR_ROLE) {
-        address _distributor = distributor;
+        address _distributor = address(distributor);
         if (_distributor == address(0)) revert GeniusErrors.NonAddress0();
 
         uint256 amount = lpFeesCollected - lpFeesClaimed;
         if (amount == 0) revert GeniusErrors.InvalidAmount();
 
         lpFeesClaimed += amount;   
-        stablecoin.safeTransfer(_distributor, amount);
+
+        stablecoin.approve(_distributor, amount);
+        distributor.submitRewards(address(stablecoin), amount);
+        stablecoin.approve(_distributor, 0);
 
         emit LpFeesSentToDistributor(msg.sender, _distributor, amount);
     }
@@ -426,7 +431,7 @@ contract FeeCollector is
      */
     function _setDistributor(address _distributor) internal {
         if (_distributor == address(0)) revert GeniusErrors.NonAddress0();
-        distributor = _distributor;
+        distributor = IMerkleDistributor(_distributor);
         emit DistributorSet(_distributor);
     }
 
