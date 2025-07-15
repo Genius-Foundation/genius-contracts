@@ -42,6 +42,11 @@ contract MerkleDistributor is IMerkleDistributor, UUPSUpgradeable, AccessControl
     // This is a packed array of booleans.
     mapping (bytes32 => mapping (uint256 => uint256)) private _claimedBitMap;
 
+    // Constructor disables initialization for implementation contract
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
      * @dev See {IGeniusVault-initialize}.
      */

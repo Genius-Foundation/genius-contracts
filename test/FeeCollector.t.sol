@@ -70,6 +70,8 @@ contract FeeCollectorTest is Test {
         uint256[] bpsFees
     );
     event TargetChainMinFeeChanged(uint256 targetChainId, uint256 newMinFee);
+    event LpFeesSentToDistributor(address indexed sender, address indexed receiver, uint256 amount);
+    event DistributorSet(address indexed distributor);
 
     function setUp() public {
         // Deploy stablecoin
@@ -133,6 +135,9 @@ contract FeeCollectorTest is Test {
         // Set up minimum fee for destination chain
         feeCollector.setTargetChainMinFee(DEST_CHAIN_ID, 1 ether);
 
+        // Set up distributor
+        feeCollector.setDistributor(DISTRIBUTOR);
+
         vm.stopPrank();
     }
 
@@ -188,6 +193,9 @@ contract FeeCollectorTest is Test {
 
         // Check min fee
         assertEq(feeCollector.targetChainMinFee(DEST_CHAIN_ID), 1 ether);
+
+        // Check distributor
+        assertEq(feeCollector.distributor(), DISTRIBUTOR);
     }
 
     function test_RevertWhen_InitializeWithZeroAddress() public {
@@ -267,6 +275,39 @@ contract FeeCollectorTest is Test {
         vm.prank(ADMIN);
         vm.expectRevert();
         feeCollector.setVault(address(0));
+    }
+
+    function testSetVaultMultipleTimes() public {
+        address newVault1 = makeAddr("NEW_VAULT_1");
+        address newVault2 = makeAddr("NEW_VAULT_2");
+
+        vm.startPrank(ADMIN);
+        
+        // Set first vault
+        vm.expectEmit(true, true, true, true);
+        emit VaultSet(newVault1);
+        feeCollector.setVault(newVault1);
+        assertEq(feeCollector.vault(), newVault1);
+
+        // Set second vault
+        vm.expectEmit(true, true, true, true);
+        emit VaultSet(newVault2);
+        feeCollector.setVault(newVault2);
+        assertEq(feeCollector.vault(), newVault2);
+        
+        vm.stopPrank();
+    }
+
+    function testSetVaultSameAddress() public {
+        address currentVault = feeCollector.vault();
+        
+        vm.startPrank(ADMIN);
+        vm.expectEmit(true, true, true, true);
+        emit VaultSet(currentVault);
+        feeCollector.setVault(currentVault); // Setting to same address should still emit event
+        vm.stopPrank();
+
+        assertEq(feeCollector.vault(), currentVault);
     }
 
     function testSetProtocolFee() public {
@@ -1135,5 +1176,232 @@ contract FeeCollectorTest is Test {
 
         // Verify the new distributor got the funds
         assertEq(stablecoin.balanceOf(newDistributor), lpFee);
+    }
+
+    function testSendLpFeesToDistributor() public {
+        // First, add some fees
+        uint256 orderAmount = 1000 ether;
+
+        IFeeCollector.FeeBreakdown memory expectedFees = feeCollector
+            .getOrderFees(orderAmount, DEST_CHAIN_ID);
+
+        // Simulate vault calling collect
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount,
+            DEST_CHAIN_ID,
+            expectedFees.totalFee
+        );
+
+        // Calculate expected LP fee
+        uint256 expectedProtocolFee = (expectedFees.bpsFee * PROTOCOL_FEE_BPS) /
+            BASE_PERCENTAGE;
+        uint256 expectedLpFee = expectedFees.bpsFee - expectedProtocolFee;
+
+        // Transfer tokens to the fee collector so it can pay out
+        stablecoin.mint(address(feeCollector), expectedLpFee);
+
+        // Send LP fees to distributor as distributor
+        vm.startPrank(DISTRIBUTOR);
+        feeCollector.sendLpFeesToDistributor();
+        vm.stopPrank();
+
+        // Verify state changes
+        assertEq(feeCollector.lpFeesClaimed(), expectedLpFee);
+        assertEq(stablecoin.balanceOf(DISTRIBUTOR), expectedLpFee);
+    }
+
+    function testSendLpFeesToDistributorMultipleTimes() public {
+        // First collection
+        uint256 orderAmount1 = 500 ether;
+        IFeeCollector.FeeBreakdown memory fees1 = feeCollector.getOrderFees(
+            orderAmount1,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount1,
+            DEST_CHAIN_ID,
+            fees1.totalFee
+        );
+
+        // Second collection
+        uint256 orderAmount2 = 1000 ether;
+        IFeeCollector.FeeBreakdown memory fees2 = feeCollector.getOrderFees(
+            orderAmount2,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount2,
+            DEST_CHAIN_ID,
+            fees2.totalFee
+        );
+
+        // Calculate total LP fees
+        uint256 protocolFee1 = (fees1.bpsFee * PROTOCOL_FEE_BPS) / BASE_PERCENTAGE;
+        uint256 lpFee1 = fees1.bpsFee - protocolFee1;
+        
+        uint256 protocolFee2 = (fees2.bpsFee * PROTOCOL_FEE_BPS) / BASE_PERCENTAGE;
+        uint256 lpFee2 = fees2.bpsFee - protocolFee2;
+        
+        uint256 totalLpFee = lpFee1 + lpFee2;
+
+        // Transfer tokens for claiming
+        stablecoin.mint(address(feeCollector), totalLpFee);
+
+        // Send all LP fees to distributor
+        vm.startPrank(DISTRIBUTOR);
+        feeCollector.sendLpFeesToDistributor();
+        vm.stopPrank();
+
+        // Verify state
+        assertEq(feeCollector.lpFeesClaimed(), totalLpFee);
+        assertEq(stablecoin.balanceOf(DISTRIBUTOR), totalLpFee);
+        assertEq(feeCollector.claimableLPFees(), 0);
+    }
+
+    function testSendLpFeesToDistributorWithPartialClaims() public {
+        // Add fees
+        uint256 orderAmount = 1000 ether;
+        IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
+            orderAmount,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount,
+            DEST_CHAIN_ID,
+            fees.totalFee
+        );
+
+        // Calculate LP fee
+        uint256 protocolFee = (fees.bpsFee * PROTOCOL_FEE_BPS) / BASE_PERCENTAGE;
+        uint256 lpFee = fees.bpsFee - protocolFee;
+
+        // Transfer tokens
+        stablecoin.mint(address(feeCollector), lpFee);
+
+        // First, claim some LP fees normally
+        vm.startPrank(DISTRIBUTOR);
+        uint256 partialClaim = lpFee / 2;
+        feeCollector.claimLPFees();
+        vm.stopPrank();
+
+        // Now try to send remaining fees to distributor - should revert since no fees left
+        vm.startPrank(DISTRIBUTOR);
+        vm.expectRevert();
+        feeCollector.sendLpFeesToDistributor();
+        vm.stopPrank();
+
+        // Verify no additional fees were sent
+        assertEq(feeCollector.lpFeesClaimed(), lpFee);
+    }
+
+    function test_RevertWhen_SendLpFeesToDistributorNonDistributor() public {
+        vm.prank(RANDOM_USER);
+        vm.expectRevert();
+        feeCollector.sendLpFeesToDistributor();
+    }
+
+    function test_RevertWhen_SendLpFeesToDistributorNoFees() public {
+        vm.prank(DISTRIBUTOR);
+        vm.expectRevert();
+        feeCollector.sendLpFeesToDistributor();
+    }
+
+    function test_RevertWhen_SendLpFeesToDistributorZeroDistributor() public {
+        // Set distributor to zero address - this should revert
+        vm.prank(ADMIN);
+        vm.expectRevert();
+        feeCollector.setDistributor(address(0));
+    }
+
+    function testSendLpFeesToDistributorAfterDistributorChange() public {
+        // Add fees
+        uint256 orderAmount = 1000 ether;
+        IFeeCollector.FeeBreakdown memory fees = feeCollector.getOrderFees(
+            orderAmount,
+            DEST_CHAIN_ID
+        );
+
+        vm.prank(address(vault));
+        feeCollector.collectFromVault(
+            bytes32(0),
+            orderAmount,
+            DEST_CHAIN_ID,
+            fees.totalFee
+        );
+
+        // Calculate LP fee
+        uint256 protocolFee = (fees.bpsFee * PROTOCOL_FEE_BPS) / BASE_PERCENTAGE;
+        uint256 lpFee = fees.bpsFee - protocolFee;
+
+        // Transfer tokens
+        stablecoin.mint(address(feeCollector), lpFee);
+
+        // Change distributor
+        address newDistributor = makeAddr("NEW_DISTRIBUTOR");
+        vm.startPrank(ADMIN);
+        feeCollector.setDistributor(newDistributor);
+        vm.stopPrank();
+
+        // Send fees to new distributor
+        vm.startPrank(DISTRIBUTOR);
+        feeCollector.sendLpFeesToDistributor();
+        vm.stopPrank();
+
+        // Verify fees went to new distributor
+        assertEq(stablecoin.balanceOf(newDistributor), lpFee);
+        assertEq(feeCollector.lpFeesClaimed(), lpFee);
+    }
+
+    function testSetDistributor() public {
+        address newDistributor = makeAddr("NEW_DISTRIBUTOR");
+
+        vm.startPrank(ADMIN);
+        feeCollector.setDistributor(newDistributor);
+        vm.stopPrank();
+
+        assertEq(feeCollector.distributor(), newDistributor);
+    }
+
+    function test_RevertWhen_SetDistributorNonAdmin() public {
+        address newDistributor = makeAddr("NEW_DISTRIBUTOR");
+
+        vm.prank(RANDOM_USER);
+        vm.expectRevert();
+        feeCollector.setDistributor(newDistributor);
+    }
+
+    function test_RevertWhen_SetDistributorZeroAddress() public {
+        vm.prank(ADMIN);
+        vm.expectRevert();
+        feeCollector.setDistributor(address(0));
+    }
+
+    function testSetDistributorMultipleTimes() public {
+        address newDistributor1 = makeAddr("NEW_DISTRIBUTOR_1");
+        address newDistributor2 = makeAddr("NEW_DISTRIBUTOR_2");
+
+        vm.startPrank(ADMIN);
+        
+        // Set first distributor
+        feeCollector.setDistributor(newDistributor1);
+
+        // Set second distributor
+        feeCollector.setDistributor(newDistributor2);
+        
+        vm.stopPrank();
+
+        // Verify final distributor
+        assertEq(feeCollector.distributor(), newDistributor2);
     }
 }

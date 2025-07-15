@@ -55,6 +55,9 @@ contract FeeCollector is
     // Only the vault can add fees
     address public vault;
 
+    // The distributor address
+    address public distributor;
+
     modifier onlyAdmin() {
         if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
             revert GeniusErrors.IsNotAdmin();
@@ -195,15 +198,34 @@ contract FeeCollector is
         onlyRole(DISTRIBUTOR_ROLE)
         returns (uint256 amount)
     {
+        address _lpFeeReceiver = lpFeeReceiver;
+        if (_lpFeeReceiver == address(0)) revert GeniusErrors.NonAddress0();
+
         amount = lpFeesCollected - lpFeesClaimed;
         if (amount == 0) revert GeniusErrors.InvalidAmount();
-        if (lpFeeReceiver == address(0)) revert GeniusErrors.NonAddress0();
 
         lpFeesClaimed += amount;
-        stablecoin.safeTransfer(lpFeeReceiver, amount);
+        stablecoin.safeTransfer(_lpFeeReceiver, amount);
 
-        emit LPFeesClaimed(msg.sender, lpFeeReceiver, amount);
+        emit LPFeesClaimed(msg.sender, _lpFeeReceiver, amount);
         return amount;
+    }
+
+    /**
+     * @notice Allows LP fee distributors to send LP fees to the distributor
+     * @dev Can only be called by a DISTRIBUTOR_ROLE
+     */
+    function sendLpFeesToDistributor() external onlyRole(DISTRIBUTOR_ROLE) {
+        address _distributor = distributor;
+        if (_distributor == address(0)) revert GeniusErrors.NonAddress0();
+
+        uint256 amount = lpFeesCollected - lpFeesClaimed;
+        if (amount == 0) revert GeniusErrors.InvalidAmount();
+
+        lpFeesClaimed += amount;   
+        stablecoin.safeTransfer(_distributor, amount);
+
+        emit LpFeesSentToDistributor(msg.sender, _distributor, amount);
     }
 
     /**
@@ -258,6 +280,14 @@ contract FeeCollector is
      */
     function setVault(address _vault) external onlyAdmin {
         _setVault(_vault);
+    }
+
+    /**
+     * @notice Sets the distributor address that can send LP fees to
+     * @param _distributor The distributor contract address
+     */
+    function setDistributor(address _distributor) external onlyAdmin {
+        _setDistributor(_distributor);
     }
 
     /**
@@ -388,6 +418,16 @@ contract FeeCollector is
         if (_vault == address(0)) revert GeniusErrors.NonAddress0();
         vault = _vault;
         emit VaultSet(_vault);
+    }
+
+    /**
+     * @dev Internal function to set the distributor address
+     * @param _distributor The distributor contract address
+     */
+    function _setDistributor(address _distributor) internal {
+        if (_distributor == address(0)) revert GeniusErrors.NonAddress0();
+        distributor = _distributor;
+        emit DistributorSet(_distributor);
     }
 
     /**

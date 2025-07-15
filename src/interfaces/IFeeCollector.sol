@@ -69,6 +69,14 @@ interface IFeeCollector {
     );
 
     /**
+     * @notice Emitted when LP fees are sent to the distributor
+     * @param sender The address that sent the fees
+     * @param distributor The distributor address
+     * @param amount The amount sent
+     */
+    event LpFeesSentToDistributor(address sender, address distributor, uint256 amount);
+
+    /**
      * @notice Emitted when operator fees are claimed
      * @param claimant The address that initiated the claim
      * @param receiver The address that received the fees
@@ -103,6 +111,12 @@ interface IFeeCollector {
      * @param vault The new vault address
      */
     event VaultSet(address vault);
+
+    /**
+     * @notice Emitted when the distributor address is set
+     * @param distributor The new distributor address
+     */
+    event DistributorSet(address distributor);
 
     /**
      * @notice Emitted when the protocol fee percentage is updated
