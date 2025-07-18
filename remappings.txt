@@ -2,4 +2,5 @@
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts
 permit2/=lib/permit2/src/
 @solmate/=lib/solmate/src/
+@solady/=lib/solady/src/
 @aave/core-v3/contracts/=lib/aave-v3-core/contracts/
