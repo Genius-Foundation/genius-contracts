@@ -106,15 +106,13 @@ contract GeniusVault is GeniusVaultCore {
             order.fee
         );
 
-        insuranceFeesAccumulated += order.fee - amountToTransfer;
-
-        STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
-
-        // Transfer the appropriate amount to the fee collector
         if (amountToTransfer == 0 || amountToTransfer > order.fee) {
             revert GeniusErrors.InvalidFeeAmount();
         }
 
+        insuranceFeesAccumulated += order.fee - amountToTransfer;
+
+        STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
         // Transfer fees to fee collector contract
         STABLECOIN.safeTransfer(address(feeCollector), amountToTransfer);
 
