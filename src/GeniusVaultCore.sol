@@ -608,12 +608,9 @@ abstract contract GeniusVaultCore is
             uint80 answeredInRound
         ) {
             if (startedAt == 0) revert GeniusErrors.InvalidRound();
-            if (answeredInRound < roundId)
-                revert GeniusErrors.StalePrice(updatedAt);
 
             if (block.timestamp - updatedAt > priceFeedHeartbeat)
                 revert GeniusErrors.StalePrice(updatedAt);
-
             if (price <= 0) revert GeniusErrors.InvalidPrice();
 
             uint256 priceUint = uint256(price);
