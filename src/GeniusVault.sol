@@ -68,7 +68,7 @@ contract GeniusVault is GeniusVaultCore {
      */
     function createOrder(
         Order memory order
-    ) external payable virtual override whenNotPaused {
+    ) external virtual override whenNotPaused {
         // Check stablecoin price before accepting the order
         _verifyStablecoinPrice();
 
@@ -99,7 +99,7 @@ contract GeniusVault is GeniusVaultCore {
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
 
-        // Call the fee collector to process fees
+        // Call the FeeCollector to process fees
         uint256 amountToTransfer = feeCollector.collectFromVault(
             orderHash_,
             order.amountIn,
