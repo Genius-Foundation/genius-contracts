@@ -557,7 +557,8 @@ contract FeeCollector is
     /**
      * @dev Internal function to determine the basis points fee based on order size.
      * Returns the bps fee for the appropriate tier.
-     * If no tiers are set or amount is below the first tier, returns 0.
+     * If no tiers are set, returns 0.
+     * If amount is below the first tier, returns the first tier fee.
      * @param _amount The order amount to determine the fee for
      * @return bpsFee The basis points fee to apply
      */
