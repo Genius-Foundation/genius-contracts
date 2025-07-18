@@ -142,9 +142,8 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
 
         // If there is any native balance, transfer it to the receiver.
         if (nativeBalance != 0) {
+            // We don't check if the call is successful because we don't want to revert the entire transaction to avoid DOS
             (bool successNative, ) = receiver.call{value: nativeBalance}("");
-            if (!successNative)
-                revert GeniusErrors.ExternalCallFailed(receiver);
         }
     }
 
