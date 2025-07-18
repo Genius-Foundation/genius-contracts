@@ -9,6 +9,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {GeniusErrors} from "../libs/GeniusErrors.sol";
 import {IFeeCollector} from "../interfaces/IFeeCollector.sol";
 import {IMerkleDistributor} from "../interfaces/IMerkleDistributor.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+
 
 
 /**
@@ -629,12 +631,11 @@ contract FeeCollector is
 
         // Calculate BPS fee
         uint256 bpsFeePercentage = _getBpsFeeForAmount(_amount);
-        uint256 bpsFee = (_amount * bpsFeePercentage) / BASE_PERCENTAGE;
+        uint256 bpsFee = Math.mulDiv(_amount, bpsFeePercentage, BASE_PERCENTAGE, Math.Rounding.Floor);
 
         // Calculate insurance fee
         uint256 insuranceFeePercentage = _getInsuranceFeeBpsForAmount(_amount);
-        uint256 insuranceFee = (_amount * insuranceFeePercentage) /
-            BASE_PERCENTAGE;
+        uint256 insuranceFee = Math.mulDiv(_amount, insuranceFeePercentage, BASE_PERCENTAGE, Math.Rounding.Floor);
 
         // Calculate total fee
         uint256 totalFee = baseFee + bpsFee + insuranceFee;
