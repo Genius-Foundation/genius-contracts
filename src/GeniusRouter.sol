@@ -181,7 +181,7 @@ contract GeniusRouter is IGeniusRouter {
         bytes32 tokenOut
     ) external payable override {
         address owner = msg.sender;
-        if (permitBatch.details.length != 0)
+        if (permitBatch.details.length != 1)
             revert GeniusErrors.ArrayLengthsMismatch();
         if (permitBatch.details[0].token != address(STABLECOIN))
             revert GeniusErrors.InvalidTokenIn();
