@@ -635,7 +635,7 @@ contract FeeCollector is
 
         // Calculate insurance fee
         uint256 insuranceFeePercentage = _getInsuranceFeeBpsForAmount(_amount);
-        uint256 insuranceFee = Math.mulDiv(_amount, insuranceFeePercentage, BASE_PERCENTAGE, Math.Rounding.Floor);
+        uint256 insuranceFee = Math.mulDiv(_amount, insuranceFeePercentage, BASE_PERCENTAGE, Math.Rounding.Ceil);
 
         // Calculate total fee
         uint256 totalFee = baseFee + bpsFee + insuranceFee;
