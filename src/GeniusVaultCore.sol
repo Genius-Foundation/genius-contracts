@@ -148,6 +148,8 @@ abstract contract GeniusVaultCore is
         bytes calldata data
     ) external payable virtual override onlyOrchestrator whenNotPaused {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
+        if (dstChainId == _currentChainId())
+            revert GeniusErrors.InvalidDestChainId(dstChainId);
         _isAmountValid(amountIn, availableAssets());
 
         STABLECOIN.safeTransfer(address(PROXYCALL), amountIn);
