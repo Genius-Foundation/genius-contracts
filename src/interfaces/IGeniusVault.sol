@@ -244,7 +244,7 @@ interface IGeniusVault {
      * of the source chain in a cross-chain order flow.
      * @param order The Order struct containing the order details.
      */
-    function createOrder(Order memory order) external payable;
+    function createOrder(Order memory order) external;
 
     /**
      * @notice Fill an order on the destination chain

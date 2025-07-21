@@ -68,7 +68,7 @@ contract GeniusVault is GeniusVaultCore {
      */
     function createOrder(
         Order memory order
-    ) external payable virtual override whenNotPaused {
+    ) external virtual override whenNotPaused {
         // Check stablecoin price before accepting the order
         _verifyStablecoinPrice();
 
@@ -79,6 +79,7 @@ contract GeniusVault is GeniusVaultCore {
             order.amountIn <= order.fee ||
             order.amountIn > maxOrderAmount
         ) revert GeniusErrors.InvalidAmount();
+        if (order.fee == 0) revert GeniusErrors.InvalidFeeAmount();
         if (order.tokenIn != addressToBytes32(address(STABLECOIN)))
             revert GeniusErrors.InvalidTokenIn();
         if (order.tokenOut == bytes32(0)) revert GeniusErrors.NonAddress0();
@@ -98,7 +99,7 @@ contract GeniusVault is GeniusVaultCore {
         if (orderStatus[orderHash_] != OrderStatus.Nonexistant)
             revert GeniusErrors.InvalidOrderStatus();
 
-        // Call the fee collector to process fees
+        // Call the FeeCollector to process fees
         uint256 amountToTransfer = feeCollector.collectFromVault(
             orderHash_,
             order.amountIn,
@@ -106,15 +107,13 @@ contract GeniusVault is GeniusVaultCore {
             order.fee
         );
 
-        insuranceFeesAccumulated += order.fee - amountToTransfer;
-
-        STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
-
-        // Transfer the appropriate amount to the fee collector
         if (amountToTransfer == 0 || amountToTransfer > order.fee) {
             revert GeniusErrors.InvalidFeeAmount();
         }
 
+        insuranceFeesAccumulated += order.fee - amountToTransfer;
+
+        STABLECOIN.safeTransferFrom(msg.sender, address(this), order.amountIn);
         // Transfer fees to fee collector contract
         STABLECOIN.safeTransfer(address(feeCollector), amountToTransfer);
 

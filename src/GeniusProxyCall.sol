@@ -142,9 +142,8 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
 
         // If there is any native balance, transfer it to the receiver.
         if (nativeBalance != 0) {
+            // We don't check if the call is successful because we don't want to revert the entire transaction to avoid DOS
             (bool successNative, ) = receiver.call{value: nativeBalance}("");
-            if (!successNative)
-                revert GeniusErrors.ExternalCallFailed(receiver);
         }
     }
 
@@ -290,6 +289,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         } else {
             uint256 tokensLength = tokens.length;
             for (uint256 i; i < tokensLength; i++) {
+                IERC20(tokens[i]).approve(toApprove, 0);
                 IERC20(tokens[i]).approve(toApprove, type(uint256).max);
             }
 
@@ -322,6 +322,7 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
             (bool _success, ) = target.call{value: msg.value}(data);
             if (!_success) revert GeniusErrors.ExternalCallFailed(target);
         } else {
+            IERC20(token).approve(target, 0);
             IERC20(token).approve(target, type(uint256).max);
 
             (bool _success, ) = target.call{value: msg.value}(data);
