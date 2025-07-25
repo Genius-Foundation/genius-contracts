@@ -133,7 +133,8 @@ contract GeniusRouter is IGeniusRouter {
         address[] memory tokensIn = _permitAndBatchTransfer(
             permitBatch,
             permitSignature,
-            owner
+            owner,
+            address(PROXYCALL)
         );
 
         if (target == address(PROXYCALL))
@@ -186,7 +187,7 @@ contract GeniusRouter is IGeniusRouter {
         if (permitBatch.details[0].token != address(STABLECOIN))
             revert GeniusErrors.InvalidTokenIn();
 
-        _permitAndBatchTransfer(permitBatch, permitSignature, owner);
+        _permitAndBatchTransfer(permitBatch, permitSignature, owner, address(this));
 
         uint256 delta = STABLECOIN.balanceOf(address(this));
 
@@ -216,7 +217,8 @@ contract GeniusRouter is IGeniusRouter {
     function _permitAndBatchTransfer(
         IAllowanceTransfer.PermitBatch calldata permitBatch,
         bytes calldata permitSignature,
-        address owner
+        address owner,
+        address transferTo
     ) private returns (address[] memory tokensIn) {
         tokensIn = new address[](permitBatch.details.length);
         if (permitBatch.spender != address(this))
@@ -232,7 +234,7 @@ contract GeniusRouter is IGeniusRouter {
             tokensIn[i] = permitBatch.details[i].token;
             transferDetails[i] = IAllowanceTransfer.AllowanceTransferDetails({
                 from: owner,
-                to: address(PROXYCALL),
+                to: transferTo,
                 amount: permitBatch.details[i].amount,
                 token: permitBatch.details[i].token
             });
