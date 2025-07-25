@@ -223,9 +223,11 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
     ) external payable onlyCallerOrSelf {
         if (target == address(0)) revert GeniusErrors.NonAddress0();
         if (!_isContract(target)) revert GeniusErrors.TargetIsNotContract();
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        if (balance != 0) {
-            IERC20(token).safeTransfer(target, balance);
+        if (token != NATIVE_TOKEN) {
+            uint256 balance = IERC20(token).balanceOf(address(this));
+            if (balance != 0) {
+                IERC20(token).safeTransfer(target, balance);
+            }
         }
         (bool _success, ) = target.call{value: msg.value}(data);
         if (!_success) revert GeniusErrors.ExternalCallFailed(target);
