@@ -9,6 +9,7 @@ import {GeniusVault} from "../../src/GeniusVault.sol";
 import {GeniusRouter} from "../../src/GeniusRouter.sol";
 import {GeniusGasTank} from "../../src/GeniusGasTank.sol";
 import {FeeCollector} from "../../src/fees/FeeCollector.sol";
+import {MerkleDistributor} from "../../src/distributor/MerkleDistributor.sol";
 
 /**
  * @title DeployPolygonGeniusEcosystem
@@ -24,6 +25,8 @@ contract DeployGeniusEcosystemCore is Script {
     GeniusRouter public geniusRouter;
     GeniusGasTank public geniusGasTank;
     GeniusProxyCall public geniusProxyCall;
+    MerkleDistributor public merkleDistributor;
+    FeeCollector public feeCollector;
 
     function _run(
         address _permit2Address,
@@ -31,10 +34,12 @@ contract DeployGeniusEcosystemCore is Script {
         address _priceFeed,
         uint256 _priceFeedHeartbeat,
         address _owner,
-        address[] memory orchestrators,
         uint256[] memory targetNetworks,
-        address[] memory feeTokens,
-        uint256[] memory minFeeAmounts
+        uint256[] memory minFeeAmounts,
+        uint256[] memory bpsThresholds,
+        uint256[] memory bpsFees,
+        uint256 insuranceFee,
+        uint256 maxOrderSize
     ) internal {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
@@ -54,7 +59,7 @@ contract DeployGeniusEcosystemCore is Script {
             _priceFeedHeartbeat,
             99_000_000,
             101_000_000,
-            100_000_000 // 100usd
+            maxOrderSize
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
@@ -77,7 +82,7 @@ contract DeployGeniusEcosystemCore is Script {
             FeeCollector.initialize.selector,
             _owner, // admin address
             _stableAddress, // stablecoin address
-            1000, // 10% protocol fee
+            3000, // 30% protocol fee
             protocolFeeReceiver,
             lpFeeReceiver,
             operatorFeeReceiver
@@ -88,10 +93,7 @@ contract DeployGeniusEcosystemCore is Script {
             address(feeCollectorImpl),
             feeCollectorInitData
         );
-        console.log(
-            "FeeCollector proxy deployed at:",
-            address(feeCollectorProxy)
-        );
+        feeCollector = FeeCollector(address(feeCollectorProxy));
 
         geniusRouter = new GeniusRouter(
             _permit2Address,
@@ -107,24 +109,54 @@ contract DeployGeniusEcosystemCore is Script {
             address(geniusProxyCall)
         );
 
-        // Add orchestrators
-        for (uint256 i = 0; i < orchestrators.length; i++) {
-            geniusVault.grantRole(ORCHESTRATOR_ROLE, orchestrators[i]);
+        // Deploy the implementation contract
+        MerkleDistributor merkleDistributorImpl = new MerkleDistributor();
+        console.log("MerkleDistributor implementation deployed at: ", address(merkleDistributorImpl));
+
+        // Prepare initialization data
+        bytes memory initData = abi.encodeWithSelector(
+            MerkleDistributor.initialize.selector,
+            _owner
+        );
+
+        // Deploy the proxy contract
+        ERC1967Proxy merkleDistributorProxy = new ERC1967Proxy(
+            address(merkleDistributorImpl),
+            initData
+        );
+
+        // Cast the proxy to MerkleDistributor for verification
+        merkleDistributor = MerkleDistributor(address(merkleDistributorProxy));
+
+        feeCollector.grantRole(feeCollector.DISTRIBUTOR_ROLE(), address(merkleDistributor));
+        merkleDistributor.grantRole(merkleDistributor.DISTRIBUTOR_ROLE(), address(feeCollector));
+
+        feeCollector.setFeeTiers(bpsThresholds, bpsFees);
+
+        uint256[] memory insuranceThresholdAmounts = new uint256[](1);
+        uint256[] memory insuranceFees = new uint256[](1);
+        insuranceFees[0] = insuranceFee;
+        feeCollector.setInsuranceFeeTiers(
+            insuranceThresholdAmounts,
+            insuranceFees
+        );
+
+        for (uint256 i = 0; i < targetNetworks.length; i++) {
+            if (targetNetworks[i] == block.chainid) {
+                continue; // Skip current chain
+            }
+            feeCollector.setTargetChainMinFee(targetNetworks[i], minFeeAmounts[i]);
         }
 
-        // Set up fee tiers based on order size - moved to fee collector
-        // This is handled by the FeeCollector now, not the vault
-        // uint256[] memory thresholdAmounts = new uint256[](3);
-        // thresholdAmounts[0] = 0;       // First tier starts at 0 (smallest orders)
-        // thresholdAmounts[1] = 1000000; // 1000 USD (with 6 decimals)
-        // thresholdAmounts[2] = 10000000; // 10000 USD (with 6 decimals)
-
-        // uint256[] memory bpsFees = new uint256[](3);
-        // bpsFees[0] = 30; // 0.3% for smallest orders
-        // bpsFees[1] = 20; // 0.2% for medium orders
-        // bpsFees[2] = 10; // 0.1% for large orders
-
-        // FeeCollector deployment and setup should be handled separately
+        geniusVault.setChainStablecoinDecimals(10, 6);
+        geniusVault.setChainStablecoinDecimals(1, 6);
+        geniusVault.setChainStablecoinDecimals(8453, 6);
+        geniusVault.setChainStablecoinDecimals(42161, 6);
+        geniusVault.setChainStablecoinDecimals(43114, 6);
+        geniusVault.setChainStablecoinDecimals(56, 18);
+        geniusVault.setChainStablecoinDecimals(1399811149, 6);
+        geniusVault.setChainStablecoinDecimals(146, 6);
+        geniusVault.setChainStablecoinDecimals(137, 6);
 
         geniusProxyCall.grantRole(
             keccak256("CALLER_ROLE"),
@@ -143,5 +175,7 @@ contract DeployGeniusEcosystemCore is Script {
         console.log("GeniusVault deployed at: ", address(geniusVault));
         console.log("GeniusRouter deployed at: ", address(geniusRouter));
         console.log("GeniusGasTank deployed at: ", address(geniusGasTank));
+        console.log("FeeCollector deployed at: ", address(feeCollector));
+        console.log("MerkleDistributor deployed at: ", address(merkleDistributor));
     }
 }
