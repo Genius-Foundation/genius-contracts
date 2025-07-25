@@ -120,7 +120,7 @@ abstract contract GeniusVaultCore is
         if (_stablecoin == address(0)) revert GeniusErrors.NonAddress0();
         if (_admin == address(0)) revert GeniusErrors.NonAddress0();
 
-        __ERC20_init("Genius USD", "gUSD");
+        __ERC20_init("Genius USD", "USDGG");
         __AccessControl_init();
         __Pausable_init();
         __ReentrancyGuard_init();

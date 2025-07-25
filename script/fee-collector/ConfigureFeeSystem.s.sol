@@ -71,15 +71,15 @@ contract ConfigureFeeSystem is BaseScriptContext {
     function configureTargetChainMinFees(FeeCollector feeCollector) internal {
         // Define all supported chains and their min fees
         uint256[] memory allChainIds = new uint256[](9);
-        allChainIds[0] = BSC; // BSC
-        allChainIds[1] = BASE; // BASE
-        allChainIds[2] = ARBITRUM; // ARBITRUM
-        allChainIds[3] = OPTIMISM; // OPTIMISM
-        allChainIds[4] = AVAX; // AVALANCHE
-        allChainIds[5] = SOLANA; // SOLANA
-        allChainIds[6] = POLYGON; // POLYGON
-        allChainIds[7] = SONIC; // SONIC
-        allChainIds[8] = ETHEREUM; // ETHEREUM
+        allChainIds[0] = 56; // BSC
+        allChainIds[1] = 8453; // BASE
+        allChainIds[2] = 42161; // ARBITRUM
+        allChainIds[3] = 10; // OPTIMISM
+        allChainIds[4] = 43114; // AVALANCHE
+        allChainIds[5] = 1399811149; // SOLANA
+        allChainIds[6] = 137; // POLYGON
+        allChainIds[7] = 146; // SONIC
+        allChainIds[8] = 1; // ETHEREUM
 
         uint256[] memory minFees = new uint256[](9);
         minFees[0] = 100_000; // $0.1 BSC
