@@ -68,10 +68,6 @@ contract DeployGeniusEcosystemCore is Script {
 
         // Deploy FeeCollector implementation
         FeeCollector feeCollectorImpl = new FeeCollector();
-        console.log(
-            "FeeCollector implementation deployed at:",
-            address(feeCollectorImpl)
-        );
 
         address protocolFeeReceiver = _owner;
         address lpFeeReceiver = _owner;
@@ -111,7 +107,6 @@ contract DeployGeniusEcosystemCore is Script {
 
         // Deploy the implementation contract
         MerkleDistributor merkleDistributorImpl = new MerkleDistributor();
-        console.log("MerkleDistributor implementation deployed at: ", address(merkleDistributorImpl));
 
         // Prepare initialization data
         bytes memory initData = abi.encodeWithSelector(
