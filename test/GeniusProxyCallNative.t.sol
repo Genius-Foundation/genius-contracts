@@ -10,6 +10,7 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockDepositContract} from "./mocks/MockDeposit.sol";
 import {MockDepositRouter} from "./mocks/MockDepositRouter.sol";
+import {MockERC20LikeUSDT} from "lib/solady/test/utils/mocks/MockERC20LikeUSDT.sol";
 
 contract GeniusProxyCallNativeTokenTest is Test {
     uint256 constant BASE_ROUTER_WETH_BALANCE = 100 ether;
@@ -396,6 +397,266 @@ contract GeniusProxyCallNativeTokenTest is Test {
 
         return encoded;
     }
+
+    // ============ USDT TESTS ============
+    
+    // Test USDT approval behavior with native token context
+    function testApproveTokenExecuteWithUSDTAndNative() public {
+        // Deploy mock USDT-like token
+        MockERC20LikeUSDT usdt = new MockERC20LikeUSDT();
+        
+        // Give USDT to ProxyCall
+        deal(address(usdt), address(PROXYCALL), 1000 * 10**6); // 1000 USDT (6 decimals)
+        
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(usdt),
+            address(WETH),
+            500 * 10**6, // 500 USDT
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+        PROXYCALL.approveTokenExecute(
+            address(usdt),
+            address(DEX_ROUTER),
+            swapData
+        );
+        vm.stopPrank();
+
+        // Verify USDT was transferred to DEX router
+        assertEq(usdt.balanceOf(address(DEX_ROUTER)), 500 * 10**6);
+        
+        // Verify approval was reset to 0
+        assertEq(usdt.allowance(address(PROXYCALL), address(DEX_ROUTER)), 0);
+    }
+
+    // Test USDT swap to native token (ETH)
+    function testApproveTokenExecuteAndVerifyWithUSDTToNative() public {
+        // Deploy mock USDT-like token
+        MockERC20LikeUSDT usdt = new MockERC20LikeUSDT();
+        
+        // Give USDT to ProxyCall
+        deal(address(usdt), address(PROXYCALL), 1000 * 10**6); // 1000 USDT (6 decimals)
+        
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTokenToETH.selector,
+            address(usdt),
+            500 * 10**6, // 500 USDT
+            USER
+        );
+
+        uint256 userETHBefore = USER.balance;
+
+        vm.startPrank(CALLER);
+        uint256 amountOut = PROXYCALL.approveTokenExecuteAndVerify(
+            address(usdt), // Input token that needs approval
+            address(DEX_ROUTER),
+            swapData,
+            NATIVE_TOKEN, // Output token is ETH
+            BASE_DEX_ETH_BALANCE / 4, // Expect some ETH
+            USER
+        );
+        vm.stopPrank();
+
+        assertEq(
+            amountOut,
+            BASE_DEX_ETH_BALANCE / 2,
+            "Amount out should match expected"
+        );
+        assertEq(
+            USER.balance - userETHBefore,
+            BASE_DEX_ETH_BALANCE / 2,
+            "User should receive ETH"
+        );
+        
+        // Verify USDT approval was reset
+        assertEq(usdt.allowance(address(PROXYCALL), address(DEX_ROUTER)), 0);
+    }
+
+    // Test USDT with native value transfer
+    function testTransferTokenAndExecuteWithUSDTAndNativeValue() public {
+        // Deploy mock USDT-like token
+        MockERC20LikeUSDT usdt = new MockERC20LikeUSDT();
+        
+        // Give USDT to ProxyCall
+        deal(address(usdt), address(PROXYCALL), 1000 * 10**6); // 1000 USDT (6 decimals)
+        
+        bytes memory depositData = abi.encodeWithSelector(
+            MOCK_DEPOSIT_ROUTER.depositBalance.selector,
+            address(usdt)
+        );
+
+        uint256 depositUSDTBefore = usdt.balanceOf(address(MOCK_DEPOSIT));
+
+        vm.deal(CALLER, 3 ether);
+        vm.startPrank(CALLER);
+        PROXYCALL.transferTokenAndExecute{value: 3 ether}(
+            address(usdt),
+            address(MOCK_DEPOSIT_ROUTER),
+            depositData
+        );
+        vm.stopPrank();
+
+        assertEq(
+            usdt.balanceOf(address(MOCK_DEPOSIT)) - depositUSDTBefore,
+            1000 * 10**6,
+            "Deposit should receive USDT"
+        );
+        assertEq(
+            address(MOCK_DEPOSIT_ROUTER).balance,
+            3 ether,
+            "Router should receive ETH"
+        );
+    }
+
+    // Test USDT call function with native token output
+    function testCallWithUSDTSwapToNative() public {
+        // Deploy mock USDT-like token
+        MockERC20LikeUSDT usdt = new MockERC20LikeUSDT();
+        
+        // Give USDT to ProxyCall
+        deal(address(usdt), address(PROXYCALL), 1000 * 10**6); // 1000 USDT (6 decimals)
+        
+        bytes memory data = abi.encodeWithSelector(
+            DEX_ROUTER.swapTokenToETH.selector,
+            address(usdt),
+            500 * 10**6, // 500 USDT
+            USER
+        );
+
+        uint256 userETHBefore = USER.balance;
+
+        vm.startPrank(CALLER);
+        (address effTOut, uint256 effAOut, bool success) = PROXYCALL.call(
+            USER,
+            address(DEX_ROUTER),
+            address(0),
+            address(usdt),
+            NATIVE_TOKEN,
+            BASE_DEX_ETH_BALANCE / 4,
+            data,
+            ""
+        );
+        vm.stopPrank();
+
+        assertEq(effTOut, NATIVE_TOKEN, "Effective tokenOut should be NATIVE_TOKEN");
+        assertEq(effAOut, BASE_DEX_ETH_BALANCE / 2, "Effective amountOut should be half of the router's ETH balance");
+        assertEq(success, true, "Operation should be successful");
+        assertEq(USER.balance - userETHBefore, BASE_DEX_ETH_BALANCE / 2, "User should receive ETH");
+        
+        // Verify USDT approval was reset
+        assertEq(usdt.allowance(address(PROXYCALL), address(DEX_ROUTER)), 0);
+    }
+
+    // Test USDT with real USDT address on Avalanche in native context
+    function testApproveTokenExecuteWithRealUSDTAndNative() public {
+        // Use real USDT on Avalanche
+        ERC20 realUSDT = ERC20(0x9702230A8Ea53601f5cD2dc00fDBc13d4dF4A8c7);
+        
+        // Give real USDT to ProxyCall
+        deal(address(realUSDT), address(PROXYCALL), 1000 * 10**6); // 1000 USDT (6 decimals)
+        
+        bytes memory swapData = abi.encodeWithSelector(
+            DEX_ROUTER.swapTo.selector,
+            address(realUSDT),
+            address(WETH),
+            500 * 10**6, // 500 USDT
+            address(USER)
+        );
+
+        vm.startPrank(CALLER);
+        PROXYCALL.approveTokenExecute(
+            address(realUSDT),
+            address(DEX_ROUTER),
+            swapData
+        );
+        vm.stopPrank();
+
+        // Verify USDT was transferred to DEX router
+        assertEq(realUSDT.balanceOf(address(DEX_ROUTER)), 500 * 10**6);
+        
+        // Verify approval was reset to 0
+        assertEq(realUSDT.allowance(address(PROXYCALL), address(DEX_ROUTER)), 0);
+    }
+
+    // Test USDT multiSend with native value
+    function testMultiSendWithUSDTAndNative() public {
+        // Deploy mock USDT-like token
+        MockERC20LikeUSDT usdt = new MockERC20LikeUSDT();
+        
+        // Give USDT to ProxyCall
+        deal(address(usdt), address(PROXYCALL), 1000 * 10**6); // 1000 USDT (6 decimals)
+        
+        address[] memory targets = new address[](2);
+        bytes[] memory data = new bytes[](2);
+        uint256[] memory values = new uint256[](2);
+
+        // First call: transfer some USDT
+        targets[0] = address(usdt);
+        data[0] = abi.encodeWithSelector(
+            usdt.transfer.selector,
+            USER,
+            500 * 10**6
+        );
+        values[0] = 0;
+
+        // Second call: transfer remaining USDT
+        targets[1] = address(usdt);
+        data[1] = abi.encodeWithSelector(
+            usdt.transfer.selector,
+            address(DEX_ROUTER),
+            500 * 10**6
+        );
+        values[1] = 0;
+
+        bytes memory transactions = _encodeTransactions(targets, values, data);
+
+        vm.startPrank(CALLER);
+        bytes memory multiSendData = abi.encodeWithSelector(
+            GeniusProxyCall.multiSend.selector,
+            transactions
+        );
+        PROXYCALL.execute(address(PROXYCALL), multiSendData);
+        vm.stopPrank();
+
+        assertEq(usdt.balanceOf(USER), 500 * 10**6);
+        assertEq(usdt.balanceOf(address(DEX_ROUTER)), 500 * 10**6);
+    }
+
+    // Test USDT with ETH balance recovery
+    function testCallWithUSDTAndETHBalanceRecovery() public {
+        // Deploy mock USDT-like token
+        MockERC20LikeUSDT usdt = new MockERC20LikeUSDT();
+        
+        // Give USDT to ProxyCall
+        deal(address(usdt), address(PROXYCALL), 1000 * 10**6); // 1000 USDT (6 decimals)
+        
+        // Give ProxyCall some ETH
+        vm.deal(address(PROXYCALL), 5 ether);
+
+        // Do a simple USDT transfer (no swap, no call)
+        vm.startPrank(CALLER);
+        (, , bool success) = PROXYCALL.call(
+            USER,
+            address(0),
+            address(0),
+            address(usdt),
+            address(usdt),
+            1000 * 10**6,
+            "",
+            ""
+        );
+        vm.stopPrank();
+
+        assertEq(success, true);
+        assertEq(usdt.balanceOf(USER), 1000 * 10**6);
+
+        // Check that ETH was also sent to the user
+        assertEq(USER.balance, 5 ether, "User should receive the ETH balance");
+    }
+
+    // ============ END USDT TESTS ============
 }
 
 // Helper contract that rejects ETH

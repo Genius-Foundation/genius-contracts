@@ -291,15 +291,14 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
         } else {
             uint256 tokensLength = tokens.length;
             for (uint256 i; i < tokensLength; i++) {
-                IERC20(tokens[i]).approve(toApprove, 0);
-                IERC20(tokens[i]).approve(toApprove, type(uint256).max);
+                IERC20(tokens[i]).forceApprove(toApprove, type(uint256).max);
             }
 
             (bool _success, ) = target.call{value: msg.value}(data);
             if (!_success) revert GeniusErrors.ExternalCallFailed(target);
 
             for (uint i; i < tokensLength; i++) {
-                IERC20(tokens[i]).approve(toApprove, 0);
+                IERC20(tokens[i]).forceApprove(toApprove, 0);
             }
         }
     }
@@ -324,13 +323,12 @@ contract GeniusProxyCall is IGeniusProxyCall, MultiSendCallOnly, AccessControl {
             (bool _success, ) = target.call{value: msg.value}(data);
             if (!_success) revert GeniusErrors.ExternalCallFailed(target);
         } else {
-            IERC20(token).approve(target, 0);
-            IERC20(token).approve(target, type(uint256).max);
+            IERC20(token).forceApprove(target, type(uint256).max);
 
             (bool _success, ) = target.call{value: msg.value}(data);
             if (!_success) revert GeniusErrors.ExternalCallFailed(target);
 
-            IERC20(token).approve(target, 0);
+            IERC20(token).forceApprove(target, 0);
         }
     }
 
