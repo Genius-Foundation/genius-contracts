@@ -134,7 +134,18 @@ contract GeniusVaultAccounting is Test {
         OWNER = address(0x1);
         TRADER = address(0x2);
         ORCHESTRATOR = address(0x3);
-        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
+        // Deploy proxy call implementation and proxy
+        GeniusProxyCall proxyCallImpl = new GeniusProxyCall();
+        bytes memory proxyCallInitData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            OWNER,
+            new address[](0)
+        );
+        ERC1967Proxy proxyCallProxy = new ERC1967Proxy(
+            address(proxyCallImpl),
+            proxyCallInitData
+        );
+        PROXYCALL = GeniusProxyCall(payable(address(proxyCallProxy)));
 
         vm.startPrank(OWNER);
 

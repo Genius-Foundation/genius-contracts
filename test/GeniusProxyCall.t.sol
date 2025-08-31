@@ -2,6 +2,7 @@
 pragma solidity ^0.8.4;
 
 import {Test, console} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {GeniusProxyCall} from "src/GeniusProxyCall.sol";
 import {GeniusRouter} from "src/GeniusRouter.sol";
 import {GeniusVault} from "src/GeniusVault.sol";
@@ -49,7 +50,19 @@ contract GeniusProxyCallTest is Test {
 
         DEX_ROUTER = new MockDEXRouter();
 
-        PROXYCALL = new GeniusProxyCall(ADMIN, new address[](0));
+        // Deploy implementation and proxy for upgradeable pattern
+        GeniusProxyCall implementation = new GeniusProxyCall();
+        bytes memory initData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            ADMIN,
+            new address[](0)
+        );
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(implementation),
+            initData
+        );
+        PROXYCALL = GeniusProxyCall(payable(address(proxy)));
+
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
 

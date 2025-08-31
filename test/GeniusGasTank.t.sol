@@ -12,6 +12,8 @@ import {IEIP712} from "permit2/interfaces/IEIP712.sol";
 import {GeniusErrors} from "../src/libs/GeniusErrors.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {SignatureVerification} from "permit2/libraries/SignatureVerification.sol";
 
 contract GeniusGasTankTest is Test {
     uint256 constant BASE_USER_USDC_BALANCE = 100 ether;
@@ -52,7 +54,19 @@ contract GeniusGasTankTest is Test {
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
 
-        PROXYCALL = new GeniusProxyCall(ADMIN, new address[](0));
+        // Deploy GeniusProxyCall implementation and proxy
+        GeniusProxyCall proxyCallImpl = new GeniusProxyCall();
+        bytes memory proxyCallInitData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            ADMIN,
+            new address[](0)
+        );
+        ERC1967Proxy proxyCallProxy = new ERC1967Proxy(
+            address(proxyCallImpl),
+            proxyCallInitData
+        );
+        PROXYCALL = GeniusProxyCall(payable(address(proxyCallProxy)));
+
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
         DAI = ERC20(0xd586E7F844cEa2F87f50152665BCbc2C279D8d70);
@@ -962,7 +976,7 @@ contract GeniusGasTankTest is Test {
         vm.startPrank(USER);
 
         vm.expectRevert(
-            abi.encodeWithSelector(GeniusErrors.InvalidSignature.selector)
+            abi.encodeWithSelector(SignatureVerification.InvalidSigner.selector)
         );
         GAS_TANK.aggregateWithPermit2(
             address(ROUTER),

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -18,29 +20,47 @@ import {IFeeCollector} from "./interfaces/IFeeCollector.sol";
  * @notice The GeniusRouter contract allows for the aggregation of multiple calls
  *         in a single transaction, as well as facilitating interactions with the GeniusVault contract.
  */
-contract GeniusRouter is IGeniusRouter {
+contract GeniusRouter is IGeniusRouter, UUPSUpgradeable, AccessControlUpgradeable {
     using SafeERC20 for IERC20;
 
     // ╔═══════════════════════════════════════════════════════════╗
     // ║                        IMMUTABLES                         ║
     // ╚═══════════════════════════════════════════════════════════╝
 
-    IERC20 public immutable override STABLECOIN;
-    IGeniusVault public immutable VAULT;
-    IAllowanceTransfer public immutable PERMIT2;
-    IGeniusProxyCall public immutable PROXYCALL;
-    IFeeCollector public immutable FEE_COLLECTOR;
+    IERC20 public STABLECOIN;
+    IGeniusVault public VAULT;
+    IAllowanceTransfer public PERMIT2;
+    IGeniusProxyCall public PROXYCALL;
+    IFeeCollector public FEE_COLLECTOR;
 
-    // ╔═══════════════════════════════════════════════════════════╗
-    // ║                        CONSTRUCTOR                        ║
-    // ╚═══════════════════════════════════════════════════════════╝
+    constructor() {
+        _disableInitializers();
+    }
 
-    constructor(
+    /**
+     * @notice Initializes the contract with required parameters
+     * @param permit2 Permit2 contract address
+     * @param vault Vault contract address
+     * @param proxycall Proxy call contract address
+     * @param feeCollector Fee collector contract address
+     * @param _admin Admin address
+     */
+    function initialize(
         address permit2,
         address vault,
         address proxycall,
-        address feeCollector
-    ) {
+        address feeCollector,
+        address _admin
+    ) external initializer {
+        if (permit2 == address(0)) revert GeniusErrors.NonAddress0();
+        if (vault == address(0)) revert GeniusErrors.NonAddress0();
+        if (proxycall == address(0)) revert GeniusErrors.NonAddress0();
+        if (feeCollector == address(0)) revert GeniusErrors.NonAddress0();
+        if (_admin == address(0)) revert GeniusErrors.NonAddress0();
+
+        __AccessControl_init();
+        __UUPSUpgradeable_init();
+
         PERMIT2 = IAllowanceTransfer(permit2);
         VAULT = IGeniusVault(vault);
         PROXYCALL = IGeniusProxyCall(proxycall);
@@ -48,7 +68,23 @@ contract GeniusRouter is IGeniusRouter {
 
         STABLECOIN = VAULT.STABLECOIN();
         STABLECOIN.approve(address(VAULT), type(uint256).max);
+
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                         MODIFIERS                         ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    modifier onlyAdmin() {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender))
+            revert GeniusErrors.IsNotAdmin();
+        _;
+    }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                    EXTERNAL FUNCTIONS                     ║
+    // ╚═══════════════════════════════════════════════════════════╝
 
     /**
      * @dev See {IGeniusRouter-swapAndCreateOrder}.
@@ -208,6 +244,20 @@ contract GeniusRouter is IGeniusRouter {
     }
 
     /**
+     * @dev Sets the proxy call contract address
+     * @param _proxyCall New proxy call contract address
+     */
+    function setGeniusProxyCall(address _proxyCall) external onlyAdmin {
+        if (_proxyCall == address(0)) revert GeniusErrors.NonAddress0();
+        PROXYCALL = IGeniusProxyCall(_proxyCall);
+        emit ProxyCallChanged(_proxyCall);
+    }
+
+    // ╔═══════════════════════════════════════════════════════════╗
+    // ║                   INTERNAL FUNCTIONS                      ║
+    // ╚═══════════════════════════════════════════════════════════╝
+
+    /**
      * @dev Internal function to permit and batch transfer tokens.
      *
      * @param permitBatch The permit batch details
@@ -242,6 +292,14 @@ contract GeniusRouter is IGeniusRouter {
 
         PERMIT2.transferFrom(transferDetails);
     }
+
+    /**
+     * @dev Authorizes contract upgrades.
+     * @param newImplementation The address of the new implementation.
+     */
+    function _authorizeUpgrade(
+        address newImplementation
+    ) internal override onlyAdmin {}
 
     /**
      * @dev Fallback function to prevent native tokens from being sent directly.

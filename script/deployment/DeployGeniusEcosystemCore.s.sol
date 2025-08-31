@@ -45,7 +45,18 @@ contract DeployGeniusEcosystemCore is Script {
         vm.startBroadcast(deployerPrivateKey);
         // geniusActions = new GeniusActions(admin);
 
-        geniusProxyCall = new GeniusProxyCall(_owner, new address[](0));
+        // Deploy GeniusProxyCall implementation and proxy
+        GeniusProxyCall proxyCallImpl = new GeniusProxyCall();
+        bytes memory proxyCallInitData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            _owner,
+            new address[](0)
+        );
+        ERC1967Proxy proxyCallProxy = new ERC1967Proxy(
+            address(proxyCallImpl),
+            proxyCallInitData
+        );
+        geniusProxyCall = GeniusProxyCall(payable(address(proxyCallProxy)));
 
         GeniusVault implementation = new GeniusVault();
 
@@ -91,12 +102,21 @@ contract DeployGeniusEcosystemCore is Script {
         );
         feeCollector = FeeCollector(address(feeCollectorProxy));
 
-        geniusRouter = new GeniusRouter(
+        // Deploy GeniusRouter implementation and proxy
+        GeniusRouter routerImpl = new GeniusRouter();
+        bytes memory routerInitData = abi.encodeWithSelector(
+            GeniusRouter.initialize.selector,
             _permit2Address,
             address(geniusVault),
             address(geniusProxyCall),
-            address(feeCollectorProxy) // Assuming feeCollector is set up elsewhere
+            address(feeCollectorProxy),
+            _owner
         );
+        ERC1967Proxy routerProxy = new ERC1967Proxy(
+            address(routerImpl),
+            routerInitData
+        );
+        geniusRouter = GeniusRouter(payable(address(routerProxy)));
 
         geniusGasTank = new GeniusGasTank(
             _owner,

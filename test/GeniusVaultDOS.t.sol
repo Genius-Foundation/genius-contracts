@@ -70,7 +70,18 @@ contract GeniusVaultDOSTest is Test {
         address[] memory routers = new address[](1);
         routers[0] = address(DEX_ROUTER);
 
-        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
+        // Deploy proxy call implementation and proxy
+        GeniusProxyCall proxyCallImpl = new GeniusProxyCall();
+        bytes memory proxyCallInitData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            OWNER,
+            new address[](0)
+        );
+        ERC1967Proxy proxyCallProxy = new ERC1967Proxy(
+            address(proxyCallImpl),
+            proxyCallInitData
+        );
+        PROXYCALL = GeniusProxyCall(payable(address(proxyCallProxy)));
 
         vm.startPrank(OWNER);
         GeniusVault implementation = new GeniusVault();

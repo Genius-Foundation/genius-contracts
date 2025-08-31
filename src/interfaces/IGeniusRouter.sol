@@ -100,6 +100,12 @@ interface IGeniusRouter {
         bytes32 tokenOut
     ) external payable;
 
+    /**
+     * @notice Sets the proxy call contract address
+     * @param _proxyCall New proxy call contract address
+     */
+    function setGeniusProxyCall(address _proxyCall) external;
+
     // =============================================================
     //                           VARIABLES
     // =============================================================
@@ -115,4 +121,14 @@ interface IGeniusRouter {
      * @return IERC20 The STABLECOIN token interface.
      */
     function STABLECOIN() external view returns (IERC20);
+
+    // =============================================================
+    //                           EVENTS
+    // =============================================================
+
+    /**
+     * @notice Emitted when the proxy call contract is changed
+     * @param newProxyCall The new proxy call contract address
+     */
+    event ProxyCallChanged(address indexed newProxyCall);
 }

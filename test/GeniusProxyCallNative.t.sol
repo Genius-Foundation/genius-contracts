@@ -11,6 +11,7 @@ import {MockDEXRouter} from "./mocks/MockDEXRouter.sol";
 import {MockDepositContract} from "./mocks/MockDeposit.sol";
 import {MockDepositRouter} from "./mocks/MockDepositRouter.sol";
 import {MockERC20LikeUSDT} from "lib/solady/test/utils/mocks/MockERC20LikeUSDT.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract GeniusProxyCallNativeTokenTest is Test {
     uint256 constant BASE_ROUTER_WETH_BALANCE = 100 ether;
@@ -52,7 +53,19 @@ contract GeniusProxyCallNativeTokenTest is Test {
 
         DEX_ROUTER = new MockDEXRouter();
 
-        PROXYCALL = new GeniusProxyCall(ADMIN, new address[](0));
+        // Deploy proxy call implementation and proxy
+        GeniusProxyCall proxyCallImpl = new GeniusProxyCall();
+        bytes memory proxyCallInitData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            ADMIN,
+            new address[](0)
+        );
+        ERC1967Proxy proxyCallProxy = new ERC1967Proxy(
+            address(proxyCallImpl),
+            proxyCallInitData
+        );
+        PROXYCALL = GeniusProxyCall(payable(address(proxyCallProxy)));
+
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
 
