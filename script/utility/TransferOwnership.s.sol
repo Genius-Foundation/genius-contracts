@@ -67,6 +67,23 @@ contract ChangeAdminOwnership is BaseScriptContext {
             );
         }
 
+        // Process MerkleDistributor
+        console.log("\n=== Processing MerkleDistributor ===");
+        address merkleDistributorAddress = tryGetContractAddress("MERKLE_DISTRIBUTOR");
+        if (merkleDistributorAddress != address(0)) {
+            console.log("MerkleDistributor address:", merkleDistributorAddress);
+            changeAdmin(
+                merkleDistributorAddress,
+                newAdmin,
+                previousAdmin,
+                "MerkleDistributor"
+            );
+        } else {
+            console.log(
+                "Skipping MerkleDistributor: Address not found for this environment"
+            );
+        }
+
         vm.stopBroadcast();
 
         console.log("\n=== Admin ownership change complete ===");

@@ -23,14 +23,26 @@ contract DeployRouter is BaseScriptContext {
         address proxyCallAddress = getProxyCallAddress();
         address feeCollectorlAddress = getFeeCollectorAddress();
 
-        // Deploy GeniusRouter
-        GeniusRouter geniusRouter = new GeniusRouter(
+        // Deploy GeniusRouter implementation
+        GeniusRouter geniusRouterImpl = new GeniusRouter();
+        console.log("GeniusRouter implementation deployed at:", address(geniusRouterImpl));
+
+        // Prepare initialization data
+        bytes memory initData = abi.encodeWithSelector(
+            GeniusRouter.initialize.selector,
             vm.envAddress("PERMIT2_ADDRESS"), // Permit2 (same on all chains)
             vaultAddress,
             proxyCallAddress,
-            feeCollectorlAddress
+            feeCollectorlAddress,
+            owner // admin
         );
-        console.log("GeniusRouter deployed at:", address(geniusRouter));
+
+        // Deploy proxy
+        ERC1967Proxy routerProxy = new ERC1967Proxy(
+            address(geniusRouterImpl),
+            initData
+        );
+        console.log("GeniusRouter proxy deployed at:", address(routerProxy));
 
         // Grant CALLER_ROLE to the router on ProxyCall contract
         GeniusProxyCall geniusProxyCall = GeniusProxyCall(
@@ -38,7 +50,7 @@ contract DeployRouter is BaseScriptContext {
         );
 
         bytes32 CALLER_ROLE = keccak256("CALLER_ROLE");
-        geniusProxyCall.grantRole(CALLER_ROLE, address(geniusRouter));
+        geniusProxyCall.grantRole(CALLER_ROLE, address(routerProxy));
         console.log("Granted CALLER_ROLE to GeniusRouter on ProxyCall");
 
         console.log("Router deployment complete");
@@ -46,9 +58,9 @@ contract DeployRouter is BaseScriptContext {
             "IMPORTANT: Set ROUTER_%s_%s=%s in your .env file",
             network,
             deployEnv,
-            address(geniusRouter)
+            address(routerProxy)
         );
 
         vm.stopBroadcast();
     }
-}
+} 

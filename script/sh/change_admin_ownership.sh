@@ -19,7 +19,7 @@ declare -A chain_ids=(
 )
 
 # Environments to process
-environments=("DEV" "STAGING")
+environments=("PROD")
 
 # Source .env file to load environment variables
 if [ -f .env ]; then

@@ -72,7 +72,18 @@ contract GeniusSponsoredOrdersTest is Test {
         PERMIT2 = IEIP712(0x000000000022D473030F116dDEE9F6B43aC78BA3);
         DOMAIN_SEPERATOR = PERMIT2.DOMAIN_SEPARATOR();
 
-        PROXYCALL = new GeniusProxyCall(ADMIN, new address[](0));
+        // Deploy proxy call implementation and proxy
+        GeniusProxyCall proxyCallImpl = new GeniusProxyCall();
+        bytes memory proxyCallInitData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            ADMIN,
+            new address[](0)
+        );
+        ERC1967Proxy proxyCallProxy = new ERC1967Proxy(
+            address(proxyCallImpl),
+            proxyCallInitData
+        );
+        PROXYCALL = GeniusProxyCall(payable(address(proxyCallProxy)));
 
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
@@ -157,12 +168,21 @@ contract GeniusSponsoredOrdersTest is Test {
 
         // Set decimals in Vault
         GENIUS_VAULT.setChainStablecoinDecimals(destChainId, 6);
-        GENIUS_ROUTER = new GeniusRouter(
+        // Deploy GeniusRouter implementation and proxy
+        GeniusRouter routerImpl = new GeniusRouter();
+        bytes memory routerInitData = abi.encodeWithSelector(
+            GeniusRouter.initialize.selector,
             address(PERMIT2),
             address(GENIUS_VAULT),
             address(PROXYCALL),
-            address(FEE_COLLECTOR)
+            address(FEE_COLLECTOR),
+            ADMIN
         );
+        ERC1967Proxy routerProxy = new ERC1967Proxy(
+            address(routerImpl),
+            routerInitData
+        );
+        GENIUS_ROUTER = GeniusRouter(payable(address(routerProxy)));
 
         RECEIVER = GENIUS_VAULT.addressToBytes32(USER);
         TOKEN_OUT = GENIUS_VAULT.addressToBytes32(address(USDC));

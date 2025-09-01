@@ -27,7 +27,19 @@ contract GeniusVaultStakingTest is Test {
         trader = makeAddr("trader");
         usdc = new MockUSDC();
 
-        PROXYCALL = new GeniusProxyCall(owner, new address[](0));
+        // Deploy proxy call implementation and proxy
+        GeniusProxyCall proxyCallImpl = new GeniusProxyCall();
+        bytes memory proxyCallInitData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            owner,
+            new address[](0)
+        );
+        ERC1967Proxy proxyCallProxy = new ERC1967Proxy(
+            address(proxyCallImpl),
+            proxyCallInitData
+        );
+        PROXYCALL = GeniusProxyCall(payable(address(proxyCallProxy)));
+
         MOCK_PRICE_FEED = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
 
         vm.startPrank(owner);
@@ -50,6 +62,7 @@ contract GeniusVaultStakingTest is Test {
 
         geniusVault = GeniusVault(address(proxy));
 
+        // Grant role after vault is deployed
         PROXYCALL.grantRole(PROXYCALL.CALLER_ROLE(), address(geniusVault));
 
         usdc.mint(trader, 1_000 ether);

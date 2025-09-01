@@ -65,7 +65,18 @@ contract GeniusVaultTest is Test {
         USDC = ERC20(0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E);
         WETH = ERC20(0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB);
 
-        PROXYCALL = new GeniusProxyCall(OWNER, new address[](0));
+        // Deploy proxy call implementation and proxy
+        GeniusProxyCall proxyCallImpl = new GeniusProxyCall();
+        bytes memory proxyCallInitData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            OWNER,
+            new address[](0)
+        );
+        ERC1967Proxy proxyCallProxy = new ERC1967Proxy(
+            address(proxyCallImpl),
+            proxyCallInitData
+        );
+        PROXYCALL = GeniusProxyCall(payable(address(proxyCallProxy)));
 
         vm.startPrank(OWNER, OWNER);
 

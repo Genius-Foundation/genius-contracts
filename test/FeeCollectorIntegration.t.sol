@@ -61,8 +61,18 @@ contract FeeCollectorIntegrationTest is Test {
         // Deploy price feed
         priceFeed = new MockV3Aggregator(INITIAL_STABLECOIN_PRICE);
 
-        // Deploy proxy call
-        proxyCall = new GeniusProxyCall(ADMIN, new address[](0));
+        // Deploy proxy call implementation and proxy
+        GeniusProxyCall proxyCallImpl = new GeniusProxyCall();
+        bytes memory proxyCallInitData = abi.encodeWithSelector(
+            GeniusProxyCall.initialize.selector,
+            ADMIN,
+            new address[](0)
+        );
+        ERC1967Proxy proxyCallProxy = new ERC1967Proxy(
+            address(proxyCallImpl),
+            proxyCallInitData
+        );
+        proxyCall = GeniusProxyCall(payable(address(proxyCallProxy)));
 
         // Deploy FeeCollector
         FeeCollector feeCollectorImplementation = new FeeCollector();

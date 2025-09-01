@@ -13,7 +13,7 @@ abstract contract BaseScriptContext is Script {
     string public network;
     string public deployEnv;
     uint256 public chainId;
-    address public owner = 0x5CC11Ef1DE86c5E00259a463Ac3F3AE1A0fA2909; // Default owner
+    address public owner;
     uint256 public deployerPrivateKey;
 
     // Chain IDs
@@ -59,6 +59,10 @@ abstract contract BaseScriptContext is Script {
             deployEnv = "DEV";
             console.log("Using default environment: DEV");
         }
+
+        // Get owner address from environment variable
+        owner = getOwnerAddress();
+        console.log("Owner address:", owner);
     }
 
     /**
@@ -77,6 +81,20 @@ abstract contract BaseScriptContext is Script {
         if (_chainId == ETHEREUM) return "ETHEREUM";
         if (_chainId == SOLANA) return "SOLANA";
         return "UNKNOWN";
+    }
+
+    /**
+     * @dev Gets the owner address from environment variable based on deploy environment
+     * @return The owner address for the current deployment environment
+     */
+    function getOwnerAddress() internal view returns (address) {
+        string memory varName = string.concat("OWNER_", deployEnv);
+        try vm.envAddress(varName) returns (address ownerAddr) {
+            console.log("Using owner address from %s: %s", varName, ownerAddr);
+            return ownerAddr;
+        } catch {
+            revert(string.concat("Failed to get owner address from ", varName));
+        }
     }
 
     /**
