@@ -81,8 +81,8 @@ contract GeniusSwapRouter is IGeniusSwapRouter, Ownable, ReentrancyGuard {
     // ========== MAIN SWAP FUNCTION ==========
     
     /**
-     * @notice Execute a swap through a whitelisted router with fee deduction
-     * @param router Address of the whitelisted DEX router to use
+     * @notice Execute a swap through a router with fee deduction
+     * @param router Address of the DEX router to use
      * @param tokenIn Address of the input token (use address(0) for native ETH)
      * @param amountIn Amount of input tokens (before fee deduction)
      * @param swapCalldata The calldata to forward to the router (already adjusted for fee)
