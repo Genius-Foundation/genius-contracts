@@ -35,9 +35,11 @@ contract GeniusSwapRouter is IGeniusSwapRouter, Ownable, ReentrancyGuard {
     
     /**
      * @notice Initialize the contract
+     * @param _owner Initial owner address
      * @param _feeCollector Initial fee collector address
      */
-    constructor(address _feeCollector) Ownable(msg.sender) {
+    constructor(address _owner, address _feeCollector) Ownable(_owner) {
+        if (_owner == address(0)) revert InvalidOwnerAddress();
         if (_feeCollector == address(0)) revert InvalidFeeCollectorAddress();
         
         feeCollector = _feeCollector;
@@ -113,11 +115,6 @@ contract GeniusSwapRouter is IGeniusSwapRouter, Ownable, ReentrancyGuard {
             (fee, amountAfterFee, actualReceived) = _handleTokenSwap(tokenIn, amountIn, router);
         }
         
-        // Measure balances BEFORE router call
-        uint256 ethBalanceBefore = address(this).balance;
-        uint256 tokenInBalanceBefore = (tokenIn != NATIVE_PLACEHOLDER) ? IERC20(tokenIn).balanceOf(address(this)) : 0;
-        uint256 tokenOutBalanceBefore = (tokenOut != NATIVE_PLACEHOLDER) ? IERC20(tokenOut).balanceOf(address(this)) : 0;
-        
         // Execute the router call
         bool success;
         
@@ -139,10 +136,7 @@ contract GeniusSwapRouter is IGeniusSwapRouter, Ownable, ReentrancyGuard {
         // Sweep any residual tokens back to the user (only the delta from this transaction)
         _sweepResidualsToUser(
             tokenIn, 
-            tokenOut, 
-            ethBalanceBefore, 
-            tokenInBalanceBefore, 
-            tokenOutBalanceBefore
+            tokenOut
         );
         
         // Emit event with both requested amount and actual received amount
@@ -310,47 +304,38 @@ contract GeniusSwapRouter is IGeniusSwapRouter, Ownable, ReentrancyGuard {
     }
 
     /**
-    * @notice Sweep residual tokens back to user (only delta from this transaction)
+    * @notice Sweep all residual tokens back to user
     * @param tokenIn Address of input token
     * @param tokenOut Address of output token
-    * @param ethBalanceBefore ETH balance before router call
-    * @param tokenInBalanceBefore tokenIn balance before router call
-    * @param tokenOutBalanceBefore tokenOut balance before router call
-    * @dev Only sweeps the difference in balances from before/after router call
+    * @dev Sweeps all remaining balances of ETH, tokenIn, and tokenOut to msg.sender
     */
     function _sweepResidualsToUser(
         address tokenIn,
-        address tokenOut,
-        uint256 ethBalanceBefore,
-        uint256 tokenInBalanceBefore,
-        uint256 tokenOutBalanceBefore
+        address tokenOut
     ) private {
-        // Sweep residual ETH (from ETH refunds) - only the delta
-        uint256 ethBalanceAfter = address(this).balance;
-        if (ethBalanceAfter > ethBalanceBefore) {
-            uint256 ethDelta = ethBalanceAfter - ethBalanceBefore;
-            (bool success, ) = msg.sender.call{value: ethDelta}("");
-            if (!success) revert ETHTransferFailed();
+        // Sweep all residual ETH
+        uint256 ethBalance = address(this).balance;
+        if (ethBalance > 0) {
+            (bool success, ) = msg.sender.call{value: ethBalance}("");
+            if (!success) revert ETHSweepFailed();
         }
         
-        // Sweep residual tokenIn (from partial fills or refunds) - only the delta
+        // Sweep all residual tokenIn
         if (tokenIn != NATIVE_PLACEHOLDER) {
-            uint256 tokenInBalanceAfter = IERC20(tokenIn).balanceOf(address(this));
-            if (tokenInBalanceAfter > tokenInBalanceBefore) {
-                uint256 tokenInDelta = tokenInBalanceAfter - tokenInBalanceBefore;
-                if (!IERC20(tokenIn).transfer(msg.sender, tokenInDelta)) {
-                    revert TokenTransferFailed();
+            uint256 tokenInBalance = IERC20(tokenIn).balanceOf(address(this));
+            if (tokenInBalance > 0) {
+                if (!IERC20(tokenIn).transfer(msg.sender, tokenInBalance)) {
+                    revert TokenInSweepFailed();
                 }
             }
         }
         
-        // Sweep residual tokenOut (if router sent output to contract) - only the delta
+        // Sweep all residual tokenOut
         if (tokenOut != NATIVE_PLACEHOLDER) {
-            uint256 tokenOutBalanceAfter = IERC20(tokenOut).balanceOf(address(this));
-            if (tokenOutBalanceAfter > tokenOutBalanceBefore) {
-                uint256 tokenOutDelta = tokenOutBalanceAfter - tokenOutBalanceBefore;
-                if (!IERC20(tokenOut).transfer(msg.sender, tokenOutDelta)) {
-                    revert TokenTransferFailed();
+            uint256 tokenOutBalance = IERC20(tokenOut).balanceOf(address(this));
+            if (tokenOutBalance > 0) {
+                if (!IERC20(tokenOut).transfer(msg.sender, tokenOutBalance)) {
+                    revert TokenOutSweepFailed();
                 }
             }
         }

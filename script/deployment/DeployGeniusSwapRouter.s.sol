@@ -16,6 +16,7 @@ import { GeniusSwapRouter } from "../../src/GeniusSwapRouter.sol";
 contract DeployGeniusSwapRouter is Script {
     function run() public {
         address feeCollector = vm.envAddress("SWAPROUTER_FEE_COLLECTOR_ADDRESS");
+        address swapRouterAdmin = vm.envAddress("SWAPROUTER_ADMIN_ADDRESS");
         vm.startBroadcast();
         GeniusSwapRouter router = new GeniusSwapRouter(feeCollector);
         vm.stopBroadcast();

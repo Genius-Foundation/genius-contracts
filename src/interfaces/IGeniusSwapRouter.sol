@@ -13,11 +13,15 @@ interface IGeniusSwapRouter {
     error InvalidFeeCollectorAddress();
     error InvalidUserAddress();
     error InvalidRouterAddress();
+    error InvalidOwnerAddress();
     error FeeRateExceedsMaximum();
     error AmountMustBeGreaterThanZero();
     error ETHAmountMismatch();
     error ETHSentForTokenSwap();
     error TokenTransferFailed();
+    error TokenInSweepFailed();
+    error TokenOutSweepFailed();
+    error ETHSweepFailed();
     error NoTokensReceived();
     error FeeCollectorNotSet();
     error FeeTransferFailed();
@@ -25,7 +29,6 @@ interface IGeniusSwapRouter {
     error RouterCallFailed();
     error DirectETHTransfersNotAllowed();
     error FunctionDoesNotExist();
-    error ETHTransferFailed();
     
     // ========== EVENTS ==========
     
