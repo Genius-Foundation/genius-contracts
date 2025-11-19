@@ -5,6 +5,11 @@ import {Script, console} from "forge-std/Script.sol";
 import { GeniusSwapRouter } from "../../src/GeniusSwapRouter.sol";
 
 /**
+ Need:
+ 1. ethereum
+ 2. sonic
+ 3. hyper
+
  * @title DeployGeniusSwapRouter
  * @notice Script to deploy the GeniusSwapRouter contract
  *
@@ -18,7 +23,7 @@ contract DeployGeniusSwapRouter is Script {
         address feeCollector = vm.envAddress("SWAPROUTER_FEE_COLLECTOR_ADDRESS");
         address swapRouterAdmin = vm.envAddress("SWAPROUTER_ADMIN_ADDRESS");
         vm.startBroadcast();
-        GeniusSwapRouter router = new GeniusSwapRouter(feeCollector);
+        GeniusSwapRouter router = new GeniusSwapRouter(swapRouterAdmin, feeCollector);
         vm.stopBroadcast();
         console.log("GeniusSwapRouter deployed at:", address(router));
     }
